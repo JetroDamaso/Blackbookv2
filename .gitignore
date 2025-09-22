@@ -1,5 +1,24 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Node modules
+node_modules/
+
+# Build output
+.next/
+out/
+dist/
+
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE junk
+.vscode/
+.idea/
+
 # dependencies
 /.pnp
 .pnp.*
@@ -8,6 +27,11 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+
+# OS junk
+.DS_Store
+Thumbs.db
+
 
 # testing
 /coverage
@@ -40,4 +64,3 @@ yarn-error.log*
 next-env.d.ts
 
 /generated/prisma
-node_modules
