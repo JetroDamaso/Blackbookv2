@@ -5,6 +5,10 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 First, run the development server:
 
 ```bash
+# install dependencies
+npm install
+# setup prisma
+npx prisma migrate dev
 npm run dev
 # or
 yarn dev
@@ -12,10 +16,24 @@ yarn dev
 pnpm dev
 # or
 bun dev
-# setup prisma
-npx prisma migrate dev
 
 ```
+✅ What they get
+
+All your source code (app/, components/, server/, etc.)
+
+Prisma schema & migrations so they can recreate the DB.
+
+Public images (since you kept those in the repo).
+
+❌ What they don’t get
+
+node_modules/ (they install themselves).
+
+Your local dev.db (they generate their own via migrations).
+
+Any sensitive .env secrets (they set up their own).
+
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
