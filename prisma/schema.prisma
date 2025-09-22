@@ -1,0 +1,275 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+    provider = "prisma-client-js"
+    output   = "../generated/prisma"
+}
+
+datasource db {
+    provider = "sqlite"
+    url      = env("DATABASE_URL")
+}
+
+model Client {
+    id           Int    @id @default(autoincrement())
+    firstName    String
+    lastName     String
+    region       String
+    province     String
+    municipality String
+    barangay     String
+    phoneNumber  String
+    email        String @unique
+
+    payments Payment[]
+    bookings Booking[]
+}
+
+model Role {
+    id   Int    @id @default(autoincrement())
+    name String
+
+    employees Employee[]
+}
+
+model Employee {
+    id               Int      @id @default(autoincrement())
+    firstName        String
+    lastName         String
+    password         String
+    roleId           Int
+    dateOfEmployment DateTime
+    isActive         Boolean  @default(true)
+
+    historyLogs HistoryLog[]
+    role        Role         @relation(fields: [roleId], references: [id])
+}
+
+model Pavilion {
+    id          Int    @id @default(autoincrement())
+    name        String @unique
+    price       Float
+    maxPax      Int
+    description String
+
+    inventoryStatuses InventoryStatus[]
+    bookings          Booking[]
+}
+
+model InventoryCategory {
+    id   Int    @id @default(autoincrement())
+    name String @unique
+
+    items InventoryItem[]
+}
+
+model InventoryItem {
+    id         Int    @id @default(autoincrement())
+    name       String
+    categoryId Int
+    quantity   Int
+    out        Int    @default(0)
+
+    inventoryStatuses InventoryStatus[]
+    category          InventoryCategory @relation(fields: [categoryId], references: [id])
+}
+
+model Booking {
+    id            Int       @id @default(autoincrement())
+    eventName     String
+    clientId      Int?
+    pavilionId    Int?
+    eventType     Int?
+    calendarColor String?
+    startAt       DateTime?
+    endAt         DateTime?
+    foodTastingAt DateTime?
+    totalPax      Int
+    themeMotif    String?
+    status        Int
+    notes         String?
+
+    scannedDocuments  ScannedDocument[]
+    historyLogs       HistoryLog[]
+    additionalCharges AdditionalCharge[]
+    otherServices     OtherService[]
+    menus             Menu[]
+    billing           Billing[]
+    inventoryStatuses InventoryStatus[]
+
+    category EventTypes? @relation(fields: [eventType], references: [id])
+    client   Client?     @relation(fields: [clientId], references: [id])
+    pavilion Pavilion?   @relation(fields: [pavilionId], references: [id])
+    bookingStatus BookingStatus @relation(fields: [status], references: [id])
+
+}
+
+model EventTypes {
+    id   Int    @id @default(autoincrement())
+    name String @unique
+
+    bookings Booking[]
+}
+
+model Menu {
+    id        Int @id @default(autoincrement())
+    bookingId Int
+
+    dishes  Dish[]
+    booking Booking @relation(fields: [bookingId], references: [id])
+}
+
+model DishCategory {
+    id   Int    @id @default(autoincrement())
+    name String @unique
+
+    dishes Dish[]
+}
+
+model Dish {
+    id          Int     @id @default(autoincrement())
+    name        String
+    categoryId  Int
+    allergens   String?
+    description String?
+
+    menus    Menu[]
+    category DishCategory @relation(fields: [categoryId], references: [id])
+}
+
+model AdditionalCharge {
+    id          Int     @id @default(autoincrement())
+    bookingId   Int?
+    name        String
+    amount      Float
+    description String?
+    note        String?
+
+    booking Booking? @relation(fields: [bookingId], references: [id])
+}
+
+model OtherServiceCategory {
+    id      Int                  @id @default(autoincrement())
+    name    String
+    otherService OtherService[]
+}
+
+model OtherService {
+    id          Int     @id @default(autoincrement())
+    name        String
+    categoryId  Int
+    amount      Float?
+    description String?
+
+    booking Booking[]
+    category      OtherServiceCategory @relation(fields: [categoryId], references: [id])
+}
+
+
+model InventoryStatus {
+    id          Int  @id @default(autoincrement())
+    inventoryId Int?
+    pavilionId  Int?
+    bookingId   Int?
+    quantity    Int?
+
+    inventory InventoryItem? @relation(fields: [inventoryId], references: [id])
+    pavilion  Pavilion?      @relation(fields: [pavilionId], references: [id])
+    booking   Booking?       @relation(fields: [bookingId], references: [id])
+}
+
+model Billing {
+    id              Int       @id @default(autoincrement())
+    bookingId       Int       @unique
+    totalPackage    Float
+    modeOfPaymentId Int?
+    balance         Float
+    yve             Float     @default(0)
+    deposit         Float     @default(0)
+    status          Int
+    dateCompleted   DateTime?
+
+    payments      Payment[]
+    booking       Booking        @relation(fields: [bookingId], references: [id])
+    modeOfPayment ModeOfPayment? @relation(fields: [modeOfPaymentId], references: [id])
+    billingStatus BillingStatus  @relation(fields: [status], references: [id])
+}
+
+model HistoryLog {
+    id         Int      @id @default(autoincrement())
+    bookingId  Int
+    employeeId Int
+    createdAt  DateTime @default(now())
+
+    booking  Booking  @relation(fields: [bookingId], references: [id])
+    employee Employee @relation(fields: [employeeId], references: [id])
+}
+
+model ModeOfPayment {
+    id   Int    @id @default(autoincrement())
+    name String @unique
+
+    billings Billing[]
+}
+
+model Payment {
+    id        Int      @id @default(autoincrement())
+    billingId Int
+    clientId  Int
+    name      String
+    amount    Float
+    date      DateTime @default(now())
+    status    Int
+
+    billing       Billing       @relation(fields: [billingId], references: [id])
+    client        Client        @relation(fields: [clientId], references: [id])
+    paymentStatus PaymentStatus @relation(fields: [status], references: [id])
+}
+
+model ScannedDocumentCategory {
+    id   Int    @id @default(autoincrement())
+    name String @unique
+
+    scannedDocuments ScannedDocument[]
+}
+
+model ScannedDocument {
+    id         Int      @id @default(autoincrement())
+    bookingId  Int
+    name       String
+    categoryId Int
+    date       DateTime @default(now())
+    file       String
+
+    booking  Booking                 @relation(fields: [bookingId], references: [id])
+    category ScannedDocumentCategory @relation(fields: [categoryId], references: [id])
+}
+
+model Discount {
+    id      Int    @id @default(autoincrement())
+    name    String @unique
+    percent Float
+}
+
+model BookingStatus {
+    id      Int       @id @default(autoincrement())
+    name    String    @unique
+    Booking Booking[]
+}
+
+model BillingStatus {
+    id      Int       @id @default(autoincrement())
+    name    String    @unique
+    Billing Billing[]
+}
+
+model PaymentStatus {
+    id      Int       @id @default(autoincrement())
+    name    String    @unique
+    Payment Payment[]
+}
+
+// End of schema
+
+// (removed duplicate legacy models)
