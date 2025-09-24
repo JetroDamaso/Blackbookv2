@@ -896,7 +896,10 @@ const AddBookingsPageClient = (props: {
                     Spacious parking lot
                   </li>
                 </ul>
-              </div> */}
+              </div>
+
+              test test*/}
+
               </div>
             </div>
           )}
