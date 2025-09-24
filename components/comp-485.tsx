@@ -1,6 +1,6 @@
-"use client";
+"use client"
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -16,7 +16,7 @@ import {
   SortingState,
   useReactTable,
   VisibilityState,
-} from "@tanstack/react-table";
+} from "@tanstack/react-table"
 import {
   ChevronDownIcon,
   ChevronFirstIcon,
@@ -32,9 +32,9 @@ import {
   ListFilterIcon,
   PlusIcon,
   TrashIcon,
-} from "lucide-react";
+} from "lucide-react"
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,10 +45,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+} from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -63,26 +63,26 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Pagination,
   PaginationContent,
   PaginationItem,
-} from "@/components/ui/pagination";
+} from "@/components/ui/pagination"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -90,35 +90,35 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/table"
 
 type Item = {
-  id: string;
-  name: string;
-  email: string;
-  location: string;
-  flag: string;
-  status: string;
-  balance: number;
-};
+  id: string
+  name: string
+  email: string
+  location: string
+  flag: string
+  status: "Active" | "Inactive" | "Pending"
+  balance: number
+}
 
 // Custom filter function for multi-column searching
 const multiColumnFilterFn: FilterFn<Item> = (row, columnId, filterValue) => {
   const searchableRowContent =
-    `${row.original.name} ${row.original.email}`.toLowerCase();
-  const searchTerm = (filterValue ?? "").toLowerCase();
-  return searchableRowContent.includes(searchTerm);
-};
+    `${row.original.name} ${row.original.email}`.toLowerCase()
+  const searchTerm = (filterValue ?? "").toLowerCase()
+  return searchableRowContent.includes(searchTerm)
+}
 
 const statusFilterFn: FilterFn<Item> = (
   row,
   columnId,
   filterValue: string[]
 ) => {
-  if (!filterValue?.length) return true;
-  const status = row.getValue(columnId) as string;
-  return filterValue.includes(status);
-};
+  if (!filterValue?.length) return true
+  const status = row.getValue(columnId) as string
+  return filterValue.includes(status)
+}
 
 const columns: ColumnDef<Item>[] = [
   {
@@ -160,7 +160,7 @@ const columns: ColumnDef<Item>[] = [
     size: 220,
   },
   {
-    header: "Pavilion",
+    header: "Location",
     accessorKey: "location",
     cell: ({ row }) => (
       <div>
@@ -187,15 +187,19 @@ const columns: ColumnDef<Item>[] = [
     filterFn: statusFilterFn,
   },
   {
+    header: "Performance",
+    accessorKey: "performance",
+  },
+  {
     header: "Balance",
     accessorKey: "balance",
     cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("balance"));
+      const amount = parseFloat(row.getValue("balance"))
       const formatted = new Intl.NumberFormat("en-US", {
         style: "currency",
-        currency: "PHP",
-      }).format(amount);
-      return formatted;
+        currency: "USD",
+      }).format(amount)
+      return formatted
     },
     size: 120,
   },
@@ -206,57 +210,45 @@ const columns: ColumnDef<Item>[] = [
     size: 60,
     enableHiding: false,
   },
-];
+]
 
-type BookingWithRelations = Awaited<
-  ReturnType<typeof import("@/server/Booking/pullActions").getAllBookings>
->[number];
-
-export default function BookingsPageClient({
-  bookings,
-}: {
-  bookings: BookingWithRelations[];
-}) {
-  const id = useId();
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+export default function Component() {
+  const id = useId()
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
-  });
-  const inputRef = useRef<HTMLInputElement>(null);
+  })
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const [sorting, setSorting] = useState<SortingState>([
     {
       id: "name",
       desc: false,
     },
-  ]);
+  ])
 
-  const [data, setData] = useState<Item[]>([]);
+  const [data, setData] = useState<Item[]>([])
   useEffect(() => {
-    const mapped: Item[] = (bookings ?? []).map((b) => ({
-      id: String(b.id),
-      name: b.client
-        ? `${b.client.firstName} ${b.client.lastName}`
-        : b.eventName,
-      email: b.client?.email ?? "",
-      location: b.pavilion?.name ?? "",
-      flag: "", // no flag in schema; keep blank
-      status: (b.bookingStatus?.name as any) || "Pending",
-      balance: b.billing?.[0]?.balance ?? 0,
-    }));
-    setData(mapped);
-  }, [bookings]);
+    async function fetchPosts() {
+      const res = await fetch(
+        "https://raw.githubusercontent.com/origin-space/origin-images/refs/heads/main/users-01_fertyx.json"
+      )
+      const data = await res.json()
+      setData(data)
+    }
+    fetchPosts()
+  }, [])
 
   const handleDeleteRows = () => {
-    const selectedRows = table.getSelectedRowModel().rows;
+    const selectedRows = table.getSelectedRowModel().rows
     const updatedData = data.filter(
       (item) => !selectedRows.some((row) => row.original.id === item.id)
-    );
-    setData(updatedData);
-    table.resetRowSelection();
-  };
+    )
+    setData(updatedData)
+    table.resetRowSelection()
+  }
 
   const table = useReactTable({
     data,
@@ -277,45 +269,48 @@ export default function BookingsPageClient({
       columnFilters,
       columnVisibility,
     },
-  });
+  })
 
   // Get unique status values
   const uniqueStatusValues = useMemo(() => {
-    const statusColumn = table.getColumn("status");
-    if (!statusColumn) return [];
-    const values = Array.from(statusColumn.getFacetedUniqueValues().keys());
-    return values.sort();
-  }, [table]);
+    const statusColumn = table.getColumn("status")
+
+    if (!statusColumn) return []
+
+    const values = Array.from(statusColumn.getFacetedUniqueValues().keys())
+
+    return values.sort()
+  }, [table.getColumn("status")?.getFacetedUniqueValues()])
 
   // Get counts for each status
   const statusCounts = useMemo(() => {
-    const statusColumn = table.getColumn("status");
-    if (!statusColumn) return new Map();
-    return statusColumn.getFacetedUniqueValues();
-  }, [table]);
+    const statusColumn = table.getColumn("status")
+    if (!statusColumn) return new Map()
+    return statusColumn.getFacetedUniqueValues()
+  }, [table.getColumn("status")?.getFacetedUniqueValues()])
 
   const selectedStatuses = useMemo(() => {
-    const filterValue = table.getColumn("status")?.getFilterValue() as string[];
-    return filterValue ?? [];
-  }, [table]);
+    const filterValue = table.getColumn("status")?.getFilterValue() as string[]
+    return filterValue ?? []
+  }, [table.getColumn("status")?.getFilterValue()])
 
   const handleStatusChange = (checked: boolean, value: string) => {
-    const filterValue = table.getColumn("status")?.getFilterValue() as string[];
-    const newFilterValue = filterValue ? [...filterValue] : [];
+    const filterValue = table.getColumn("status")?.getFilterValue() as string[]
+    const newFilterValue = filterValue ? [...filterValue] : []
 
     if (checked) {
-      newFilterValue.push(value);
+      newFilterValue.push(value)
     } else {
-      const index = newFilterValue.indexOf(value);
+      const index = newFilterValue.indexOf(value)
       if (index > -1) {
-        newFilterValue.splice(index, 1);
+        newFilterValue.splice(index, 1)
       }
     }
 
     table
       .getColumn("status")
-      ?.setFilterValue(newFilterValue.length ? newFilterValue : undefined);
-  };
+      ?.setFilterValue(newFilterValue.length ? newFilterValue : undefined)
+  }
 
   return (
     <div className="space-y-4">
@@ -349,9 +344,9 @@ export default function BookingsPageClient({
                 className="text-muted-foreground/80 hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md transition-[color,box-shadow] outline-none focus:z-10 focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Clear filter"
                 onClick={() => {
-                  table.getColumn("name")?.setFilterValue("");
+                  table.getColumn("name")?.setFilterValue("")
                   if (inputRef.current) {
-                    inputRef.current.focus();
+                    inputRef.current.focus()
                   }
                 }}
               >
@@ -436,7 +431,7 @@ export default function BookingsPageClient({
                     >
                       {column.id}
                     </DropdownMenuCheckboxItem>
-                  );
+                  )
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -527,8 +522,8 @@ export default function BookingsPageClient({
                               header.column.getCanSort() &&
                               (e.key === "Enter" || e.key === " ")
                             ) {
-                              e.preventDefault();
-                              header.column.getToggleSortingHandler()?.(e);
+                              e.preventDefault()
+                              header.column.getToggleSortingHandler()?.(e)
                             }
                           }}
                           tabIndex={header.column.getCanSort() ? 0 : undefined}
@@ -561,7 +556,7 @@ export default function BookingsPageClient({
                         )
                       )}
                     </TableHead>
-                  );
+                  )
                 })}
               </TableRow>
             ))}
@@ -607,7 +602,7 @@ export default function BookingsPageClient({
           <Select
             value={table.getState().pagination.pageSize.toString()}
             onValueChange={(value) => {
-              table.setPageSize(Number(value));
+              table.setPageSize(Number(value))
             }}
           >
             <SelectTrigger id={id} className="w-fit whitespace-nowrap">
@@ -710,12 +705,22 @@ export default function BookingsPageClient({
           </Pagination>
         </div>
       </div>
+      <p className="text-muted-foreground mt-4 text-center text-sm">
+        Example of a more complex table made with{" "}
+        <a
+          className="hover:text-foreground underline"
+          href="https://tanstack.com/table"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          TanStack Table
+        </a>
+      </p>
     </div>
-  );
+  )
 }
 
 function RowActions({ row }: { row: Row<Item> }) {
-  const item = row.original;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -732,11 +737,11 @@ function RowActions({ row }: { row: Row<Item> }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => console.log("Edit", item.id)}>
+          <DropdownMenuItem>
             <span>Edit</span>
             <DropdownMenuShortcut>⌘E</DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => console.log("Duplicate", item.id)}>
+          <DropdownMenuItem>
             <span>Duplicate</span>
             <DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
           </DropdownMenuItem>
@@ -771,5 +776,5 @@ function RowActions({ row }: { row: Row<Item> }) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
+  )
 }

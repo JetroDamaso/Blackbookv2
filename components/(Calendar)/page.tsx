@@ -1,29 +1,33 @@
 "use client";
 import React from "react";
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
+import { ContinuousCalendar } from "../ContinuousCalendar";
+import type { Booking } from "@/generated/prisma";
+import BookingDialogComponent from "./BookingDialog";
 
-const CalendarClient = () => {
+const CalendarClient = (props: { getAllBookings: Booking[] }) => {
+  const { getAllBookings } = props;
+  const [bookingId, setBookingId] = React.useState<number | null>(null);
+  const [dialogOpen, setDialogOpen] = React.useState(false);
   return (
     <div className="w-full h-full">
-        <div className="w-full h-full">
-          <FullCalendar
-            plugins={[dayGridPlugin]}
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "dayGridMonth,dayGridWeek,dayGridDay",
-            }}
-            height="100%"
-            initialView="dayGridMonth"
-            nowIndicator={true}
-            editable={true}
-            droppable={true}
-            selectable={true}
-            selectMirror={true}
-          />
-        </div>
-   
+      <ContinuousCalendar
+        onClick={(day, month, year, bookingId) => {
+          console.log(day, month, year, bookingId);
+          if (bookingId != null) {
+            setBookingId(bookingId);
+            setDialogOpen(true);
+          }
+        }}
+        getAllBookings={getAllBookings}
+      />
+
+      {bookingId != null && (
+        <BookingDialogComponent
+          bookingId={bookingId}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+        />
+      )}
     </div>
   );
 };

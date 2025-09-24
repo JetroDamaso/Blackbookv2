@@ -1,8 +1,7 @@
-import React from "react";
-import BookingsPageClient from "../../../components/(Bookings)/page";
+import BookingsPageClient from "@/components/(Bookings)/page";
+import { getAllBookings } from "@/server/Booking/pullActions";
 
-const BookingsPage = () => {
-  return <div className="">All Bookings</div>;
-};
-
-export default BookingsPage;
+export default async function BookingsPage() {
+  const bookings = await getAllBookings();
+  return <BookingsPageClient bookings={bookings} />;
+}

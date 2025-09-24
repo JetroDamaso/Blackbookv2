@@ -16,10 +16,23 @@ import { Label } from "@/components/ui/label";
 
 export function StartDatePickerForm({
   startDateOnChange,
+  initialDate,
+  disabledDates,
 }: {
   startDateOnChange?: (value: Date | null) => void;
+  initialDate?: Date | string | null;
+  disabledDates?: Set<string>;
 }) {
-  const [startDate, setStartDate] = React.useState<Date | undefined>(undefined);
+  const [startDate, setStartDate] = React.useState<Date | undefined>(() => {
+    if (!initialDate) return undefined;
+    try {
+      const d =
+        typeof initialDate === "string" ? new Date(initialDate) : initialDate;
+      return isNaN(d.getTime()) ? undefined : d;
+    } catch {
+      return undefined;
+    }
+  });
 
   const handleSelect = (date?: Date) => {
     setStartDate(date);
@@ -28,9 +41,11 @@ export function StartDatePickerForm({
 
   return (
     <div className="w-full">
-      <Label className="text-foreground text-sm font-normal mb-1">
-        Start date
-      </Label>
+      <div className="mb-2">
+        <Label className="text-foreground text-sm font-normal mb-2">
+          Start date
+        </Label>
+      </div>
       <Popover>
         <PopoverTrigger asChild>
           <Button
@@ -49,8 +64,16 @@ export function StartDatePickerForm({
             mode="single"
             selected={startDate}
             onSelect={handleSelect}
-            disabled={(date) => date < new Date(Date.now())}
+            disabled={(date) => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              if (date < today) return true;
+              const key = date.toISOString().slice(0, 10);
+              return disabledDates?.has(key) ?? false;
+            }}
             captionLayout="dropdown"
+            fromYear={new Date().getFullYear()}
+            toYear={new Date().getFullYear() + 15}
           />
         </PopoverContent>
       </Popover>

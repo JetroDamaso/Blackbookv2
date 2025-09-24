@@ -47,14 +47,16 @@ model Employee {
 }
 
 model Pavilion {
-    id          Int    @id @default(autoincrement())
-    name        String @unique
+    id          Int     @id @default(autoincrement())
+    name        String  @unique
     price       Float
     maxPax      Int
+    color       String?
     description String
 
     inventoryStatuses InventoryStatus[]
     bookings          Booking[]
+    Package           Package[]
 }
 
 model InventoryCategory {
@@ -80,8 +82,10 @@ model Booking {
     eventName     String
     clientId      Int?
     pavilionId    Int?
+    packageId     Int?
     eventType     Int?
     calendarColor String?
+    catering      Int?
     startAt       DateTime?
     endAt         DateTime?
     foodTastingAt DateTime?
@@ -98,11 +102,26 @@ model Booking {
     billing           Billing[]
     inventoryStatuses InventoryStatus[]
 
-    category EventTypes? @relation(fields: [eventType], references: [id])
-    client   Client?     @relation(fields: [clientId], references: [id])
-    pavilion Pavilion?   @relation(fields: [pavilionId], references: [id])
+    package       Package?      @relation(fields: [packageId], references: [id])
+    category      EventTypes?   @relation(fields: [eventType], references: [id])
+    client        Client?       @relation(fields: [clientId], references: [id])
+    pavilion      Pavilion?     @relation(fields: [pavilionId], references: [id])
     bookingStatus BookingStatus @relation(fields: [status], references: [id])
+    rooms         Rooms[]
+}
 
+model Package {
+    id          Int     @id @default(autoincrement())
+    name        String
+    pavilionId  Int
+    price       Float
+    description String
+    includePool Boolean @default(false)
+
+    services OtherService[]
+    pavilion Pavilion       @relation(fields: [pavilionId], references: [id])
+    // Add relations if needed
+    Booking  Booking[]
 }
 
 model EventTypes {
@@ -113,11 +132,10 @@ model EventTypes {
 }
 
 model Menu {
-    id        Int @id @default(autoincrement())
-    bookingId Int
-
-    dishes  Dish[]
-    booking Booking @relation(fields: [bookingId], references: [id])
+    id         Int        @id @default(autoincrement())
+    bookingId  Int
+    booking    Booking    @relation(fields: [bookingId], references: [id])
+    menuDishes MenuDish[]
 }
 
 model DishCategory {
@@ -128,14 +146,25 @@ model DishCategory {
 }
 
 model Dish {
-    id          Int     @id @default(autoincrement())
+    id          Int          @id @default(autoincrement())
     name        String
     categoryId  Int
     allergens   String?
     description String?
+    category    DishCategory @relation(fields: [categoryId], references: [id])
+    menuDishes  MenuDish[]
+}
 
-    menus    Menu[]
-    category DishCategory @relation(fields: [categoryId], references: [id])
+model MenuDish {
+    id       Int @id @default(autoincrement())
+    menuId   Int
+    dishId   Int
+    quantity Int @default(1)
+
+    menu Menu @relation(fields: [menuId], references: [id])
+    dish Dish @relation(fields: [dishId], references: [id])
+
+    @@unique([menuId, dishId])
 }
 
 model AdditionalCharge {
@@ -150,8 +179,8 @@ model AdditionalCharge {
 }
 
 model OtherServiceCategory {
-    id      Int                  @id @default(autoincrement())
-    name    String
+    id           Int            @id @default(autoincrement())
+    name         String
     otherService OtherService[]
 }
 
@@ -162,10 +191,26 @@ model OtherService {
     amount      Float?
     description String?
 
-    booking Booking[]
-    category      OtherServiceCategory @relation(fields: [categoryId], references: [id])
+    booking   Booking[]
+    category  OtherServiceCategory @relation(fields: [categoryId], references: [id])
+    packageId Int?
+    Package   Package[]
 }
 
+model Services {
+    id          Int     @id @default(autoincrement())
+    name        String
+    category    Int
+    amount      Float?
+    description String?
+}
+
+model Rooms {
+    id       Int       @id @default(autoincrement())
+    name     String    @unique
+    capacity Int
+    Booking  Booking[]
+}
 
 model InventoryStatus {
     id          Int  @id @default(autoincrement())
@@ -180,20 +225,22 @@ model InventoryStatus {
 }
 
 model Billing {
-    id              Int       @id @default(autoincrement())
-    bookingId       Int       @unique
-    totalPackage    Float
-    modeOfPaymentId Int?
-    balance         Float
-    yve             Float     @default(0)
-    deposit         Float     @default(0)
-    status          Int
-    dateCompleted   DateTime?
+    id                 Int       @id @default(autoincrement())
+    bookingId          Int       @unique
+    originalPrice      Float
+    discountedPrice    Float
+    discountType       String
+    discountPercentage Float
+    balance            Float
+    modeOfPayment      String
+    yve                Float     @default(0)
+    deposit            Float     @default(0)
+    status             Int
+    dateCompleted      DateTime?
 
     payments      Payment[]
-    booking       Booking        @relation(fields: [bookingId], references: [id])
-    modeOfPayment ModeOfPayment? @relation(fields: [modeOfPaymentId], references: [id])
-    billingStatus BillingStatus  @relation(fields: [status], references: [id])
+    booking       Booking       @relation(fields: [bookingId], references: [id])
+    billingStatus BillingStatus @relation(fields: [status], references: [id])
 }
 
 model HistoryLog {
@@ -209,15 +256,13 @@ model HistoryLog {
 model ModeOfPayment {
     id   Int    @id @default(autoincrement())
     name String @unique
-
-    billings Billing[]
 }
 
 model Payment {
     id        Int      @id @default(autoincrement())
     billingId Int
     clientId  Int
-    name      String
+    name      String?
     amount    Float
     date      DateTime @default(now())
     status    Int
@@ -269,7 +314,3 @@ model PaymentStatus {
     name    String    @unique
     Payment Payment[]
 }
-
-// End of schema
-
-// (removed duplicate legacy models)

@@ -10,7 +10,9 @@ export async function createBooking(
   notes: string,
   bookingStart: Date,
   bookingEnd: Date,
-  serviceIds?: number[]
+  serviceIds?: number[],
+  packageId?: number,
+  catering?: number
   //status: number
 ) {
   try {
@@ -27,6 +29,8 @@ export async function createBooking(
         themeMotif: null,
         status: 1,
         notes: notes,
+        packageId: packageId,
+        catering: catering,
         otherServices:
           serviceIds && serviceIds.length
             ? {

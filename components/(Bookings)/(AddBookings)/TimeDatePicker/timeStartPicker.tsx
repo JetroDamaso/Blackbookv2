@@ -5,13 +5,35 @@ import { Label } from "react-aria-components";
 
 import { DateInput, TimeField } from "@/components/ui/datefield-rac";
 
+import { Time } from "@internationalized/date";
+
 export default function TimeStartPickerCreateBookingComponent({
   startTimeOnChange,
+  initialDateTime,
 }: {
   startTimeOnChange?: (
     value: { hour: number; minute: number; second?: number } | null
   ) => void;
+  initialDateTime?: Date | string | null;
 }) {
+  let defaultTimeValue: Time | undefined = undefined;
+  if (initialDateTime) {
+    try {
+      const d =
+        typeof initialDateTime === "string"
+          ? new Date(initialDateTime)
+          : initialDateTime;
+      if (!isNaN(d.getTime())) {
+        defaultTimeValue = new Time(
+          d.getHours(),
+          d.getMinutes(),
+          d.getSeconds()
+        );
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
   const handleTimeChange = (value: unknown) => {
     let obj: { hour: number; minute: number; second?: number } | null = null;
 
@@ -44,7 +66,11 @@ export default function TimeStartPickerCreateBookingComponent({
     if (obj) console.log("Time in:", obj);
   };
   return (
-    <TimeField className="*:not-first:mt-2" onChange={handleTimeChange}>
+    <TimeField
+      className="*:not-first:mt-2"
+      onChange={handleTimeChange}
+      defaultValue={defaultTimeValue}
+    >
       <Label className="text-foreground text-sm font-normal">Time in</Label>
       <div className="relative">
         <div className="text-muted-foreground/80 pointer-events-none absolute inset-y-0 start-0 z-10 flex items-center justify-center ps-3">

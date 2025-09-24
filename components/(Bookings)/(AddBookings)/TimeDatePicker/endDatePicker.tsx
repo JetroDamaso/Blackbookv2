@@ -16,10 +16,25 @@ import { Label } from "@/components/ui/label";
 
 export function EndDatePickerForm({
   endDateOnChange,
+  initialDate,
+  disabledDates,
+  minDate,
 }: {
   endDateOnChange?: (value: Date | null) => void;
+  initialDate?: Date | string | null;
+  disabledDates?: Set<string>;
+  minDate?: Date | null;
 }) {
-  const [endDate, setEndDate] = React.useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = React.useState<Date | undefined>(() => {
+    if (!initialDate) return undefined;
+    try {
+      const d =
+        typeof initialDate === "string" ? new Date(initialDate) : initialDate;
+      return isNaN(d.getTime()) ? undefined : d;
+    } catch {
+      return undefined;
+    }
+  });
 
   const handleSelect = (date?: Date) => {
     setEndDate(date);
@@ -27,9 +42,11 @@ export function EndDatePickerForm({
   };
   return (
     <div className="w-full">
-      <Label className="text-foreground text-sm font-normal mb-1">
-        End date
-      </Label>
+      <div className="mb-2">
+        <Label className="text-foreground text-sm font-normal mb-2">
+          End date
+        </Label>
+      </div>
       <Popover>
         <PopoverTrigger asChild>
           <Button
@@ -48,8 +65,20 @@ export function EndDatePickerForm({
             mode="single"
             selected={endDate}
             onSelect={handleSelect}
-            disabled={(date) => date < new Date(Date.now())}
+            disabled={(date) => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              if (date < today) return true;
+              if (minDate) {
+                const min = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
+                if (date < min) return true;
+              }
+              const key = date.toISOString().slice(0, 10);
+              return disabledDates?.has(key) ?? false;
+            }}
             captionLayout="dropdown"
+            fromYear={new Date().getFullYear()}
+            toYear={new Date().getFullYear() + 15}
           />
         </PopoverContent>
       </Popover>

@@ -1,3 +1,4 @@
+"use server";
 import { prisma } from "../db";
 
 export async function getAllServices() {
@@ -39,6 +40,22 @@ export async function getIdByServices(services: number) {
     const data = await prisma.otherService.findMany({
       where: {
         id: services,
+      },
+    });
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch services", error);
+    throw error;
+  }
+}
+
+export async function getServicesByBooking(bookingId: number) {
+  try {
+    const data = await prisma.otherService.findMany({
+      where: {
+        booking: {
+          some: { id: bookingId },
+        },
       },
     });
     return data;

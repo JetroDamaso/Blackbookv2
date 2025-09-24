@@ -31,15 +31,15 @@ const SearchService = ({
   // selection handled inline via onSelect of CommandItem
 
   return (
-    <div className="relative">
-      <Command className="border-1 shadow-none [&_[data-slot=command-input-wrapper]]:border-b-0 [&_[data-slot=command-input-wrapper]_svg]:hidden [&_[data-slot=command-input-wrapper]]:gap-0">
+    <div className="relative ">
+      <Command className="rounded-md border shadow-2xs [--ring:var(--color-red-500)] in-[.dark]:[--ring:var(--color-red-500)] focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px] transition-[border-color,box-shadow] duration-200 ease-out [&_[data-slot=command-input-wrapper]]:border-b-0 [&_[data-slot=command-input-wrapper]_svg]:hidden [&_[data-slot=command-input-wrapper]]:gap-0">
         <CommandInput
+          className="[--ring:var(--color-red-500)] in-[.dark]:[--ring:var(--color-red-500)]"
           value={typedText}
           onValueChange={(v) => {
             setTypedText(v);
             onTypeChange?.(v);
           }}
-          placeholder="Type a service."
           onFocus={() => setOpen(true)}
           onBlur={() => setOpen(false)}
         />
