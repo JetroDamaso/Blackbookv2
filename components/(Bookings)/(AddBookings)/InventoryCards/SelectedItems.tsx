@@ -64,7 +64,7 @@ export default function InventorySelectedItems({
             >
               <div className="flex gap-2 md:items-center">
                 <div className="flex grow gap-3 md:items-center">
-                  <InventoryIcon categoryId={item.categoryId} />
+                  <InventoryIcon categoryId={item.categoryId ?? 0} />
                   <div className="flex grow flex-col justify-between gap-3 md:flex-row md:items-center">
                     <p className="text-sm font-medium">{item.name}</p>
                     <div className="flex gap-2 max-md:flex-wrap">

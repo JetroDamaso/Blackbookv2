@@ -27,7 +27,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronFirstIcon, ChevronLastIcon, CirclePlus, SearchIcon, Trash } from "lucide-react";
+import {
+  ChevronFirstIcon,
+  ChevronLastIcon,
+  CirclePlus,
+  SearchIcon,
+  Trash,
+} from "lucide-react";
 import React from "react";
 import {
   InputGroup,
@@ -147,7 +153,7 @@ export function DataTable<TData, TValue>({
                   onClick={() => {
                     if (onRowClick) {
                       // Get the inventory ID from the row data
-                      const inventoryItem = row.original as any;
+                      const inventoryItem = row.original as { id: number };
                       onRowClick(inventoryItem.id);
                     }
                   }}

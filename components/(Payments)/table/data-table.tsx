@@ -177,7 +177,7 @@ export function DataTable<TData, TValue>({
                   onClick={() => {
                     if (onRowClick) {
                       // Get the client ID from the row data
-                      const client = row.original as any;
+                      const client = row.original as { id: number };
                       onRowClick(client.id);
                     }
                   }}

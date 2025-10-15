@@ -71,7 +71,7 @@ function ItemDialog({
             <div
               className={`border relative flex h-full w-full items-start gap-2 rounded-md p-4 shadow-xs outline-none hover:bg-black/3`}
             >
-              <InventoryIcon categoryId={item.categoryId} />
+              <InventoryIcon categoryId={item.categoryId ?? 0} />
               <div className="grid grow gap-2">
                 <Label className="flex items-center gap-1">{item.name}</Label>
                 {/* No description field on InventoryItem */}

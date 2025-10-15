@@ -105,10 +105,18 @@ export const columns: ColumnDef<BookingWithRelations>[] = [
       );
     },
     cell: ({ row }) => {
-      const status = row.original.bookingStatus?.name || "Unknown";
+      const status = row.original.status || 0;
+      const statusText =
+        status === 1
+          ? "Active"
+          : status === 2
+            ? "Completed"
+            : status === 3
+              ? "Cancelled"
+              : "Pending";
       return (
-        <Badge variant={status === "Active" ? "default" : "secondary"}>
-          {status}
+        <Badge variant={status === 1 ? "default" : "secondary"}>
+          {statusText}
         </Badge>
       );
     },
@@ -168,7 +176,7 @@ export const columns: ColumnDef<BookingWithRelations>[] = [
   },
   {
     id: "balance",
-    accessorFn: (row) => row.billing?.[0]?.balance ?? 0,
+    accessorFn: (row) => row.billing?.balance ?? 0,
     header: ({ column }) => {
       return (
         <Button
@@ -181,7 +189,7 @@ export const columns: ColumnDef<BookingWithRelations>[] = [
       );
     },
     cell: ({ row }) => {
-      const balance = row.original.billing?.[0]?.balance ?? 0;
+      const balance = row.original.billing?.balance ?? 0;
       const formatted = new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "PHP",

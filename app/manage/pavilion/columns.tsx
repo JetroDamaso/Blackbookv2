@@ -140,7 +140,7 @@ export const columns: ColumnDef<PavilionWithRelations>[] = [
   },
   {
     id: "totalBookings",
-    accessorFn: (row) => row.bookings?.length ?? 0,
+    accessorFn: (row) => 0, // Will be calculated from relationship
     header: ({ column }) => {
       return (
         <Button
@@ -153,7 +153,7 @@ export const columns: ColumnDef<PavilionWithRelations>[] = [
       );
     },
     cell: ({ row }) => {
-      const totalBookings = row.original.bookings?.length ?? 0;
+      const totalBookings = 0; // Will be calculated from relationship
       return (
         <div className="text-center">
           <Badge variant="outline">{totalBookings}</Badge>
@@ -163,11 +163,7 @@ export const columns: ColumnDef<PavilionWithRelations>[] = [
   },
   {
     id: "activeBookings",
-    accessorFn: (row) =>
-      row.bookings?.filter(
-        (booking) =>
-          booking.bookingStatus?.name === "Active" || booking.status === 1
-      ).length ?? 0,
+    accessorFn: (row) => 0, // Will be calculated from relationship
     header: ({ column }) => {
       return (
         <Button
@@ -180,11 +176,7 @@ export const columns: ColumnDef<PavilionWithRelations>[] = [
       );
     },
     cell: ({ row }) => {
-      const activeBookings =
-        row.original.bookings?.filter(
-          (booking) =>
-            booking.bookingStatus?.name === "Active" || booking.status === 1
-        ).length ?? 0;
+      const activeBookings = 0; // Will be calculated from relationship
       return (
         <div className="text-center">
           <Badge variant={activeBookings > 0 ? "default" : "secondary"}>

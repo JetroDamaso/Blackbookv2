@@ -1,11 +1,9 @@
-import { Bell, Calendar, SparklesIcon, UploadIcon } from "lucide-react";
+import { Bell, Calendar } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import AppToggle from "../app-toggle";
 import Image from "next/image";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-
-const teams = ["Acme Inc.", "Origin UI", "Junon"];
 
 export default function Header() {
   return (

@@ -33,9 +33,9 @@ export async function getDishesByMenuId(menuId: number) {
       include: { dish: { include: { category: true } } },
     });
     return rows.map((r) => ({
-      id: r.dish.id,
-      name: r.dish.name,
-      categoryName: r.dish.category?.name,
+      id: r.dish?.id ?? 0,
+      name: r.dish?.name ?? "",
+      categoryName: r.dish?.category?.name,
       quantity: r.quantity,
     }));
   } catch (error) {

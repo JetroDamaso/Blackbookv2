@@ -74,7 +74,7 @@ export const columns: ColumnDef<RoleWithRelations>[] = [
     accessorKey: "employees",
     header: "Employees",
     cell: ({ row }) => {
-      const employees = row.getValue("employees") as any[];
+      const employees = row.getValue("employees") as Array<{ id: number }>;
       return (
         <div className="flex items-center gap-2">
           <Badge variant="outline">{employees?.length || 0} employee(s)</Badge>

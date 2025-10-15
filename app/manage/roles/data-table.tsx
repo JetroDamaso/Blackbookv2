@@ -259,7 +259,7 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                   onClick={() => {
                     if (onRowClick) {
-                      const rowData = row.original as any;
+                      const rowData = row.original as { id: number };
                       onRowClick(rowData.id);
                     }
                   }}

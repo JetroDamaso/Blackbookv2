@@ -243,8 +243,9 @@ export default function BookingsPageClient({
       email: b.client?.email ?? "",
       location: b.pavilion?.name ?? "",
       flag: "", // no flag in schema; keep blank
-      status: (b.bookingStatus?.name as any) || "Pending",
-      balance: b.billing?.[0]?.balance ?? 0,
+      status:
+        b.status === 1 ? "Active" : b.status === 2 ? "Completed" : "Pending",
+      balance: b.billing?.balance ?? 0,
     }));
     setData(mapped);
   }, [bookings]);

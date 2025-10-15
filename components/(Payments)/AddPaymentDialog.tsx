@@ -88,7 +88,7 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
       queryClient.invalidateQueries({ queryKey: ["billing"] });
       handleClose();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("Failed to add payment: " + error.message);
     },
   });

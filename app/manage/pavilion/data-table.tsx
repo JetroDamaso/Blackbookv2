@@ -27,7 +27,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronFirstIcon, ChevronLastIcon, CirclePlus, SearchIcon, Trash } from "lucide-react";
+import {
+  ChevronFirstIcon,
+  ChevronLastIcon,
+  CirclePlus,
+  SearchIcon,
+  Trash,
+} from "lucide-react";
 import React from "react";
 import {
   InputGroup,
@@ -109,7 +115,7 @@ export function DataTable<TData, TValue>({
           </InputGroupAddon>
         </InputGroup>
 
-       <Button variant={"outline"}>
+        <Button variant={"outline"}>
           <Trash /> Delete
         </Button>
 
@@ -147,7 +153,7 @@ export function DataTable<TData, TValue>({
                   onClick={() => {
                     if (onRowClick) {
                       // Get the pavilion ID from the row data
-                      const pavilion = row.original as any;
+                      const pavilion = row.original as { id: number };
                       onRowClick(pavilion.id);
                     }
                   }}

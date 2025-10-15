@@ -114,28 +114,28 @@ const SelectedItems = ({
                   dish.categoryId === 1
                     ? "border-l-red-500"
                     : dish.categoryId === 2
-                    ? "border-l-pink-500"
-                    : dish.categoryId === 3
-                    ? "border-l-yellow-500"
-                    : dish.categoryId === 4
-                    ? "border-l-blue-500"
-                    : dish.categoryId === 5
-                    ? "border-l-green-500"
-                    : dish.categoryId === 6
-                    ? "border-l-amber-500"
-                    : dish.categoryId === 7
-                    ? "border-l-purple-500"
-                    : dish.categoryId === 8
-                    ? "border-l-cyan-500"
-                    : dish.categoryId === 9
-                    ? "border-l-gray-500"
-                    : "border-input"
+                      ? "border-l-pink-500"
+                      : dish.categoryId === 3
+                        ? "border-l-yellow-500"
+                        : dish.categoryId === 4
+                          ? "border-l-blue-500"
+                          : dish.categoryId === 5
+                            ? "border-l-green-500"
+                            : dish.categoryId === 6
+                              ? "border-l-amber-500"
+                              : dish.categoryId === 7
+                                ? "border-l-purple-500"
+                                : dish.categoryId === 8
+                                  ? "border-l-cyan-500"
+                                  : dish.categoryId === 9
+                                    ? "border-l-gray-500"
+                                    : "border-input"
                 }
                 rounded-md`}
             >
               <div className="flex gap-2 md:items-center">
                 <div className="flex grow gap-3 md:items-center">
-                  <DishIcon categoryId={dish.categoryId} />
+                  <DishIcon categoryId={dish.categoryId ?? 0} />
 
                   <div className="flex grow flex-col justify-between gap-3 md:flex-row md:items-center">
                     <p className="text-sm font-medium">{dish.name}</p>

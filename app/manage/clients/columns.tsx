@@ -143,9 +143,7 @@ export const columns: ColumnDef<ClientWithRelations>[] = [
   {
     id: "activeBookings",
     accessorFn: (row) =>
-      row.bookings?.filter(
-        (booking) => booking.bookingStatus?.name === "Active"
-      ).length ?? 0,
+      row.bookings?.filter((booking) => booking.status === 1).length ?? 0,
     header: ({ column }) => {
       return (
         <Button
@@ -159,9 +157,8 @@ export const columns: ColumnDef<ClientWithRelations>[] = [
     },
     cell: ({ row }) => {
       const activeBookings =
-        row.original.bookings?.filter(
-          (booking) => booking.bookingStatus?.name === "Active"
-        ).length ?? 0;
+        row.original.bookings?.filter((booking) => booking.status === 1)
+          .length ?? 0;
       return (
         <div className="text-center">
           <Badge variant={activeBookings > 0 ? "default" : "secondary"}>

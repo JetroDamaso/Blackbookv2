@@ -120,9 +120,9 @@ export function DataTable<TData, TValue>({
         </Button>
 
         <a href="/event_calendar">
-            <Button>
-              <CirclePlus /> Add new
-            </Button>
+          <Button>
+            <CirclePlus /> Add new
+          </Button>
         </a>
       </div>
       <div className="overflow-hidden rounded-md border bg-white h-fit">
@@ -155,7 +155,7 @@ export function DataTable<TData, TValue>({
                   onClick={() => {
                     if (onRowClick) {
                       // Get the booking ID from the row data
-                      const booking = row.original as any;
+                      const booking = row.original as { id: number };
                       onRowClick(booking.id);
                     }
                   }}

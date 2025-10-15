@@ -96,7 +96,7 @@ export const columns: ColumnDef<RoomWithRelations>[] = [
     accessorKey: "Booking",
     header: "Bookings",
     cell: ({ row }) => {
-      const bookings = row.getValue("Booking") as any[];
+      const bookings = row.getValue("Booking") as Array<{ id: number }>;
       return (
         <div className="flex items-center gap-2">
           <Badge variant="outline">{bookings?.length || 0} booking(s)</Badge>

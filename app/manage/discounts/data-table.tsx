@@ -267,7 +267,7 @@ export function DataTable<TData, TValue>({
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => {
                     if (onRowClick) {
-                      const item = row.original as any;
+                      const item = row.original as { id: number };
                       onRowClick(item.id);
                     }
                   }}

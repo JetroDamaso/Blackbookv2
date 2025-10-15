@@ -74,7 +74,7 @@ export const columns: ColumnDef<EventTypeWithRelations>[] = [
     accessorKey: "bookings",
     header: "Bookings",
     cell: ({ row }) => {
-      const bookings = row.getValue("bookings") as any[];
+      const bookings = row.getValue("bookings") as Array<{ id: number }>;
       return (
         <div className="flex items-center gap-2">
           <Badge variant="outline">{bookings?.length || 0} booking(s)</Badge>
