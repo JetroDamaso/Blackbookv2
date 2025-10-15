@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
     provider = "prisma-client-js"
     output   = "../generated/prisma"
@@ -12,7 +9,7 @@ datasource db {
 }
 
 model Client {
-    id           Int    @id @default(autoincrement())
+    id           Int       @id @default(autoincrement())
     firstName    String
     lastName     String
     region       String
@@ -20,162 +17,151 @@ model Client {
     municipality String
     barangay     String
     phoneNumber  String
-    email        String @unique
-
-    payments Payment[]
-    bookings Booking[]
+    email        String    @unique
+    dateCreated  DateTime  @default(now())
+    bookings     Booking[]
+    payments     Payment[]
 }
 
 model Role {
-    id   Int    @id @default(autoincrement())
-    name String
-
+    id        Int        @id @default(autoincrement())
+    name      String
     employees Employee[]
 }
 
 model Employee {
-    id               Int      @id @default(autoincrement())
+    id               Int          @id @default(autoincrement())
     firstName        String
     lastName         String
     password         String
-    roleId           Int
+    roleId           Int?
     dateOfEmployment DateTime
-    isActive         Boolean  @default(true)
-
-    historyLogs HistoryLog[]
-    role        Role         @relation(fields: [roleId], references: [id])
+    isActive         Boolean      @default(true)
+    role             Role?        @relation(fields: [roleId], references: [id], onDelete: SetNull)
+    historyLogs      HistoryLog[]
 }
 
 model Pavilion {
-    id          Int     @id @default(autoincrement())
-    name        String  @unique
-    price       Float
-    maxPax      Int
-    color       String?
-    description String
-
-    inventoryStatuses InventoryStatus[]
+    id                Int               @id @default(autoincrement())
+    name              String            @unique
+    price             Float
+    maxPax            Int
+    description       String
+    color             String?
     bookings          Booking[]
+    inventoryStatuses InventoryStatus[]
     Package           Package[]
 }
 
 model InventoryCategory {
-    id   Int    @id @default(autoincrement())
-    name String @unique
-
+    id    Int             @id @default(autoincrement())
+    name  String          @unique
     items InventoryItem[]
 }
 
 model InventoryItem {
-    id         Int    @id @default(autoincrement())
-    name       String
-    categoryId Int
-    quantity   Int
-    out        Int    @default(0)
-
+    id                Int                @id @default(autoincrement())
+    name              String
+    categoryId        Int?
+    quantity          Int
+    out               Int                @default(0)
+    category          InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
     inventoryStatuses InventoryStatus[]
-    category          InventoryCategory @relation(fields: [categoryId], references: [id])
 }
 
 model Booking {
-    id            Int       @id @default(autoincrement())
-    eventName     String
-    clientId      Int?
-    pavilionId    Int?
-    packageId     Int?
-    eventType     Int?
-    calendarColor String?
-    catering      Int?
-    startAt       DateTime?
-    endAt         DateTime?
-    foodTastingAt DateTime?
-    totalPax      Int
-    themeMotif    String?
-    status        Int
-    notes         String?
-
-    scannedDocuments  ScannedDocument[]
-    historyLogs       HistoryLog[]
-    additionalCharges AdditionalCharge[]
-    otherServices     OtherService[]
-    menus             Menu[]
-    billing           Billing[]
-    inventoryStatuses InventoryStatus[]
-
-    package       Package?      @relation(fields: [packageId], references: [id])
-    category      EventTypes?   @relation(fields: [eventType], references: [id])
-    client        Client?       @relation(fields: [clientId], references: [id])
-    pavilion      Pavilion?     @relation(fields: [pavilionId], references: [id])
-    bookingStatus BookingStatus @relation(fields: [status], references: [id])
-    rooms         Rooms[]
+    id                 Int                @id @default(autoincrement())
+    eventName          String
+    clientId           Int?
+    pavilionId         Int?
+    packageId          Int?
+    eventType          Int?
+    calendarColor      String?
+    catering           Int?
+    startAt            DateTime?
+    endAt              DateTime?
+    foodTastingAt      DateTime?
+    totalPax           Int
+    themeMotif         String?
+    status             Int
+    customDiscount     Int?
+    notes              String?
+    ref_pavilionName   String?
+    ref_clientFullName String?
+    additionalCharges  AdditionalCharge[]
+    billing            Billing?
+    pavilion           Pavilion?          @relation(fields: [pavilionId], references: [id])
+    client             Client?            @relation(fields: [clientId], references: [id])
+    category           EventTypes?        @relation(fields: [eventType], references: [id])
+    package            Package?           @relation(fields: [packageId], references: [id])
+    historyLogs        HistoryLog[]
+    inventoryStatuses  InventoryStatus[]
+    menus              Menu[]
+    scannedDocuments   ScannedDocument[]
+    otherServices      OtherService[]     @relation("BookingToOtherService")
+    rooms              Rooms[]            @relation("BookingToRooms")
 }
 
 model Package {
-    id          Int     @id @default(autoincrement())
+    id          Int            @id @default(autoincrement())
     name        String
-    pavilionId  Int
+    pavilionId  Int?
     price       Float
     description String
-    includePool Boolean @default(false)
-
-    services OtherService[]
-    pavilion Pavilion       @relation(fields: [pavilionId], references: [id])
-    // Add relations if needed
-    Booking  Booking[]
+    includePool Boolean        @default(false)
+    Booking     Booking[]
+    pavilion    Pavilion?      @relation(fields: [pavilionId], references: [id], onDelete: SetNull)
+    services    OtherService[] @relation("OtherServiceToPackage")
 }
 
 model EventTypes {
-    id   Int    @id @default(autoincrement())
-    name String @unique
-
+    id       Int       @id @default(autoincrement())
+    name     String    @unique
     bookings Booking[]
 }
 
 model Menu {
     id         Int        @id @default(autoincrement())
-    bookingId  Int
-    booking    Booking    @relation(fields: [bookingId], references: [id])
+    bookingId  Int?
+    booking    Booking?   @relation(fields: [bookingId], references: [id], onDelete: SetNull)
     menuDishes MenuDish[]
 }
 
 model DishCategory {
-    id   Int    @id @default(autoincrement())
-    name String @unique
-
+    id     Int    @id @default(autoincrement())
+    name   String @unique
     dishes Dish[]
 }
 
 model Dish {
-    id          Int          @id @default(autoincrement())
+    id          Int           @id @default(autoincrement())
     name        String
-    categoryId  Int
+    categoryId  Int?
     allergens   String?
     description String?
-    category    DishCategory @relation(fields: [categoryId], references: [id])
+    category    DishCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
     menuDishes  MenuDish[]
 }
 
 model MenuDish {
-    id       Int @id @default(autoincrement())
-    menuId   Int
-    dishId   Int
-    quantity Int @default(1)
-
-    menu Menu @relation(fields: [menuId], references: [id])
-    dish Dish @relation(fields: [dishId], references: [id])
+    id       Int   @id @default(autoincrement())
+    menuId   Int?
+    dishId   Int?
+    quantity Int   @default(1)
+    dish     Dish? @relation(fields: [dishId], references: [id], onDelete: SetNull)
+    menu     Menu? @relation(fields: [menuId], references: [id], onDelete: SetNull)
 
     @@unique([menuId, dishId])
 }
 
 model AdditionalCharge {
-    id          Int     @id @default(autoincrement())
+    id          Int      @id @default(autoincrement())
     bookingId   Int?
     name        String
     amount      Float
     description String?
     note        String?
-
-    booking Booking? @relation(fields: [bookingId], references: [id])
+    booking     Booking? @relation(fields: [bookingId], references: [id])
 }
 
 model OtherServiceCategory {
@@ -185,16 +171,15 @@ model OtherServiceCategory {
 }
 
 model OtherService {
-    id          Int     @id @default(autoincrement())
+    id          Int                   @id @default(autoincrement())
     name        String
-    categoryId  Int
+    categoryId  Int?
     amount      Float?
     description String?
-
-    booking   Booking[]
-    category  OtherServiceCategory @relation(fields: [categoryId], references: [id])
-    packageId Int?
-    Package   Package[]
+    packageId   Int?
+    category    OtherServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+    booking     Booking[]             @relation("BookingToOtherService")
+    Package     Package[]             @relation("OtherServiceToPackage")
 }
 
 model Services {
@@ -209,19 +194,18 @@ model Rooms {
     id       Int       @id @default(autoincrement())
     name     String    @unique
     capacity Int
-    Booking  Booking[]
+    Booking  Booking[] @relation("BookingToRooms")
 }
 
 model InventoryStatus {
-    id          Int  @id @default(autoincrement())
+    id          Int            @id @default(autoincrement())
     inventoryId Int?
     pavilionId  Int?
     bookingId   Int?
     quantity    Int?
-
-    inventory InventoryItem? @relation(fields: [inventoryId], references: [id])
-    pavilion  Pavilion?      @relation(fields: [pavilionId], references: [id])
-    booking   Booking?       @relation(fields: [bookingId], references: [id])
+    booking     Booking?       @relation(fields: [bookingId], references: [id])
+    pavilion    Pavilion?      @relation(fields: [pavilionId], references: [id])
+    inventory   InventoryItem? @relation(fields: [inventoryId], references: [id])
 }
 
 model Billing {
@@ -237,20 +221,17 @@ model Billing {
     deposit            Float     @default(0)
     status             Int
     dateCompleted      DateTime?
-
-    payments      Payment[]
-    booking       Booking       @relation(fields: [bookingId], references: [id])
-    billingStatus BillingStatus @relation(fields: [status], references: [id])
+    booking            Booking   @relation(fields: [bookingId], references: [id])
+    payments           Payment[]
 }
 
 model HistoryLog {
-    id         Int      @id @default(autoincrement())
-    bookingId  Int
-    employeeId Int
-    createdAt  DateTime @default(now())
-
-    booking  Booking  @relation(fields: [bookingId], references: [id])
-    employee Employee @relation(fields: [employeeId], references: [id])
+    id         Int       @id @default(autoincrement())
+    bookingId  Int?
+    employeeId Int?
+    createdAt  DateTime  @default(now())
+    employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+    booking    Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 }
 
 model ModeOfPayment {
@@ -260,57 +241,35 @@ model ModeOfPayment {
 
 model Payment {
     id        Int      @id @default(autoincrement())
-    billingId Int
-    clientId  Int
-    name      String?
+    billingId Int?
+    clientId  Int?
+    notes     String?
     amount    Float
     date      DateTime @default(now())
-    status    Int
-
-    billing       Billing       @relation(fields: [billingId], references: [id])
-    client        Client        @relation(fields: [clientId], references: [id])
-    paymentStatus PaymentStatus @relation(fields: [status], references: [id])
+    status    String
+    client    Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+    billing   Billing? @relation(fields: [billingId], references: [id], onDelete: SetNull)
 }
 
 model ScannedDocumentCategory {
-    id   Int    @id @default(autoincrement())
-    name String @unique
-
+    id               Int               @id @default(autoincrement())
+    name             String            @unique
     scannedDocuments ScannedDocument[]
 }
 
 model ScannedDocument {
-    id         Int      @id @default(autoincrement())
-    bookingId  Int
+    id         Int                      @id @default(autoincrement())
+    bookingId  Int?
     name       String
-    categoryId Int
-    date       DateTime @default(now())
+    categoryId Int?
+    date       DateTime                 @default(now())
     file       String
-
-    booking  Booking                 @relation(fields: [bookingId], references: [id])
-    category ScannedDocumentCategory @relation(fields: [categoryId], references: [id])
+    category   ScannedDocumentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+    booking    Booking?                 @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 }
 
 model Discount {
     id      Int    @id @default(autoincrement())
     name    String @unique
     percent Float
-}
-
-model BookingStatus {
-    id      Int       @id @default(autoincrement())
-    name    String    @unique
-    Booking Booking[]
-}
-
-model BillingStatus {
-    id      Int       @id @default(autoincrement())
-    name    String    @unique
-    Billing Billing[]
-}
-
-model PaymentStatus {
-    id      Int       @id @default(autoincrement())
-    name    String    @unique
-    Payment Payment[]
 }

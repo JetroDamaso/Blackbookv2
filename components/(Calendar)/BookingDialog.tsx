@@ -46,6 +46,8 @@ import {
 } from "@/server/Services/pullActions";
 import { getPavilionsById } from "@/server/Pavilions/Actions/pullActions";
 import { getPackagesById } from "@/server/Packages/pullActions";
+import AddPaymentDialog from "../(Payments)/AddPaymentDialog";
+import ViewPaymentDialog from "../(Payments)/ViewPaymentDialog";
 
 // Removed placeholder items; real data queried below
 
@@ -341,10 +343,7 @@ export default function BookingDialogComponent({
                       <AccordionTrigger className="w-full grow py-2 text-[15px] hover:no-underline focus-visible:ring-0">
                         <p className="text-md font-normal">Dishes</p>
                       </AccordionTrigger>
-                      <AccordionContent
-                        key={"1"}
-                        className="pb-2"
-                      >
+                      <AccordionContent key={"1"} className="pb-2">
                         <div className="max-h-56 overflow-y-auto pr-1">
                           <Table>
                             <TableHeader className="sticky top-0 bg-white shadow-sm">
@@ -357,10 +356,7 @@ export default function BookingDialogComponent({
                             <TableBody>
                               {dishesJoined.length === 0 && (
                                 <TableRow>
-                                  <TableCell
-                                    colSpan={3}
-                                    className=""
-                                  >
+                                  <TableCell colSpan={3} className="">
                                     No dishes/services recorded
                                   </TableCell>
                                 </TableRow>
@@ -480,9 +476,21 @@ export default function BookingDialogComponent({
               <div className="mt-4">
                 <div className="grid grid-cols-2 mt-2 divide-x divide-neutral-200">
                   <div className="w-full px-2">
-                    <p className="text-md font-medium">Billing Info: </p>
-                    <Button className="w-full mt-2">View payments</Button>
-                    <Button className="w-full mt-2">Add payment</Button>
+                    <p className="text-md font-medium mb-2">Billing Info: </p>
+                    <div className="gap-2 flex flex-col">
+                      <div className="w-full grow flex-1">
+                        <ViewPaymentDialog
+                          billingId={billing?.id || 0}
+                          clientId={booking?.clientId || 0}
+                        />
+                      </div>
+                      <div className="w-full grow flex-1">
+                        <AddPaymentDialog
+                          billingId={billing?.id || 0}
+                          clientId={booking?.clientId || 0}
+                        />
+                      </div>
+                    </div>
                   </div>
                   <div className="w-full px-2">
                     <p className="text-md font-medium">Totals: </p>

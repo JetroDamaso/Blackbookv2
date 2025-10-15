@@ -12,6 +12,7 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 import AddClientButton from "../components/(Bookings)/AddClientButton/page";
 import { usePathname } from "next/navigation";
 import Provider from "@/components/Providers/tanstack-provider";
+import Header from "@/components/modules/header";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,29 +35,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={"font-roboto antialiased"}>
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset>
-            <header className="top-0 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 bg-white border-b px-2 data-[mobile=true]:px-0 border-border">
-              <div className="flex items-center gap-2 px-4 w-full">
-                <SidebarTrigger className="-ml-1" />
-                <Separator
-                  orientation="vertical"
-                  className="mr-2 data-[orientation=vertical]:h-4"
-                />
-                <Breadcrumb className="w-full ">
-                  <h1 className="font-medium w-full ">Create Booking</h1>
-                </Breadcrumb>
-              </div>
-              <div className="mr-4">
-                <AddClientButton />
-              </div>
-            </header>
-            <div className="flex flex-1 flex-col gap-4 p-7 pt-0 bg-muted/50">
-              <Provider>{children}</Provider>
-            </div>
-          </SidebarInset>
-        </SidebarProvider>
+        <div className="top-0 sticky bg-white z-90 overflow-x-hidden shadow-md shadow-neutral-200/40">
+          <Header />
+        </div>
+        <Provider>{children}</Provider>
       </body>
     </html>
   );

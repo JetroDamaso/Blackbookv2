@@ -5,7 +5,7 @@ import { getAllBookings } from "@/server/Booking/pullActions";
 const CalendarPage = async () => {
   const allBookings = await getAllBookings();
   return (
-        <div className="w-full h-full">
+    <div className="w-full h-full">
       <CalendarClient getAllBookings={allBookings} />
     </div>
   );

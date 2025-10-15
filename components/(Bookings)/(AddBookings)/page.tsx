@@ -78,6 +78,9 @@ const AddBookingsPageClient = (props: {
   dishCategories: DishCategory[];
   allInventory?: InventoryItem[];
   inventoryCategories?: InventoryCategory[];
+  preSelectedStartDate?: string;
+  preSelectedEndDate?: string;
+  preSelectedPavilionId?: string;
   pavilions: Pavilion[];
   eventTypes: EventTypes[];
   discounts: Discount[];
@@ -98,6 +101,10 @@ const AddBookingsPageClient = (props: {
   const allServices = props.services ?? [];
   const servicesCategory = props.servicesCategory ?? [];
   const packages = props.packages ?? [];
+  const preSelectedStartDate = props.preSelectedStartDate;
+  const preSelectedEndDate = props.preSelectedEndDate;
+  const preSelectedPavilionId = props.preSelectedPavilionId;
+
   const bookingsRef = React.useRef(props.bookings ?? []);
   // if prop changes (should be static for page load) update ref
   React.useEffect(() => {
@@ -148,7 +155,7 @@ const AddBookingsPageClient = (props: {
   // Removed unused pavilion/hour pricing interim states (reintroduce if needed)
   const [selectedCatering, setSelectedCatering] = useState<string>("0");
   const [selectedPavilionId, setSelectedPavilionId] = useState<number | null>(
-    null
+    preSelectedPavilionId ? parseInt(preSelectedPavilionId, 10) : null
   );
   const [selectedPackageId, setSelectedPackageId] = useState<number | null>(
     null
@@ -156,8 +163,12 @@ const AddBookingsPageClient = (props: {
   // Removed unused bookingTotalPrice state
   const [downPayment, setDownPayment] = useState<number>(0);
 
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(
+    preSelectedStartDate ? new Date(preSelectedStartDate) : null
+  );
+  const [endDate, setEndDate] = useState<Date | null>(
+    preSelectedEndDate ? new Date(preSelectedEndDate) : null
+  );
   const [startTime, setStartTime] = useState<{
     hour: number;
     minute: number;
@@ -692,8 +703,8 @@ const AddBookingsPageClient = (props: {
       onSubmit={handleSubmitDraft}
       className="[--ring:var(--color-red-500)] in-[.dark]:[--ring:var(--color-red-500)]"
     >
-      <div className="grid grid-cols-4 gap-4">
-        <div className="col-span-3">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-2">
           {/* === TABS HEADER === */}
           <div>
             <Tabs defaultValue="tab-1" className="justify-start">
@@ -734,6 +745,9 @@ const AddBookingsPageClient = (props: {
               <RadioGroup
                 className="grid grid-cols-3"
                 name="pavilion"
+                value={
+                  selectedPavilionId ? String(selectedPavilionId) : undefined
+                }
                 onValueChange={(val) => {
                   setSelectedPavilionId(Number(val));
                   setSelectedPackageId(null);
@@ -815,7 +829,7 @@ const AddBookingsPageClient = (props: {
                   <div>
                     <RadioGroup
                       name="package"
-                      className="grid grid-cols-4"
+                      className="grid grid-cols-3"
                       onValueChange={(val) => setSelectedPackageId(Number(val))}
                     >
                       {selectedPavilionId === null && (
@@ -899,7 +913,6 @@ const AddBookingsPageClient = (props: {
               </div>
 
               test test*/}
-
               </div>
             </div>
           )}
@@ -919,12 +932,14 @@ const AddBookingsPageClient = (props: {
                   <div className="mr-4 flex-grow w-full">
                     <StartDatePickerForm
                       startDateOnChange={setStartDate}
+                      initialDate={startDate}
                       disabledDates={bookedDaySet}
                     />
                   </div>
                   <div className="flex-grow w-full">
                     <EndDatePickerForm
                       endDateOnChange={setEndDate}
+                      initialDate={endDate}
                       disabledDates={bookedDaySet}
                       minDate={startDate}
                     />
@@ -1607,7 +1622,7 @@ const AddBookingsPageClient = (props: {
           </div>
         </div>
         {/* === RIGHT COLUMN (SUMMARY) === */}
-        <div className="sticky top-0 h-screen mt-8">
+        <div className="sticky top-16 h-screen mt-8">
           <div
             id="date_and_time"
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"

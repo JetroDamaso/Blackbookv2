@@ -24,7 +24,13 @@ export async function getAllEventTypes() {
 
 export async function getAllBookings() {
   try {
-    const data = await prisma.booking.findMany();
+    const data = await prisma.booking.findMany({
+      include: {
+        client: true,
+        pavilion: true,
+        billing: true,
+      }
+    });
     return data;
   } catch (error) {
     console.error("Failed to fetch bookings", error);

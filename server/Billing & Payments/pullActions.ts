@@ -70,3 +70,149 @@ export async function getModeOfPaymentsById(id: number) {
     throw error;
   }
 }
+
+export async function getAllPayments() {
+  try {
+    const data = await prisma.payment.findMany({
+      include: {
+        client: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        billing: {
+          select: {
+            id: true,
+            booking: {
+              select: {
+                eventName: true,
+                id: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        date: 'desc',
+      },
+    });
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch payments", error);
+    throw error;
+  }
+}
+
+export async function getPaymentsByBilling(billingId: number) {
+  try {
+    const data = await prisma.payment.findMany({
+      where: { billingId },
+      include: {
+        client: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        billing: {
+          select: {
+            id: true,
+            booking: {
+              select: {
+                eventName: true,
+                id: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        date: 'desc',
+      },
+    });
+    return data || []; // Return empty array if no data
+  } catch (error) {
+    console.error("Failed to fetch payments by billing", error);
+    return []; // Return empty array on error instead of throwing
+  }
+}
+
+export async function getBillingSummary(billingId: number) {
+  try {
+    const billing = await prisma.billing.findUnique({
+      where: { id: billingId },
+      include: {
+        payments: true,
+        booking: {
+          select: {
+            eventName: true,
+            id: true,
+          },
+        },
+      },
+    });
+
+    // If no billing found, return default values
+    if (!billing) {
+      return {
+        totalBilling: 0,
+        totalPaid: 0,
+        balance: 0,
+        originalPrice: 0,
+        discountType: "none",
+        discountPercentage: 0,
+        deposit: 0,
+        yve: 0,
+        modeOfPayment: "",
+        eventName: "Unknown Event",
+        bookingId: null,
+        status: 0,
+        payments: [],
+        isDefault: true,
+      };
+    }
+
+    const totalPaid = billing.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
+    const balance = billing.discountedPrice - totalPaid;
+
+    return {
+      totalBilling: billing.discountedPrice || 0,
+      totalPaid,
+      balance,
+      originalPrice: billing.originalPrice || 0,
+      discountType: billing.discountType || "none",
+      discountPercentage: billing.discountPercentage || 0,
+      deposit: billing.deposit || 0,
+      yve: billing.yve || 0,
+      modeOfPayment: billing.modeOfPayment || "",
+      eventName: billing.booking?.eventName || "Unknown Event",
+      bookingId: billing.booking?.id || null,
+      status: billing.status || 0,
+      payments: billing.payments || [],
+      isDefault: false,
+    };
+  } catch (error) {
+    console.error("Failed to fetch billing summary", error);
+    // Return default values on error instead of throwing
+    return {
+      totalBilling: 0,
+      totalPaid: 0,
+      balance: 0,
+      originalPrice: 0,
+      discountType: "none",
+      discountPercentage: 0,
+      deposit: 0,
+      yve: 0,
+      modeOfPayment: "",
+      eventName: "Unknown Event",
+      bookingId: null,
+      status: 0,
+      payments: [],
+      isDefault: true,
+      error: true,
+    };
+  }
+}

@@ -7,6 +7,7 @@ import {
   BookOpen,
   Bot,
   Calendar,
+  Castle,
   Command,
   Frame,
   GalleryVerticalEnd,
@@ -20,6 +21,13 @@ import {
   SquareTerminal,
   Users,
   Wine,
+  DollarSign,
+  Percent,
+  UserCheck,
+  Calendar as CalendarIcon,
+  CreditCard,
+  Shield,
+  Hotel,
 } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
@@ -50,40 +58,69 @@ const data = {
   ],
   navMain: [
     {
-      title: "Home",
-      url: "/",
-      icon: LucideHome,
-      isActive: true,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: Search,
-      isActive: true,
-
-    },
-    {
-      title: "Calendar",
-      url: "/event_calendar",
-      icon: Calendar,
-      isActive: true,
-    },
-    {
       title: "Bookings",
-      url: "/bookings",
+      url: "/manage",
       icon: Book,
       isActive: true,
     },
     {
       title: "Clients",
-      url: "/clients",
+      url: "/manage/clients",
       icon: Users,
       isActive: true,
     },
     {
+      title: "Pavilion",
+      url: "/manage/pavilion",
+      icon: Castle,
+      isActive: true,
+    },
+    {
       title: "Inventory",
-      url: "/inventory",
+      url: "/manage/inventory",
       icon: Wine,
+      isActive: true,
+    },
+    {
+      title: "Additional Charges",
+      url: "/manage/additional-charges",
+      icon: DollarSign,
+      isActive: true,
+    },
+    {
+      title: "Discounts",
+      url: "/manage/discounts",
+      icon: Percent,
+      isActive: true,
+    },
+    {
+      title: "Employees",
+      url: "/manage/employees",
+      icon: UserCheck,
+      isActive: true,
+    },
+    {
+      title: "Event Types",
+      url: "/manage/event-types",
+      icon: CalendarIcon,
+      isActive: true,
+    },
+    {
+      title: "Payment Methods",
+      url: "/manage/mode-of-payment",
+      icon: CreditCard,
+      isActive: true,
+    },
+    {
+      title: "Roles",
+      url: "/manage/roles",
+      icon: Shield,
+      isActive: true,
+    },
+    {
+      title: "Rooms",
+      url: "/manage/rooms",
+      icon: Hotel,
       isActive: true,
     },
     {
@@ -92,28 +129,10 @@ const data = {
       icon: Notebook,
       isActive: true,
     },
-
     {
       title: "Settings",
       url: "/settings",
       icon: Settings2,
-    },
-  ],
-  projects: [
-    {
-      name: "Design Engineering",
-      url: "#",
-      icon: Frame,
-    },
-    {
-      name: "Sales & Marketing",
-      url: "#",
-      icon: PieChart,
-    },
-    {
-      name: "Travel",
-      url: "#",
-      icon: Map,
     },
   ],
 };
@@ -121,15 +140,9 @@ const data = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
-      </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="mt-12">
         <NavMain items={data.navMain} />
       </SidebarContent>
-      <SidebarFooter>
-        <NavUser user={data.user} />
-      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );
