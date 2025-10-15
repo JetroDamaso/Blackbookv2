@@ -2,13 +2,14 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+First, run these command by order:
 
 ```bash
 # install dependencies
 npm install
 # setup prisma
 npx prisma migrate dev
+#run the dev build
 npm run dev
 # or
 yarn dev
