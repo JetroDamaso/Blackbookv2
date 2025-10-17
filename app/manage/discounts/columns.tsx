@@ -84,10 +84,12 @@ export const columns: ColumnDef<DiscountWithRelations>[] = [
       );
     },
     cell: ({ row }) => {
-      const percent = row.getValue("percent") as number;
+      const percent = row.getValue("percent") as number | null;
       return (
         <div className="flex items-center gap-2">
-          <Badge variant="outline">{percent}%</Badge>
+          <Badge variant="outline">
+            {percent !== null ? `${percent}%` : "N/A"}
+          </Badge>
         </div>
       );
     },
