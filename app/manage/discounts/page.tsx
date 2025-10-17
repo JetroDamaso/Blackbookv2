@@ -38,14 +38,18 @@ export default function ManageDiscounts() {
     );
   }
 
-  const averageDiscount = data?.length
+  // Calculate average percentage for percentage-based discounts only
+  const percentageDiscounts = data?.filter((discount) => discount.percent !== null) || [];
+  const averageDiscount = percentageDiscounts.length
     ? (
-        data.reduce((sum, discount) => sum + discount.percent, 0) / data.length
+        percentageDiscounts.reduce((sum, discount) => sum + (discount.percent || 0), 0) / 
+        percentageDiscounts.length
       ).toFixed(1)
     : "0";
 
-  const maxDiscount = data?.length
-    ? Math.max(...data.map((d) => d.percent))
+  // Find maximum percentage discount
+  const maxDiscount = percentageDiscounts.length
+    ? Math.max(...percentageDiscounts.map((d) => d.percent || 0))
     : 0;
 
   return (
@@ -71,19 +75,19 @@ export default function ManageDiscounts() {
 
         <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
           <div className="flex flex-col">
-            <p className="text-md">Average Discount</p>
+            <p className="text-md">Avg % Discount</p>
             <p className="text-4xl font-semibold">{averageDiscount}%</p>
-            <p className="text-xs">Across all types</p>
+            <p className="text-xs">Percentage-based only</p>
           </div>
         </div>
 
         <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
           <div className="flex flex-col">
-            <p className="text-md">Maximum Discount</p>
+            <p className="text-md">Max % Discount</p>
             <p className="text-4xl font-semibold text-green-600">
               {maxDiscount}%
             </p>
-            <p className="text-xs">Highest available</p>
+            <p className="text-xs">Highest percentage</p>
           </div>
         </div>
       </div>
