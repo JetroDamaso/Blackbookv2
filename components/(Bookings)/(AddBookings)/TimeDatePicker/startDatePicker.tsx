@@ -42,7 +42,7 @@ export function StartDatePickerForm({
   return (
     <div className="w-full">
       <div className="mb-2">
-        <Label className="text-foreground text-sm font-normal mb-2">
+        <Label className="text-foreground/50 text-sm font-normal mb-2">
           Start date
         </Label>
       </div>

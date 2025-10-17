@@ -4,6 +4,9 @@ import { prisma } from "../db";
 export async function getAllDiscounts() {
   try {
     const data = await prisma.discount.findMany({
+      where: {
+        isActive: true,
+      },
       orderBy: {
         name: 'asc',
       },

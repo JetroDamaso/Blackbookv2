@@ -214,7 +214,10 @@ model Billing {
     originalPrice      Float
     discountedPrice    Float
     discountType       String
-    discountPercentage Float
+    discountPercentage Float? // Made nullable
+    discountAmount     Float? // New field for fixed amount discounts
+    discountId         Int? // Reference to predefined discount
+    isCustomDiscount   Boolean   @default(false) // Track if it's a custom discount
     balance            Float
     modeOfPayment      String
     yve                Float     @default(0)
@@ -243,6 +246,7 @@ model Payment {
     id        Int      @id @default(autoincrement())
     billingId Int?
     clientId  Int?
+    orNumber  String? // Official Receipt Number
     notes     String?
     amount    Float
     date      DateTime @default(now())
@@ -269,7 +273,10 @@ model ScannedDocument {
 }
 
 model Discount {
-    id      Int    @id @default(autoincrement())
-    name    String @unique
-    percent Float
+    id          Int     @id @default(autoincrement())
+    name        String  @unique
+    percent     Float? // Made nullable to support amount-based discounts
+    amount      Float? // Fixed amount discount
+    isActive    Boolean @default(true) // To enable/disable discounts
+    description String? // Optional description
 }

@@ -40,20 +40,21 @@ export const columns: ColumnDef<PaymentWithRelations>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "id",
+    accessorKey: "orNumber",
     header: ({ column }) => {
       return (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Payment ID
+          OR Number
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }) => {
-      return <div className="font-medium">#{row.getValue("id")}</div>;
+      const orNumber = row.getValue("orNumber") as string;
+      return <div className="font-medium">{orNumber || "N/A"}</div>;
     },
   },
   {
@@ -124,6 +125,28 @@ export const columns: ColumnDef<PaymentWithRelations>[] = [
           >
             {status}
           </Badge>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "notes",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Notes
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const notes = row.getValue("notes") as string;
+      return (
+        <div className="max-w-[200px] truncate" title={notes || ""}>
+          {notes || "No notes"}
         </div>
       );
     },

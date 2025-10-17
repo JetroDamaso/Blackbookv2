@@ -71,7 +71,7 @@ export default function TimeEndPickerCreateBookingComponent({
       onChange={handleTimeChange}
       defaultValue={defaultTimeValue}
     >
-      <Label className="text-foreground text-sm font-normal">Time out</Label>
+      <Label className="text-foreground/50 text-sm font-normal">Time out</Label>
       <div className="relative">
         <div className="text-muted-foreground/80 pointer-events-none absolute inset-y-0 start-0 z-10 flex items-center justify-center ps-3">
           <ClockIcon size={16} aria-hidden="true" />

@@ -2,7 +2,10 @@
 import React, { useId, useState, useEffect } from "react";
 import {
   ArrowRightIcon,
+  BadgePlus,
+  BadgePercent,
   Beef,
+  CalendarPlus,
   Carrot,
   Check,
   CookingPot,
@@ -15,10 +18,20 @@ import {
   Layers,
   List,
   MinusCircle,
+  Pen,
   Truck,
   Users,
+  X,
 } from "lucide-react";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // removed unused Carousel imports
 import {
@@ -68,6 +81,10 @@ import SearchService from "@/components/searchService";
 import { createBilling } from "@/server/Billing & Payments/pushActions";
 import { getDiscountById } from "@/server/Billing & Payments/pullActions";
 import { createMenuWithDishes } from "@/server/Menu/pushActions";
+import { getAllDiscounts } from "@/server/discount/pullActions";
+import { createDiscount } from "@/server/discount/pushActions";
+import AddPaymentDialog from "@/components/(Payments)/AddPaymentDialog";
+import CreateBookingAddPayment from "@/components/(Payments)/BookingAddPayment";
 // Removed server-side imports from client component
 
 type SelectedDish = Dish & { quantity: number };
@@ -151,6 +168,20 @@ const AddBookingsPageClient = (props: {
     null
   );
   const [discountName, setDiscountName] = useState("");
+  // New enhanced discount state
+  const [discountType, setDiscountType] = useState<
+    "predefined" | "custom" | "none"
+  >("none");
+  const [customDiscountName, setCustomDiscountName] = useState("");
+  const [customDiscountType, setCustomDiscountType] = useState<
+    "percent" | "amount"
+  >("percent");
+  const [customDiscountValue, setCustomDiscountValue] = useState<number>(0);
+  const [customDiscountDescription, setCustomDiscountDescription] =
+    useState("");
+  const [isCustomDiscountDialogOpen, setIsCustomDiscountDialogOpen] =
+    useState(false);
+  const [isLoadingCustomDiscount, setIsLoadingCustomDiscount] = useState(false);
 
   // Removed unused pavilion/hour pricing interim states (reintroduce if needed)
   const [selectedCatering, setSelectedCatering] = useState<string>("0");
@@ -308,6 +339,9 @@ const AddBookingsPageClient = (props: {
       status: number;
       deposit: number;
       yve?: number;
+      discountAmount?: number;
+      discountId?: number;
+      isCustomDiscount?: boolean;
     }) =>
       createBilling(
         data.bookingId,
@@ -318,7 +352,12 @@ const AddBookingsPageClient = (props: {
         data.balance,
         data.modeOfPayment,
         data.status,
-        data.deposit
+        data.deposit,
+        undefined, // dateCompleted
+        data.yve,
+        data.discountAmount,
+        data.discountId,
+        data.isCustomDiscount
       ),
   });
 
@@ -547,7 +586,16 @@ const AddBookingsPageClient = (props: {
 
     const clientID = Number(client?.id);
 
+    if (!clientID || isNaN(clientID)) {
+      throw new Error("Failed to create client or invalid client ID");
+    }
+
     const serviceIdsFlat = Object.values(mergedServiceIdsByCategory).flat();
+
+    // Validate dates
+    const validStartAt =
+      startAt && !isNaN(startAt.getTime()) ? startAt : new Date();
+    const validEndAt = endAt && !isNaN(endAt.getTime()) ? endAt : new Date();
 
     const booking = await createBookingMutation.mutateAsync({
       eventName: String(eventName ?? ""),
@@ -556,8 +604,8 @@ const AddBookingsPageClient = (props: {
       pax: String(numberOfPax ?? ""),
       eventType: Number(eventType ?? 0),
       notes: String(notes ?? ""),
-      startAt: startAt ?? new Date(),
-      endAt: endAt ?? new Date(),
+      startAt: validStartAt,
+      endAt: validEndAt,
       serviceIds: serviceIdsFlat.length ? serviceIdsFlat : undefined,
       packageId: packageId ? Number(packageId) : undefined,
       catering: selectedCatering ? Number(selectedCatering) : undefined,
@@ -579,16 +627,70 @@ const AddBookingsPageClient = (props: {
       }
     }
 
+    // Handle discount creation and calculation
+    let finalDiscountId = selectedDiscountId;
+    let finalDiscountType = discountName;
+    let finalDiscountPercentage = discountPercentage;
+    let finalDiscountAmount = discountAmount;
+    let finalIsCustomDiscount = false;
+
+    // If custom discount is selected, create it first
+    if (
+      discountType === "custom" &&
+      customDiscountName &&
+      customDiscountValue > 0
+    ) {
+      try {
+        const customDiscount = await createDiscount({
+          name: customDiscountName,
+          percent:
+            customDiscountType === "percent" ? customDiscountValue : undefined,
+          amount:
+            customDiscountType === "amount" ? customDiscountValue : undefined,
+          description: customDiscountDescription || undefined,
+          isActive: true,
+        });
+
+        if (customDiscount?.id) {
+          finalDiscountId = customDiscount.id;
+          finalDiscountType = customDiscountName;
+          finalIsCustomDiscount = true;
+
+          // Recalculate discount amount based on the created discount
+          if (customDiscountType === "percent") {
+            finalDiscountPercentage = customDiscountValue;
+            finalDiscountAmount = originalPrice * (customDiscountValue / 100);
+          } else {
+            finalDiscountAmount = customDiscountValue;
+            finalDiscountPercentage =
+              originalPrice > 0
+                ? (customDiscountValue / originalPrice) * 100
+                : 0;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to create custom discount", err);
+        // Continue with no discount if creation fails
+        finalDiscountId = null;
+        finalDiscountType = "";
+        finalDiscountPercentage = 0;
+        finalDiscountAmount = 0;
+      }
+    }
+
     await createBillingMutation.mutateAsync({
       bookingId: Number(bookingId ?? 0),
       originalPrice: Number(originalPrice || 0),
       discountedPrice: discountedPrice,
-      discountType: discountName,
-      discountPercentage: Number(discountPercentage),
+      discountType: finalDiscountType,
+      discountPercentage: Number(finalDiscountPercentage),
       balance: Number(finalBalance),
       modeOfPayment: selectedModeOfPayment?.name ?? "",
       deposit: Number(downpayment),
       status: 1,
+      discountAmount: finalDiscountAmount,
+      discountId: finalDiscountId || undefined,
+      isCustomDiscount: finalIsCustomDiscount,
     });
 
     console.log({
@@ -691,14 +793,33 @@ const AddBookingsPageClient = (props: {
   const extraHours = Math.max(0, hoursCount - 5);
   const extraHoursFee = extraHours * 2000;
   const originalPrice = basePackagePrice + extraHoursFee; // before discount
-  const appliedDiscountPct = isNaN(discountPercentage) ? 0 : discountPercentage;
-  const discountAmount = originalPrice * (appliedDiscountPct / 100);
+
+  // Calculate discount amount based on type
+  let discountAmount = 0;
+  if (discountType === "predefined" && selectedDiscountId) {
+    const selectedDiscount = discounts.find((d) => d.id === selectedDiscountId);
+    if (selectedDiscount) {
+      if (selectedDiscount.percent) {
+        discountAmount = originalPrice * (selectedDiscount.percent / 100);
+      } else if (selectedDiscount.amount) {
+        discountAmount = Math.min(selectedDiscount.amount, originalPrice); // Can't discount more than total
+      }
+    }
+  } else if (discountType === "custom" && customDiscountValue > 0) {
+    if (customDiscountType === "percent") {
+      discountAmount = originalPrice * (customDiscountValue / 100);
+    } else {
+      discountAmount = Math.min(customDiscountValue, originalPrice); // Can't discount more than total
+    }
+  }
+
   const discountedPrice = Math.max(0, originalPrice - discountAmount);
   const finalBalance = Math.max(0, discountedPrice - downPayment);
 
   if (!isVisible) return null;
   return (
     <form
+      id="booking-form"
       action="|"
       onSubmit={handleSubmitDraft}
       className="[--ring:var(--color-red-500)] in-[.dark]:[--ring:var(--color-red-500)]"
@@ -733,199 +854,276 @@ const AddBookingsPageClient = (props: {
 
           {/* === PAVILIONS BLOCK === */}
           <div
-            id="date_and_time"
+            id="pavilion"
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
-            <p className="font-bold text-lg">Pavilion</p>
-            <p className="text-sm text-zinc-500 mb-4">
-              Choose which pavilion the client will use for the event.
-            </p>
-            <div className="flex items-center space-x-2"></div>
-            <div className="flex w-full">
-              <RadioGroup
-                className="grid grid-cols-3"
-                name="pavilion"
-                value={
-                  selectedPavilionId ? String(selectedPavilionId) : undefined
-                }
-                onValueChange={(val) => {
-                  setSelectedPavilionId(Number(val));
-                  setSelectedPackageId(null);
-                  const pav = pavilions.find((p) => String(p.id) === val);
-                  handlePavilionSelect(pav ? pav.name : val);
-                }}
-              >
-                {pavilions.map((pavilion) => {
-                  const sanitized = pavilion.color
-                    ?.toLowerCase()
-                    .replace(/[^a-z0-9-]/g, "")
-                    .split(/-+/)[0];
-                  // Determine left border color: prefer valid hex, else map token, fallback red-500.
-                  let leftBorderColor: string = "#ef4444"; // fallback red-500
-                  if (pavilion.color) {
-                    const trimmed = pavilion.color.trim();
-                    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) {
-                      leftBorderColor = trimmed;
-                    } else if (sanitized && COLOR_TOKEN_TO_HEX[sanitized]) {
-                      leftBorderColor = COLOR_TOKEN_TO_HEX[sanitized];
-                    }
-                  }
-                  return (
-                    <div
-                      key={pavilion.id}
-                      className={
-                        "border-input has-data-[state=checked]:border-primary/50 relative flex w-full items-start gap-2 rounded-md border p-4 shadow-xs outline-none border-l-4"
-                      }
-                      style={{ borderLeftColor: leftBorderColor }}
-                    >
-                      <RadioGroupItem
-                        value={`${pavilion.id}`}
-                        id={`${pavilion.id}`}
-                        className="order-1 after:absolute after:inset-0"
-                      />
-                      <div className="grid grow gap-2">
-                        <Label
-                          htmlFor={`${pavilion.id}`}
-                          className="flex items-center"
-                        >
-                          {pavilion.name}
-                          <span className="font-normal ml-1 ">
-                            {" "}
-                            <Badge variant={"secondary"} className="mr-1">
-                              <Users
-                                className="-ms-0.5 opacity-60"
-                                size={12}
-                                aria-hidden="true"
-                              />
-                              {`${pavilion.maxPax} pax`}
-                            </Badge>
-                          </span>
-                        </Label>
-                        <div
-                          id={`${id}`}
-                          className="text-muted-foreground text-xs"
-                        >
-                          <p>{`${pavilion.description}`}</p>
+            <div className="">
+              <div>
+                <p className="font-bold text-lg mb-2">Pavilion</p>
+                <Dialog>
+                  <DialogTrigger className="w-full">
+                    <div className="flex border-1 p-6 rounded-lg justify-between items-center group">
+                      <div className="flex items-center gap-4">
+                        {selectedPavilion && (
+                          <div
+                            className="w-6 h-6 rounded-full border-2 border-white shadow-md"
+                            style={{
+                              backgroundColor: (() => {
+                                const sanitized = selectedPavilion.color
+                                  ?.toLowerCase()
+                                  .replace(/[^a-z0-9-]/g, "")
+                                  .split(/-+/)[0];
+                                let color: string = "#ef4444"; // fallback red-500
+                                if (selectedPavilion.color) {
+                                  const trimmed = selectedPavilion.color.trim();
+                                  if (
+                                    /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(
+                                      trimmed
+                                    )
+                                  ) {
+                                    color = trimmed;
+                                  } else if (
+                                    sanitized &&
+                                    COLOR_TOKEN_TO_HEX[sanitized]
+                                  ) {
+                                    color = COLOR_TOKEN_TO_HEX[sanitized];
+                                  }
+                                }
+                                return color;
+                              })(),
+                            }}
+                          />
+                        )}
+                        <div className="flex flex-col justify-start items-start ">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-lg">
+                              {selectedPavilion
+                                ? selectedPavilion.name
+                                : "Select a pavilion"}
+                            </p>
+                            {selectedPavilion && (
+                              <Badge variant="secondary" className="text-xs">
+                                <Users size={12} className="mr-1 opacity-60" />
+                                {selectedPavilion.maxPax} pax
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm font-normal text-foreground/50">
+                            {selectedPavilion
+                              ? selectedPavilion.description ||
+                                "No description available"
+                              : "Choose a pavilion to see details"}
+                          </p>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                        <Pen size={18} />
+                      </div>
                     </div>
-                  );
-                })}
-              </RadioGroup>
-            </div>
-          </div>
-          {/* === SELECT PACKAGE BLOCK === */}
-          {selectedPavilionId !== null && (
-            <div
-              id="package"
-              className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
-            >
-              <p className="font-bold text-lg">Select Package</p>
-              <p className="text-sm text-zinc-500">
-                Choose the package that applies to the client’s reservation.
-              </p>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-semibold">
+                        Choose Your Pavilion
+                      </DialogTitle>
+                    </DialogHeader>
+                    <ScrollArea className="max-h-[60vh] pr-4">
+                      <div className="mt-6">
+                        <RadioGroup
+                          name="pavilion"
+                          value={
+                            selectedPavilionId
+                              ? String(selectedPavilionId)
+                              : undefined
+                          }
+                          onValueChange={(val) => {
+                            setSelectedPavilionId(Number(val));
+                            setSelectedPackageId(null);
+                            const pav = pavilions.find(
+                              (p) => String(p.id) === val
+                            );
+                            handlePavilionSelect(pav ? pav.name : val);
+                          }}
+                          className="grid grid-cols-1 gap-2"
+                        >
+                          {pavilions.map((pavilion) => {
+                            const sanitized = pavilion.color
+                              ?.toLowerCase()
+                              .replace(/[^a-z0-9-]/g, "")
+                              .split(/-+/)[0];
+                            // Determine color: prefer valid hex, else map token, fallback red-500.
+                            let pavilionColor: string = "#ef4444"; // fallback red-500
+                            if (pavilion.color) {
+                              const trimmed = pavilion.color.trim();
+                              if (
+                                /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)
+                              ) {
+                                pavilionColor = trimmed;
+                              } else if (
+                                sanitized &&
+                                COLOR_TOKEN_TO_HEX[sanitized]
+                              ) {
+                                pavilionColor = COLOR_TOKEN_TO_HEX[sanitized];
+                              }
+                            }
+
+                            return (
+                              <div
+                                key={pavilion.id}
+                                className="relative flex items-start gap-3 rounded-lg border p-4 shadow-sm outline-none transition-all duration-200 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5"
+                              >
+                                <RadioGroupItem
+                                  value={`${pavilion.id}`}
+                                  id={`pavilion-${pavilion.id}`}
+                                  className="order-1 mt-1 after:absolute after:inset-0"
+                                />
+
+                                <div className="flex items-start gap-3 flex-1">
+                                  {/* Content */}
+                                  <div className="flex-1 space-y-2">
+                                    <div className="flex items-start justify-between">
+                                      <Label
+                                        htmlFor={`pavilion-${pavilion.id}`}
+                                        className="text-base font-medium cursor-pointer transition-colors"
+                                      >
+                                        {pavilion.name}
+                                      </Label>
+                                      <div className="flex items-center gap-2">
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-xs"
+                                        >
+                                          <Users size={12} className="mr-1" />
+                                          {pavilion.maxPax} guests
+                                        </Badge>
+                                      </div>
+                                    </div>
+
+                                    <p className="text-sm text-muted-foreground">
+                                      {pavilion.description}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </RadioGroup>
+                      </div>
+                    </ScrollArea>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <div className="">
                 <div className="mt-5">
-                  <div>
-                    <RadioGroup
-                      name="package"
-                      className="grid grid-cols-3"
-                      onValueChange={(val) => setSelectedPackageId(Number(val))}
-                    >
-                      {selectedPavilionId === null && (
-                        <div className="col-span-4 text-sm text-muted-foreground">
-                          Select a pavilion to see its packages.
-                        </div>
-                      )}
-                      {selectedPavilionId !== null &&
-                        filteredPackages.length === 0 && (
-                          <div className="col-span-4 text-sm text-muted-foreground">
-                            No packages available for the selected pavilion.
-                          </div>
-                        )}
-                      {filteredPackages.map((pack) => {
-                        const items = (pack.description ?? "")
-                          .split(".")
-                          .map((s) => s.trim())
-                          .filter(Boolean);
-                        return (
-                          <div
-                            key={pack.id}
-                            className="border-input has-data-[state=checked]:border-primary/50 relative flex w-full items-start gap-2 rounded-md border p-4 shadow-xs outline-none"
-                          >
-                            <RadioGroupItem
-                              value={`${pack.id}`}
-                              id={`${pack.id}`}
-                              aria-describedby={`${id}-package-${pack.id}-description`}
-                              className="order-1 after:absolute after:inset-0"
-                            />
-                            <div className="grid grow gap-2">
-                              <Label
-                                className="flex items-center"
-                                htmlFor={`${pack.id}`}
-                              >
-                                {pack.name}
-                                <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal">
-                                  {`(₱${pack.price.toLocaleString()})`}
-                                </span>
-                              </Label>
-                              <div
-                                id={`${id}-package-${pack.id}-description`}
-                                className="text-muted-foreground text-xs"
-                              >
-                                <ul className="list-disc list-inside space-y-1">
-                                  {items.map((it, idx) => (
-                                    <li key={idx}>{it}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </RadioGroup>
-                  </div>
-                </div>
-                {/* <div className="mt-4">
-                <p className="font-medium mb-2 mt-5">Pavilion Includes:</p>
-                <ul className="list-inside space-y-3 mb-2 text-sm text-black/80">
-                  <li className="flex items-center">
-                    <Check size={20} className="mr-1" /> 2 swimming pools
-                  </li>
-                  <li className="flex items-center">
-                    <Check size={20} className="mr-1" />
-                    Basic sound (mixer, 2 microphones and speakers) – no
-                    operator
-                  </li>
-                  <li className="flex items-center">
-                    <Check size={20} className="mr-1" />
-                    Fully air-conditioned
-                  </li>
-                  <li className="flex items-center">
-                    <Check size={20} className="mr-1" />
-                    Water dispenser
-                  </li>
-                  <li className="flex items-center">
-                    <Check size={20} className="mr-1" />
-                    Spacious parking lot
-                  </li>
-                </ul>
-              </div>
+                  <Dialog>
+                    <DialogTrigger className="w-full">
+                      {/* <p className="border-dashed border-2 px-4 py-8 rounded-md bg-muted/50 justify-center text-foreground/50 flex">
+                        select a package
+                      </p> */}
 
-              test test*/}
+                      <div className=" flex border-1 p-4 rounded-md justify-between  items-center">
+                        <div className="flex flex-col justify-start items-start">
+                          <p className="flex font-medium gap-2 items-center text-lg">
+                            {selectedPackage
+                              ? selectedPackage.name
+                              : "Select a package"}
+                            {selectedPackage && (
+                              <span className="text-xs font-normal">
+                                (₱{selectedPackage.price.toLocaleString()})
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-sm font-normal text-foreground/50">
+                            {selectedPackage
+                              ? selectedPackage.description ||
+                                "No description available"
+                              : "Choose a package to see details"}
+                          </p>
+                        </div>
+
+                        <Pen size={18} />
+                      </div>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Are you absolutely sure?</DialogTitle>
+                        <DialogDescription className="mt-4">
+                          <div>
+                            <RadioGroup
+                              name="package"
+                              className="flex flex-col"
+                              onValueChange={(val) =>
+                                setSelectedPackageId(Number(val))
+                              }
+                            >
+                              {selectedPavilionId === null && (
+                                <div className="col-span-4 text-sm text-muted-foreground">
+                                  Select a pavilion to see its packages.
+                                </div>
+                              )}
+                              {selectedPavilionId !== null &&
+                                filteredPackages.length === 0 && (
+                                  <div className="col-span-4 text-sm text-muted-foreground">
+                                    No packages available for the selected
+                                    pavilion.
+                                  </div>
+                                )}
+                              {filteredPackages.map((pack) => {
+                                const items = (pack.description ?? "")
+                                  .split(".")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean);
+                                return (
+                                  <div
+                                    key={pack.id}
+                                    className="border-input has-data-[state=checked]:border-primary/50 relative flex w-full items-start gap-2 rounded-md border p-4 shadow-xs outline-none"
+                                  >
+                                    <RadioGroupItem
+                                      value={`${pack.id}`}
+                                      id={`${pack.id}`}
+                                      aria-describedby={`${id}-package-${pack.id}-description`}
+                                      className="order-1 after:absolute after:inset-0"
+                                    />
+                                    <div className="grid grow gap-2">
+                                      <Label
+                                        className="flex items-center"
+                                        htmlFor={`${pack.id}`}
+                                      >
+                                        {pack.name}
+                                        <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal">
+                                          {`(₱${pack.price.toLocaleString()})`}
+                                        </span>
+                                      </Label>
+                                      <div
+                                        id={`${id}-package-${pack.id}-description`}
+                                        className="text-muted-foreground text-xs"
+                                      >
+                                        <ul className="list-disc list-inside space-y-1">
+                                          {items.map((it, idx) => (
+                                            <li key={idx}>{it}</li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </RadioGroup>
+                          </div>
+                        </DialogDescription>
+                      </DialogHeader>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
             </div>
-          )}
+          </div>
           {/* === DATE AND TIME BLOCK === */}
           <div
             id="date_and_time"
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
             <p className="font-bold text-lg">Date and Time</p>
-            <p className="text-sm text-zinc-500">
-              Enter the event date, start time, and duration for this
-              reservation.
-            </p>
             <div className="flex w-full">
               <div className="w-full">
                 <div className="grid grid-cols-2 gap-4 w-full ">
@@ -969,20 +1167,21 @@ const AddBookingsPageClient = (props: {
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
             <p className="font-bold text-lg">Event Details</p>
-            <p className="text-sm text-zinc-500">
-              Enter information about the event
-            </p>
             <div className="flex">
-              <div className="mt-4 *:not-first:mt-2 flex-1">
-                <Label className="">Event Name</Label>
+              <div className="mt-2 *:not-first:mt-2 flex-1">
+                <Label className="text-foreground/50 font-normal">
+                  Event Name
+                </Label>
                 <Input
                   name="eventName"
                   placeholder="Chris' Birthday Party"
                   type="text"
                 />
               </div>
-              <div className="mt-4 *:not-first:mt-2 flex-1 ml-4">
-                <Label className="">No. of pax</Label>
+              <div className="mt-2 *:not-first:mt-2 flex-1 ml-4">
+                <Label className="text-foreground/50 font-normal">
+                  No. of pax
+                </Label>
                 <Input
                   name="numPax"
                   placeholder="200"
@@ -993,7 +1192,9 @@ const AddBookingsPageClient = (props: {
               </div>
             </div>
             <div className="mt-4 *:not-first:mt-2">
-              <Label>Event type</Label>
+              <Label className="text-foreground/50 font-normal">
+                Event type
+              </Label>
 
               <Select name="eventType">
                 <SelectTrigger>
@@ -1369,16 +1570,15 @@ const AddBookingsPageClient = (props: {
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
             <p className="font-bold text-lg">Other Services</p>
-            <p className="text-sm text-zinc-500">
-              Details for other services that is included in the event.
-            </p>
             <div className="">
-              <div className="mt-5">
+              <div className="mt-2">
                 <div className="flex items-center [--primary:var(--color-red-500)] [--ring:var(--color-red-500)] in-[.dark]:[--primary:var(--color-red-500)] in-[.dark]:[--ring:var(--color-red-500)]">
                   <div className="grid grid-cols-3 gap-3 w-full">
                     {servicesCategory.map((category) => (
                       <div className=" mt-1" key={category.id}>
-                        <Label className="font-normal ">{category.name}</Label>
+                        <Label className="font-normal text-foreground/50">
+                          {category.name}
+                        </Label>
                         <div className="mt-2">
                           <SearchService
                             services={allServices.filter(
@@ -1458,15 +1658,21 @@ const AddBookingsPageClient = (props: {
                 <div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="*:not-first:mt-2">
-                      <Label className="font-normal">First name</Label>
+                      <Label className="font-normal text-foreground/50">
+                        First name
+                      </Label>
                       <Input name="firstName" placeholder="John" type="text" />
                     </div>
                     <div className="*:not-first:mt-2">
-                      <Label className="font-normal">Last name</Label>
+                      <Label className="font-normal text-foreground/50">
+                        Last name
+                      </Label>
                       <Input name="lastName" placeholder="Doe" type="text" />
                     </div>
                     <div className="*:not-first:mt-2">
-                      <Label className="font-normal">Phone number</Label>
+                      <Label className="font-normal text-foreground/50">
+                        Phone number
+                      </Label>
                       <Input
                         name="phoneNumber"
                         placeholder="09123456789"
@@ -1474,7 +1680,9 @@ const AddBookingsPageClient = (props: {
                       />
                     </div>
                     <div className="*:not-first:mt-2">
-                      <Label className="font-normal">Email address</Label>
+                      <Label className="font-normal text-foreground/50">
+                        Email address
+                      </Label>
                       <Input
                         name="email"
                         placeholder="johndoe@gmail.com"
@@ -1494,135 +1702,279 @@ const AddBookingsPageClient = (props: {
               </div>
             </div>
           </div>
-          {/* === BILLING BLOCK === */}
+
+          {/* === DISCOUNT BLOCK === */}
           <div
-            id="notes"
+            id="discount"
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
-            <p className="font-bold text-lg">Notes</p>
-            <div className="">
-              <div className="mt-5">
-                <div className="*:not-first:mt-2">
-                  <Textarea name="notes" placeholder="Leave a comment" />
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            id="services"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
-          >
-            <p className="font-bold text-lg">Billing</p>
-            <div className="">
-              <div className="mt-5">
+            <p className="font-bold text-lg">Discount</p>
+            <p className="text-sm text-zinc-500">
+              Choose a discount option for this booking.
+            </p>
+            <div className="mt-5">
+              <div className="space-y-4">
+                {/* Discount Type Selection */}
                 <div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="[--ring:var(--color-red-500)] *:not-first:mt-2 in-[.dark]:[--ring:var(--color-red-500)]">
-                      <Label className="font-normal">Mode of payment</Label>
-                      <Select
-                        defaultValue={
-                          modeOfPayments.length > 0
-                            ? String(modeOfPayments[0].id)
-                            : undefined
-                        }
-                        name="modeOfPayment"
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select mode of payment" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {modeOfPayments.map((mop) => (
-                            <SelectItem key={mop.id} value={String(mop.id)}>
-                              {mop.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="[--ring:var(--color-red-500)] *:not-first:mt-2 in-[.dark]:[--ring:var(--color-red-500)]">
-                      <Label className="font-normal">
-                        Downpayment (non-refundable)
-                      </Label>
-                      <Input
-                        placeholder="Downpayment"
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        name="downpayment"
-                        onChange={(e) => {
-                          const val = Number.parseFloat(e.currentTarget.value);
-                          setDownPayment(
-                            Number.isFinite(val) ? Math.max(0, val) : 0
-                          );
-                        }}
+                  <RadioGroup
+                    value={discountType}
+                    onValueChange={(
+                      value: "predefined" | "custom" | "none"
+                    ) => {
+                      setDiscountType(value);
+                      if (value === "predefined") {
+                        // Reset custom discount states
+                        setCustomDiscountName("");
+                        setCustomDiscountValue(0);
+                        setCustomDiscountDescription("");
+                        setCustomDiscountType("percent");
+                      } else if (value === "custom") {
+                        // Reset predefined discount selection
+                        setSelectedDiscountId(null);
+                        setDiscountName("");
+                        setDiscountPercentage(0);
+                      } else if (value === "none") {
+                        // Reset all discount states
+                        setSelectedDiscountId(null);
+                        setDiscountName("");
+                        setDiscountPercentage(0);
+                        setCustomDiscountName("");
+                        setCustomDiscountValue(0);
+                        setCustomDiscountDescription("");
+                        setCustomDiscountType("percent");
+                      }
+                    }}
+                    className="grid grid-cols-3"
+                  >
+                    <div className="relative flex items-center space-x-2 border-1 p-4 rounded-md cursor-pointer transition-colors hover:bg-muted/50 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5">
+                      <RadioGroupItem
+                        value="predefined"
+                        id="predefined"
+                        className="after:absolute after:inset-0 after:cursor-pointer"
                       />
+                      <Label
+                        htmlFor="predefined"
+                        className="font-normal cursor-pointer"
+                      >
+                        Predefined Discount
+                      </Label>
                     </div>
-                    <div className="[--ring:var(--color-red-500)] *:not-first:mt-2 in-[.dark]:[--ring:var(--color-red-500)]">
-                      <Label className="font-normal">Discount</Label>
-                      <Select
-                        value={
-                          selectedDiscountId
-                            ? String(selectedDiscountId)
-                            : undefined
+                    <div className="relative flex items-center space-x-2 border-1 p-4 rounded-md cursor-pointer transition-colors hover:bg-muted/50 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5">
+                      <RadioGroupItem
+                        value="custom"
+                        id="custom"
+                        className="after:absolute after:inset-0 after:cursor-pointer"
+                      />
+                      <Label
+                        htmlFor="custom"
+                        className="font-normal cursor-pointer"
+                      >
+                        Custom Discount
+                      </Label>
+                    </div>
+                    <div className="relative flex items-center space-x-2 border-1 p-4 rounded-md cursor-pointer transition-colors hover:bg-muted/50 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5">
+                      <RadioGroupItem
+                        value="none"
+                        id="none"
+                        className="after:absolute after:inset-0 after:cursor-pointer"
+                      />
+                      <Label
+                        htmlFor="none"
+                        className="font-normal cursor-pointer"
+                      >
+                        None
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* Predefined Discount Selection */}
+                {discountType === "predefined" && (
+                  <div className="">
+                    <Label className="font-normal text-foreground/50">
+                      Select Discount
+                    </Label>
+
+                    <Select
+                      value={
+                        selectedDiscountId ? String(selectedDiscountId) : ""
+                      }
+                      onValueChange={async (value) => {
+                        if (value === "") {
+                          setSelectedDiscountId(null);
+                          setDiscountName("");
+                          setDiscountPercentage(0);
+                          return;
                         }
-                        onValueChange={(val) => {
-                          const idNum = Number(val);
-                          setSelectedDiscountId(idNum);
-                          const found = discounts.find((d) => d.id === idNum);
-                          if (found) {
-                            setDiscountPercentage(found.percent ?? 0);
-                            setDiscountName(found.name ?? "");
+                        const discountId = parseInt(value, 10);
+                        setSelectedDiscountId(discountId);
+
+                        // Find discount in the predefined list
+                        const selectedDiscount = discounts.find(
+                          (d) => d.id === discountId
+                        );
+                        if (selectedDiscount) {
+                          setDiscountName(selectedDiscount.name);
+                          // Calculate percentage based on discount type
+                          if (selectedDiscount.percent) {
+                            setDiscountPercentage(selectedDiscount.percent);
+                          } else if (selectedDiscount.amount) {
+                            // Convert amount to percentage based on current total
+                            const currentTotal =
+                              basePackagePrice + extraHoursFee;
+                            const percentage =
+                              currentTotal > 0
+                                ? (selectedDiscount.amount / currentTotal) * 100
+                                : 0;
+                            setDiscountPercentage(percentage);
                           } else {
                             setDiscountPercentage(0);
-                            setDiscountName("");
                           }
-                        }}
-                        name="discountId"
-                      >
-                        <SelectTrigger id={id}>
-                          <SelectValue placeholder="Select discount" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {discounts.map((dc) => (
-                            <SelectItem key={dc.id} value={String(dc.id)}>
-                              {dc.name}{" "}
-                              {dc.percent != null && (
-                                <span className="text-muted-foreground">
-                                  ({dc.percent}%)
-                                </span>
-                              )}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="[--ring:var(--color-red-500)] *:not-first:mt-2 in-[.dark]:[--ring:var(--color-red-500)]">
-                      <Label className="font-normal">Discount %</Label>
-                      <div className="relative">
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue placeholder="Choose a discount" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {discounts.map((discount) => (
+                          <SelectItem
+                            key={discount.id}
+                            value={String(discount.id)}
+                          >
+                            <div className="flex  gap-2 items-center">
+                              <span>{discount.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {discount.percent
+                                  ? `(${discount.percent}% off)`
+                                  : discount.amount
+                                    ? `₱${discount.amount.toLocaleString()} off`
+                                    : "Custom discount"}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Custom Discount Creation */}
+                {discountType === "custom" && (
+                  <div className="">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="font-normal text-foreground/50 mb-2 block">
+                          Discount Name
+                        </Label>
                         <Input
-                          placeholder="0"
-                          type="text"
-                          inputMode="decimal"
-                          min={0}
-                          max={100}
-                          className="pr-10"
-                          value={discountPercentage}
-                          name="discountPercentage"
+                          placeholder="e.g., Special Event Discount"
+                          value={customDiscountName}
+                          onChange={(e) =>
+                            setCustomDiscountName(e.target.value)
+                          }
                         />
-                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground">
-                          %
-                        </span>
+                      </div>
+                      <div>
+                        <Label className="font-normal text-foreground/50 mb-2 block">
+                          Discount Method
+                        </Label>
+                        <Select
+                          value={customDiscountType}
+                          onValueChange={(value: "percent" | "amount") => {
+                            setCustomDiscountType(value);
+                            setCustomDiscountValue(0); // Reset value when changing type
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="percent">
+                              Percentage (%)
+                            </SelectItem>
+                            <SelectItem value="amount">
+                              Fixed Amount (₱)
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="font-normal text-foreground/50 mb-2 mt-4 block">
+                          {customDiscountType === "percent"
+                            ? "Percentage"
+                            : "Amount"}
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            placeholder={
+                              customDiscountType === "percent" ? "10" : "1000"
+                            }
+                            value={customDiscountValue || ""}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value) || 0;
+                              if (
+                                customDiscountType === "percent" &&
+                                value > 100
+                              ) {
+                                return; // Don't allow more than 100%
+                              }
+                              setCustomDiscountValue(value);
+
+                              // Calculate discount percentage for display
+                              if (customDiscountType === "percent") {
+                                setDiscountPercentage(value);
+                              } else {
+                                const currentTotal =
+                                  basePackagePrice + extraHoursFee;
+                                const percentage =
+                                  currentTotal > 0
+                                    ? (value / currentTotal) * 100
+                                    : 0;
+                                setDiscountPercentage(percentage);
+                              }
+                            }}
+                            min="0"
+                            max={
+                              customDiscountType === "percent"
+                                ? "100"
+                                : undefined
+                            }
+                            step={
+                              customDiscountType === "percent" ? "0.1" : "1"
+                            }
+                          />
+                          <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">
+                            {customDiscountType === "percent" ? "%" : "₱"}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="font-normal text-foreground/50 mb-2 block mt-4">
+                          Description (Optional)
+                        </Label>
+                        <Input
+                          placeholder="Brief description"
+                          value={customDiscountDescription}
+                          onChange={(e) =>
+                            setCustomDiscountDescription(e.target.value)
+                          }
+                        />
                       </div>
                     </div>
                   </div>
-                  <div className="mt-3"></div>
-                </div>
+                )}
               </div>
             </div>
           </div>
+
+          {/* === BILLING BLOCK === */}
         </div>
         {/* === RIGHT COLUMN (SUMMARY) === */}
-        <div className="sticky top-16 h-screen mt-8">
+        <div className="sticky top-0 h-screen mt-8">
           <div
             id="date_and_time"
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
@@ -1718,16 +2070,34 @@ const AddBookingsPageClient = (props: {
                     )}
                   </div>
                   <div className="text-end">
-                    {appliedDiscountPct > 0 && (
+                    {discountAmount > 0 && (
                       <p className="text-sm font-normal line-through">
                         {formatCurrency(originalPrice)}
                       </p>
                     )}
                     <p className="text-md font-medium text-red-500">
                       {formatCurrency(discountedPrice)}
-                      {appliedDiscountPct > 0 && (
+                      {discountAmount > 0 && (
                         <span className="ml-1 text-xs text-black/50">
-                          ({appliedDiscountPct}% off)
+                          (
+                          {discountType === "predefined" && selectedDiscountId
+                            ? (() => {
+                                const selectedDiscount = discounts.find(
+                                  (d) => d.id === selectedDiscountId
+                                );
+                                if (selectedDiscount?.percent)
+                                  return `${selectedDiscount.percent}% off`;
+                                if (selectedDiscount?.amount)
+                                  return `₱${selectedDiscount.amount.toLocaleString()} off`;
+                                return "Discount applied";
+                              })()
+                            : discountType === "custom" &&
+                                customDiscountValue > 0
+                              ? customDiscountType === "percent"
+                                ? `${customDiscountValue}% off`
+                                : `₱${customDiscountValue.toLocaleString()} off`
+                              : "Discount applied"}
+                          )
                         </span>
                       )}
                     </p>
@@ -1745,24 +2115,74 @@ const AddBookingsPageClient = (props: {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      </div>
 
-      <div className="flex justify-end">
-        <div className="w-fit h-fit rounded-sm p-4 bg-white shadow-neutral-200 shadow-2xl mt-4">
-          <div className="flex w-full">
-            <Button
-              className="group bg-red-500 hover:bg-red-600 text-white"
-              type="submit"
-            >
-              Create booking
-              <ArrowRightIcon
-                className="-me-1 opacity-60 transition-transform group-hover:translate-x-0.5"
-                size={16}
-                aria-hidden="true"
+            <div id="notes" className="w-full h-fit mt-4 bg-white rounded-md">
+              <div className="">
+                <div className="mt-2">
+                  <div className="*:not-first:mt-2">
+                    <Textarea name="notes" placeholder="Notes" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full flex flex-col justify-end gap-2 mt-2">
+              <CreateBookingAddPayment
+                bookingData={{
+                  // Client data - will be collected from form
+                  firstName: "",
+                  lastName: "",
+                  phoneNumber: "",
+                  email: "",
+                  region: region ?? "",
+                  province: province ?? "",
+                  municipality: municipality ?? "",
+                  barangay: barangay ?? "",
+
+                  // Booking data - from current state
+                  eventName: "",
+                  pavilionId: String(selectedPavilionId ?? ""),
+                  numPax: numPax,
+                  eventType: 0,
+                  notes: "",
+                  startAt: startAt ?? new Date(),
+                  endAt: endAt ?? new Date(),
+                  serviceIds: Object.values(
+                    selectedServiceIdsByCategory
+                  ).flat(),
+                  packageId: selectedPackageId ?? undefined,
+                  catering: selectedCatering
+                    ? Number(selectedCatering)
+                    : undefined,
+
+                  // Billing data - from calculations
+                  originalPrice: originalPrice,
+                  discountedPrice: discountedPrice,
+                  discountType: discountName,
+                  discountPercentage: discountPercentage,
+                  balance: finalBalance,
+                  modeOfPaymentName: "",
+                  deposit: downPayment,
+
+                  // Selected dishes for catering
+                  selectedDishes: selectedDishes.map((dish) => ({
+                    id: dish.id,
+                    quantity: dish.quantity,
+                  })),
+                }}
+                totalAmount={discountedPrice}
+                getFormData={() => {
+                  const form = document.getElementById(
+                    "booking-form"
+                  ) as HTMLFormElement;
+                  return form ? new FormData(form) : null;
+                }}
+                onBookingCreated={() => {
+                  console.log("Booking created successfully!");
+                  // Could add navigation or form reset here
+                }}
               />
-            </Button>
+            </div>
           </div>
         </div>
       </div>

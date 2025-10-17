@@ -142,7 +142,7 @@ export function DataTable<TData, TValue>({
         </Button>
 
         {billingId && clientId && (
-          <div>
+          <div className="z-300">
             <AddPaymentDialog billingId={billingId} clientId={clientId} />
           </div>
         )}

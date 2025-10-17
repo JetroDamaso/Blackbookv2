@@ -150,6 +150,13 @@ export async function getBillingSummary(billingId: number) {
           select: {
             eventName: true,
             id: true,
+            client: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
           },
         },
       },
@@ -168,6 +175,7 @@ export async function getBillingSummary(billingId: number) {
         yve: 0,
         modeOfPayment: "",
         eventName: "Unknown Event",
+        clientName: "Unknown Client",
         bookingId: null,
         status: 0,
         payments: [],
@@ -177,6 +185,9 @@ export async function getBillingSummary(billingId: number) {
 
     const totalPaid = billing.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
     const balance = billing.discountedPrice - totalPaid;
+    const clientName = billing.booking?.client
+      ? `${billing.booking.client.firstName} ${billing.booking.client.lastName}`
+      : "Unknown Client";
 
     return {
       totalBilling: billing.discountedPrice || 0,
@@ -189,6 +200,7 @@ export async function getBillingSummary(billingId: number) {
       yve: billing.yve || 0,
       modeOfPayment: billing.modeOfPayment || "",
       eventName: billing.booking?.eventName || "Unknown Event",
+      clientName,
       bookingId: billing.booking?.id || null,
       status: billing.status || 0,
       payments: billing.payments || [],
@@ -208,6 +220,7 @@ export async function getBillingSummary(billingId: number) {
       yve: 0,
       modeOfPayment: "",
       eventName: "Unknown Event",
+      clientName: "Unknown Client",
       bookingId: null,
       status: 0,
       payments: [],

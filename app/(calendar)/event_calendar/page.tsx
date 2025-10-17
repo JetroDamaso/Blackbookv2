@@ -4,11 +4,7 @@ import { getAllBookings } from "@/server/Booking/pullActions";
 
 const CalendarPage = async () => {
   const allBookings = await getAllBookings();
-  return (
-    <div className="w-full h-full">
-      <CalendarClient getAllBookings={allBookings} />
-    </div>
-  );
+  return <CalendarClient getAllBookings={allBookings} />;
 };
 
 export default CalendarPage;

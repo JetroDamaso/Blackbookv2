@@ -102,7 +102,10 @@ export default function RegionComboBoxComponent({
   return (
     <div className="grid grid-cols-2 gap-3">
       <div>
-        <Label htmlFor={"region"} className="mb-3 font-normal">
+        <Label
+          htmlFor={"region"}
+          className="mb-3 font-normal text-foreground/50"
+        >
           Region
         </Label>
         <div className="mt-2">
@@ -123,7 +126,9 @@ export default function RegionComboBoxComponent({
 
       <div hidden={!openProvince} className="">
         <div className="">
-          <Label htmlFor={"region"}>Province</Label>
+          <Label htmlFor={"region"} className="font-normal text-foreground/50 ">
+            Province
+          </Label>
           <div className="mt-2">
             <Select value={provinceValue} onValueChange={handleClickProvince}>
               <SelectTrigger id={provinceID}>
@@ -143,7 +148,9 @@ export default function RegionComboBoxComponent({
 
       <div hidden={!openMunicipality} className="">
         <div className="">
-          <Label htmlFor={"region"}>Municipality</Label>
+          <Label htmlFor={"region"} className="font-normal text-foreground/50">
+            Municipality
+          </Label>
           <div className="mt-2">
             <Select
               value={municipalityValue}
@@ -166,7 +173,12 @@ export default function RegionComboBoxComponent({
 
       <div hidden={!openBarangay} className="">
         <div className="">
-          <Label htmlFor={"barangay"}>Barangay</Label>
+          <Label
+            htmlFor={"barangay"}
+            className="font-normal text-foreground/50"
+          >
+            Barangay
+          </Label>
           <div className="mt-2">
             <Select value={barangayValue} onValueChange={handleClickBarangay}>
               <SelectTrigger id={barangayID}>

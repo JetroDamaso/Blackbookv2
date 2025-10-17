@@ -43,7 +43,7 @@ export function EndDatePickerForm({
   return (
     <div className="w-full">
       <div className="mb-2">
-        <Label className="text-foreground text-sm font-normal mb-2">
+        <Label className="text-foreground/50 text-sm font-normal mb-2">
           End date
         </Label>
       </div>

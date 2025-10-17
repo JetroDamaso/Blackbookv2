@@ -5,6 +5,7 @@
 
 @theme inline {
   --font-roboto: "rubik", sans-serif;
+  --font-rufina: var(--font-rufina);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);

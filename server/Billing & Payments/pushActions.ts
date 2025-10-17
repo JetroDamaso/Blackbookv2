@@ -12,7 +12,10 @@ export async function createBilling(
   status: number,
   deposit: number,
   dateComplpeted?: Date,
-  yve?: number
+  yve?: number,
+  discountAmount?: number,
+  discountId?: number,
+  isCustomDiscount?: boolean
 ) {
   try {
     const data = await prisma.billing.create({
@@ -22,6 +25,9 @@ export async function createBilling(
         discountedPrice: discountedPrice,
         discountType: discountType,
         discountPercentage: discountPercentage,
+        discountAmount: discountAmount,
+        discountId: discountId,
+        isCustomDiscount: isCustomDiscount || false,
         balance: balance,
         modeOfPayment: modeOfPayment,
         yve: yve,
@@ -42,7 +48,8 @@ export async function createPayment(
   amount: number,
   status: string,
   date?: Date,
-  notes?: string
+  notes?: string,
+  orNumber?: string
 ) {
   try {
     const data = await prisma.payment.create({
@@ -53,6 +60,7 @@ export async function createPayment(
         status: status,
         date: date || new Date(),
         notes: notes,
+        orNumber: orNumber,
       },
       include: {
         client: {
