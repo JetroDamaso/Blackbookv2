@@ -39,11 +39,14 @@ export default function ManageDiscounts() {
   }
 
   // Calculate average percentage for percentage-based discounts only
-  const percentageDiscounts = data?.filter((discount) => discount.percent !== null) || [];
+  const percentageDiscounts =
+    data?.filter((discount) => discount.percent !== null) || [];
   const averageDiscount = percentageDiscounts.length
     ? (
-        percentageDiscounts.reduce((sum, discount) => sum + (discount.percent || 0), 0) / 
-        percentageDiscounts.length
+        percentageDiscounts.reduce(
+          (sum, discount) => sum + (discount.percent || 0),
+          0
+        ) / percentageDiscounts.length
       ).toFixed(1)
     : "0";
 
