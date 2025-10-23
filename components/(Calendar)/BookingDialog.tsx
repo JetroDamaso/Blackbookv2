@@ -4,8 +4,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -28,20 +30,43 @@ import {
   getEventTypeById,
 } from "@/server/Billing & Payments/pullActions";
 import { getBookingsById } from "@/server/Booking/pullActions";
+import { updateBooking } from "@/server/Booking/pushActions";
 import { getClientsById } from "@/server/clients/pullActions";
+import { updateClient } from "@/server/clients/pushActions";
+import { getAllEventTypes } from "@/server/eventtypes/pullActions";
 import { getDishesByMenuId, getMenuByBookingId } from "@/server/Menu/pullActions";
-import { getPackagesById } from "@/server/Packages/pullActions";
-import { getPavilionsById } from "@/server/Pavilions/Actions/pullActions";
-import { getServicesByBooking, getServicesCategory } from "@/server/Services/pullActions";
-import { useQuery } from "@tanstack/react-query";
-import { useId } from "react";
+import { getPackagesById, getPackagesByPavilion } from "@/server/Packages/pullActions";
+import { getAllPavilions, getPavilionsById } from "@/server/Pavilions/Actions/pullActions";
+import {
+  getAllServices,
+  getServicesByBooking,
+  getServicesCategory,
+} from "@/server/Services/pullActions";
+import {
+  addServiceToBooking,
+  createNewService,
+  deleteService,
+  removeServiceFromBooking,
+  updateService,
+} from "@/server/Services/pushActions";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Edit, Pencil, Plus, SearchIcon, Trash2, X } from "lucide-react";
+import React, { useId, useState } from "react";
+import { toast } from "sonner";
+import RegionComboBoxComponent from "../(Bookings)/(AddBookings)/ComboBox/RegionComboBox";
 import { EndDatePickerForm } from "../(Bookings)/(AddBookings)/TimeDatePicker/endDatePicker";
 import { StartDatePickerForm } from "../(Bookings)/(AddBookings)/TimeDatePicker/startDatePicker";
 import TimeEndPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeEndPicker";
 import TimeStartPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeStartPicker";
 import AddPaymentDialog from "../(Payments)/AddPaymentDialog";
 import ViewPaymentDialog from "../(Payments)/ViewPaymentDialog";
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../ui/input-group";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupText,
+} from "../ui/input-group";
 import { Textarea } from "../ui/textarea";
 
 // Removed placeholder items; real data queried below
@@ -172,16 +197,415 @@ export default function BookingDialogComponent({
     }
   );
 
+  // Status options
+  const statusOptions = [
+    { value: "1", label: "Pending", color: "text-yellow-600" },
+    { value: "2", label: "Confirmed", color: "text-blue-600" },
+    { value: "3", label: "In Progress", color: "text-orange-600" },
+    { value: "4", label: "Completed", color: "text-green-600" },
+    { value: "5", label: "Cancelled", color: "text-red-600" },
+  ];
+
+  const getStatusLabel = (statusValue: string | number) => {
+    const status = statusOptions.find(s => s.value === statusValue?.toString());
+    return status ? status.label : "Unknown";
+  };
+
+  const getStatusColor = (statusValue: string | number) => {
+    const status = statusOptions.find(s => s.value === statusValue?.toString());
+    return status ? status.color : "text-gray-600";
+  };
+
+  // Other Services Dialog State
+  const [isOtherServicesDialogOpen, setIsOtherServicesDialogOpen] = useState(false);
+  const [editingService, setEditingService] = useState<OtherServiceRow | null>(null);
+  const [newServiceName, setNewServiceName] = useState("");
+  const [newServiceCategory, setNewServiceCategory] = useState("");
+
+  // Filter and search state for Other Services
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Reset filters when dialog opens
+  const resetFilters = () => {
+    setSelectedCategoryFilter("all");
+    setSearchQuery("");
+  };
+
+  // Reset filters when Other Services dialog opens
+  React.useEffect(() => {
+    if (isOtherServicesDialogOpen) {
+      resetFilters();
+    }
+  }, [isOtherServicesDialogOpen]);
+
+  // Inline Edit State
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    status: booking?.status?.toString() || "1",
+    eventName: booking?.eventName || "",
+    eventType: booking?.eventType?.toString() || "",
+    pavilionId: booking?.pavilionId?.toString() || "",
+    packageId: booking?.packageId?.toString() || "",
+    notes: booking?.notes || "",
+    startAt: booking?.startAt || new Date(),
+    endAt: booking?.endAt || new Date(),
+    totalPax: booking?.totalPax?.toString() || "1",
+    firstName: clientData?.firstName || "",
+    lastName: clientData?.lastName || "",
+    phoneNumber: clientData?.phoneNumber || "",
+    region: clientData?.region || "",
+    province: clientData?.province || "",
+    municipality: clientData?.municipality || "",
+    barangay: clientData?.barangay || "",
+  });
+
+  // Track changes
+  const originalData = React.useMemo(
+    () => ({
+      status: booking?.status?.toString() || "1",
+      eventName: booking?.eventName || "",
+      eventType: booking?.eventType?.toString() || "",
+      pavilionId: booking?.pavilionId?.toString() || "",
+      packageId: booking?.packageId?.toString() || "",
+      notes: booking?.notes || "",
+      totalPax: booking?.totalPax?.toString() || "1",
+      firstName: clientData?.firstName || "",
+      lastName: clientData?.lastName || "",
+      phoneNumber: clientData?.phoneNumber || "",
+      region: clientData?.region || "",
+      province: clientData?.province || "",
+      municipality: clientData?.municipality || "",
+      barangay: clientData?.barangay || "",
+    }),
+    [booking, clientData]
+  );
+
+  // Query all services for the management dialog
+  const { data: allServicesData } = useQuery({
+    queryKey: ["allServices"],
+    queryFn: () => getAllServices(),
+    enabled: isOtherServicesDialogOpen,
+  });
+
+  // Query all event types for editing
+  const { data: allEventTypesData } = useQuery({
+    queryKey: ["allEventTypes"],
+    queryFn: () => getAllEventTypes(),
+    enabled: isEditMode,
+  });
+
+  // Query all pavilions for editing
+  const { data: allPavilionsData } = useQuery({
+    queryKey: ["allPavilions"],
+    queryFn: () => getAllPavilions(),
+    enabled: isEditMode,
+  });
+
+  // Query packages for the selected pavilion
+  const { data: pavilionPackagesData } = useQuery({
+    queryKey: ["pavilionPackages", editFormData.pavilionId],
+    queryFn: () => getPackagesByPavilion(Number(editFormData.pavilionId)),
+    enabled: isEditMode && !!editFormData.pavilionId,
+  });
+
+  const queryClient = useQueryClient();
+
+  // Filter services based on category and search (moved after data queries)
+  const filteredServices =
+    allServicesData?.filter(
+      (service: {
+        id: number;
+        name: string;
+        categoryId: number | null;
+        packageId?: number | null;
+        amount?: number | null;
+        description?: string | null;
+      }) => {
+        // Skip services without categoryId
+        if (!service.categoryId) return false;
+
+        // Filter by category
+        if (
+          selectedCategoryFilter !== "all" &&
+          service.categoryId.toString() !== selectedCategoryFilter
+        ) {
+          return false;
+        }
+
+        // Filter by search query
+        if (searchQuery.trim() !== "") {
+          const query = searchQuery.toLowerCase();
+          const serviceName = service.name.toLowerCase();
+          const category = serviceCategoriesData?.find(
+            (c: { id: number; name: string }) => c.id === service.categoryId
+          );
+          const categoryName = category?.name.toLowerCase() || "";
+
+          return serviceName.includes(query) || categoryName.includes(query);
+        }
+
+        return true;
+      }
+    ) || [];
+
+  // Create new service mutation
+  const createServiceMutation = useMutation({
+    mutationFn: ({ name, categoryId }: { name: string; categoryId: number }) =>
+      createNewService(name, categoryId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["allServices"] });
+      queryClient.invalidateQueries({ queryKey: ["otherServices"] });
+      setNewServiceName("");
+      setNewServiceCategory("");
+      toast.success("Service created successfully!");
+    },
+    onError: () => {
+      toast.error("Failed to create service");
+    },
+  });
+
+  // Update service mutation
+  const updateServiceMutation = useMutation({
+    mutationFn: ({
+      serviceId,
+      name,
+      categoryId,
+    }: {
+      serviceId: number;
+      name: string;
+      categoryId: number;
+    }) => updateService(serviceId, name, categoryId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["allServices"] });
+      queryClient.invalidateQueries({ queryKey: ["otherServices"] });
+      setEditingService(null);
+      toast.success("Service updated successfully!");
+    },
+    onError: () => {
+      toast.error("Failed to update service");
+    },
+  });
+
+  // Delete service mutation
+  const deleteServiceMutation = useMutation({
+    mutationFn: (serviceId: number) => deleteService(serviceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["allServices"] });
+      queryClient.invalidateQueries({ queryKey: ["otherServices"] });
+      toast.success("Service deleted successfully!");
+    },
+    onError: () => {
+      toast.error("Failed to delete service");
+    },
+  });
+
+  // Add service to booking mutation
+  const addServiceToBookingMutation = useMutation({
+    mutationFn: (serviceId: number) => addServiceToBooking(bookingId, serviceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["otherServices", bookingId] });
+      toast.success("Service added to booking!");
+    },
+    onError: () => {
+      toast.error("Failed to add service to booking");
+    },
+  });
+
+  // Remove service from booking mutation
+  const removeServiceFromBookingMutation = useMutation({
+    mutationFn: (serviceId: number) => removeServiceFromBooking(bookingId, serviceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["otherServices", bookingId] });
+      toast.success("Service removed from booking!");
+    },
+    onError: () => {
+      toast.error("Failed to remove service from booking");
+    },
+  });
+
+  // Update booking mutation
+  const updateBookingMutation = useMutation({
+    mutationFn: (data: any) =>
+      updateBooking(
+        bookingId,
+        data.eventName,
+        data.pavilionId,
+        data.totalPax,
+        parseInt(data.eventType),
+        data.notes,
+        data.startAt,
+        data.endAt,
+        parseInt(data.status),
+        undefined,
+        data.packageId
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["booking", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["client"] });
+      queryClient.invalidateQueries({ queryKey: ["package", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["pavilionPackages"] });
+      toast.success("Booking updated successfully!");
+    },
+    onError: () => {
+      toast.error("Failed to update booking");
+    },
+  });
+
+  // Update client mutation
+  const updateClientMutation = useMutation({
+    mutationFn: (data: any) =>
+      updateClient(
+        booking?.clientId || 0,
+        data.firstName,
+        data.lastName,
+        data.region,
+        data.province,
+        data.municipality,
+        data.barangay,
+        data.phoneNumber
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client", bookingId] });
+      toast.success("Client information updated successfully!");
+    },
+    onError: () => {
+      toast.error("Failed to update client information");
+    },
+  });
+
+  const handleCreateService = () => {
+    if (newServiceName.trim() && newServiceCategory) {
+      createServiceMutation.mutate({
+        name: newServiceName.trim(),
+        categoryId: parseInt(newServiceCategory),
+      });
+    }
+  };
+
+  // Check for changes in form data
+  const checkForChanges = React.useCallback(() => {
+    const dataChanged = JSON.stringify(editFormData) !== JSON.stringify(originalData);
+    setHasChanges(dataChanged);
+  }, [editFormData, originalData]);
+
+  React.useEffect(() => {
+    if (isEditMode) {
+      checkForChanges();
+    }
+  }, [editFormData, isEditMode, checkForChanges]);
+
+  // Sync editFormData when booking or client data changes
+  React.useEffect(() => {
+    if (booking) {
+      setEditFormData(prev => ({
+        ...prev,
+        status: booking.status?.toString() || "1",
+        eventName: booking.eventName || "",
+        eventType: booking.eventType?.toString() || "",
+        pavilionId: booking.pavilionId?.toString() || "",
+        packageId: booking.packageId?.toString() || "",
+        notes: booking.notes || "",
+        startAt: booking.startAt || new Date(),
+        endAt: booking.endAt || new Date(),
+        totalPax: booking.totalPax?.toString() || "1",
+      }));
+    }
+  }, [booking]);
+
+  React.useEffect(() => {
+    if (clientData) {
+      setEditFormData(prev => ({
+        ...prev,
+        firstName: clientData.firstName || "",
+        lastName: clientData.lastName || "",
+        phoneNumber: clientData.phoneNumber || "",
+        region: clientData.region || "",
+        province: clientData.province || "",
+        municipality: clientData.municipality || "",
+        barangay: clientData.barangay || "",
+      }));
+    }
+  }, [clientData]);
+
+  // Reset packageId when pavilionId changes
+  const previousPavilionId = React.useRef(editFormData.pavilionId);
+  React.useEffect(() => {
+    if (
+      isEditMode &&
+      editFormData.pavilionId &&
+      previousPavilionId.current !== editFormData.pavilionId
+    ) {
+      // Reset package selection when pavilion changes
+      setEditFormData(prev => ({ ...prev, packageId: "" }));
+    }
+    previousPavilionId.current = editFormData.pavilionId;
+  }, [editFormData.pavilionId, isEditMode]);
+
+  // Handle edit mode toggle
+  const handleEditClick = () => {
+    setIsEditMode(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditMode(false);
+    setHasChanges(false);
+    // Reset form data to original values
+    setEditFormData({
+      status: booking?.status?.toString() || "1",
+      eventName: booking?.eventName || "",
+      eventType: booking?.eventType?.toString() || "",
+      pavilionId: booking?.pavilionId?.toString() || "",
+      packageId: booking?.packageId?.toString() || "",
+      notes: booking?.notes || "",
+      startAt: booking?.startAt || new Date(),
+      endAt: booking?.endAt || new Date(),
+      totalPax: booking?.totalPax?.toString() || "1",
+      firstName: clientData?.firstName || "",
+      lastName: clientData?.lastName || "",
+      phoneNumber: clientData?.phoneNumber || "",
+      region: clientData?.region || "",
+      province: clientData?.province || "",
+      municipality: clientData?.municipality || "",
+      barangay: clientData?.barangay || "",
+    });
+  };
+
+  const handleSaveChanges = async () => {
+    try {
+      await handleSaveBookingChanges();
+      setIsEditMode(false);
+      setHasChanges(false);
+    } catch (error) {
+      // Error handling is done in handleSaveBookingChanges
+    }
+  };
+
+  const handleSaveBookingChanges = async () => {
+    try {
+      // Update booking information
+      await updateBookingMutation.mutateAsync(editFormData);
+
+      // Update client information
+      await updateClientMutation.mutateAsync(editFormData);
+
+      setIsEditMode(false);
+    } catch (error) {
+      // Error handling is done in the mutation onError callbacks
+    }
+  };
+
   const id = useId();
 
   const handleClose = () => onOpenChange(false);
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 flex items-center justify-center z-[100]">
       <div className="fixed inset-0 bg-black/80" onClick={handleClose} />
       <div
-        className="relative w-auto h-auto max-w-[calc(100%-2rem)] sm:max-w-[calc(100%-3rem)] md:max-w-[calc(100%-5rem)] max-h-[calc(100%-2rem)] sm:max-h-[calc(100%-3rem)] md:max-h-[calc(100%-5rem)] overflow-y-auto rounded-xl border bg-neutral-100 p-3 sm:p-4 shadow-lg"
+        className="relative w-auto min-h-0 max-w-[calc(100%-2rem)] sm:max-w-[calc(100%-3rem)] md:max-w-[calc(100%-5rem)] max-h-[calc(100%-2rem)] sm:max-h-[calc(100%-3rem)] md:max-h-[calc(100%-5rem)] rounded-xl border bg-neutral-100 p-3 sm:p-4 shadow-lg overflow-auto"
         data-booking-id={String(bookingId)}
       >
         {clientLoading ||
@@ -192,22 +616,36 @@ export default function BookingDialogComponent({
         pavilionLoading ? (
           <p>loading</p>
         ) : (
-          <div className="grid grid-cols-3 gap-2 h-[70vh]">
-            <div className="flex flex-col border-1 p-4 rounded-md bg-white min-h-0">
+          <div className="grid grid-cols-3 gap-2 min-h-[60vh] max-h-[80vh]">
+            <div className="flex flex-col border-1 p-4 rounded-md bg-white min-h-0 overflow-y-auto">
               <p className="text-md font-medium mb-2">{`Booking ID: ${bookingId}`}</p>
-              <div className="min-w-30 max-w-40 [--ring:var(--color-indigo-300)] in-[.dark]:[--ring:var(--color-indigo-900)]">
+              <div className="min-w-30 max-w-40">
                 <Label className="mr-2 font-normal">Status</Label>
-                <Select defaultValue="1">
-                  <SelectTrigger id={id}>
-                    <SelectValue placeholder="Select framework" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">React</SelectItem>
-                    <SelectItem value="2">Next.js</SelectItem>
-                    <SelectItem value="3">Astro</SelectItem>
-                    <SelectItem value="4">Gatsby</SelectItem>
-                  </SelectContent>
-                </Select>
+                {isEditMode ? (
+                  <Select
+                    value={editFormData.status}
+                    onValueChange={value => setEditFormData(prev => ({ ...prev, status: value }))}
+                  >
+                    <SelectTrigger className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[300]">
+                      {statusOptions.map(status => (
+                        <SelectItem key={status.value} value={status.value}>
+                          <span className={status.color}>{status.label}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div
+                    className={`mt-2 px-3 py-2 rounded-md border bg-gray-50 ${getStatusColor(booking?.status ?? "1")}`}
+                  >
+                    <span className="text-sm font-medium">
+                      {getStatusLabel(booking?.status ?? "1")}
+                    </span>
+                  </div>
+                )}
               </div>
               <p className="text-md font-medium mt-4">Event Details: </p>
               <div className="flex gap-2 mt-4">
@@ -260,26 +698,52 @@ export default function BookingDialogComponent({
                   className="mt-2"
                   placeholder="Event Name"
                   type="text"
-                  defaultValue={booking?.eventName ?? ""}
+                  value={isEditMode ? editFormData.eventName : (booking?.eventName ?? "")}
+                  onChange={e => setEditFormData(prev => ({ ...prev, eventName: e.target.value }))}
+                  disabled={!isEditMode}
                 />
               </div>
               <div className="flex gap-2">
                 <div className="mt-4 grow">
                   <Label className="font-normal">Event type</Label>
-                  <Input
-                    className="mt-2"
-                    placeholder="Event type"
-                    type="text"
-                    defaultValue={eventType?.name ?? ""}
-                  />
+                  {isEditMode ? (
+                    <Select
+                      value={editFormData.eventType}
+                      onValueChange={value =>
+                        setEditFormData(prev => ({ ...prev, eventType: value }))
+                      }
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue placeholder="Select event type" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[300]">
+                        {allEventTypesData?.map((eventType: { id: number; name: string }) => (
+                          <SelectItem key={eventType.id} value={eventType.id.toString()}>
+                            {eventType.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      className="mt-2"
+                      placeholder="Event type"
+                      type="text"
+                      value={eventType?.name ?? ""}
+                      disabled
+                    />
+                  )}
                 </div>
                 <div className="mt-4 grow">
                   <Label className="font-normal">No. of pax</Label>
                   <Input
                     className="mt-2"
                     placeholder="No. of pax"
-                    type="text"
-                    defaultValue={booking?.totalPax ?? ""}
+                    type="number"
+                    min="1"
+                    value={isEditMode ? editFormData.totalPax : (booking?.totalPax ?? "")}
+                    onChange={e => setEditFormData(prev => ({ ...prev, totalPax: e.target.value }))}
+                    disabled={!isEditMode}
                   />
                 </div>
               </div>
@@ -289,35 +753,108 @@ export default function BookingDialogComponent({
                   <Textarea
                     name="notes"
                     placeholder="Leave a comment"
-                    value={booking?.notes ?? ""}
+                    value={isEditMode ? editFormData.notes : (booking?.notes ?? "")}
+                    onChange={e => setEditFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    disabled={!isEditMode}
                   />
                 </div>
               </div>
             </div>
-            <div className="flex flex-col border-1 p-4 rounded-md bg-white min-h-0 overflow-hidden">
+            <div className="flex flex-col border-1 p-4 rounded-md bg-white min-h-0 overflow-y-auto">
               <p className="text-md font-medium">Pavilion Details: </p>
 
               <div className="flex w-full gap-2">
                 <div className="grow [--ring:var(--color-indigo-300)] in-[.dark]:[--ring:var(--color-indigo-900)]">
                   <Label className="mr-2 font-normal">Pavilion</Label>
                   <div className="">
-                    <Input
-                      className="mt-2"
-                      placeholder="pavilion"
-                      type="text"
-                      defaultValue={pavilion?.name ?? ""}
-                    />
+                    {isEditMode ? (
+                      <Select
+                        value={editFormData.pavilionId}
+                        onValueChange={value =>
+                          setEditFormData(prev => ({ ...prev, pavilionId: value }))
+                        }
+                      >
+                        <SelectTrigger className="mt-2">
+                          <SelectValue placeholder="Select pavilion" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[300]">
+                          {allPavilionsData?.map((pavilion: { id: number; name: string }) => (
+                            <SelectItem key={pavilion.id} value={pavilion.id.toString()}>
+                              {pavilion.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        className="mt-2"
+                        placeholder="pavilion"
+                        type="text"
+                        value={pavilion?.name ?? ""}
+                        disabled
+                      />
+                    )}
                   </div>
                 </div>
                 <div className="grow [--ring:var(--color-indigo-300)] in-[.dark]:[--ring:var(--color-indigo-900)]">
-                  <Label className="mr-2 font-normal">Package</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="mr-2 font-normal mt-2">Package</Label>
+                  </div>
                   <div className="">
-                    <Input
-                      className="mt-2"
-                      placeholder="package"
-                      type="text"
-                      defaultValue={packages?.name ?? ""}
-                    />
+                    {isEditMode ? (
+                      <Select
+                        value={editFormData.packageId}
+                        onValueChange={value =>
+                          setEditFormData(prev => ({ ...prev, packageId: value }))
+                        }
+                        disabled={
+                          !editFormData.pavilionId ||
+                          (pavilionPackagesData && pavilionPackagesData.length === 0)
+                        }
+                      >
+                        <SelectTrigger
+                          className="mt-2"
+                          aria-label={
+                            !editFormData.pavilionId
+                              ? "Package selection disabled - select a pavilion first"
+                              : pavilionPackagesData && pavilionPackagesData.length === 0
+                                ? "Package selection disabled - no packages available for this pavilion"
+                                : "Select package"
+                          }
+                        >
+                          <SelectValue
+                            placeholder={
+                              !editFormData.pavilionId
+                                ? "Select a pavilion first"
+                                : pavilionPackagesData && pavilionPackagesData.length === 0
+                                  ? "No packages available"
+                                  : "Select package"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent className="z-[300]">
+                          {pavilionPackagesData && pavilionPackagesData.length > 0 ? (
+                            pavilionPackagesData.map((pkg: { id: number; name: string }) => (
+                              <SelectItem key={pkg.id} value={pkg.id.toString()}>
+                                {pkg.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="p-2 text-sm text-muted-foreground">
+                              No packages available for this pavilion
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        className="mt-2"
+                        placeholder="package"
+                        type="text"
+                        value={packages?.name ?? ""}
+                        disabled
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -374,7 +911,406 @@ export default function BookingDialogComponent({
                   </Accordion>
                 </div>
               </div>
-              <p className="text-md font-medium mt-4">Other Services: </p>
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-md font-medium">Other Services: </p>
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsOtherServicesDialogOpen(true)}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Manage
+                  </Button>
+
+                  {/* Custom Manage Other Services Modal */}
+                  {isOtherServicesDialogOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 bg-black/60 z-[200]"
+                        onClick={() => setIsOtherServicesDialogOpen(false)}
+                      />
+                      <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl shadow-xl w-full max-w-[1400px] max-h-[90vh] overflow-auto p-6">
+                          {/* Header */}
+                          <div className="flex items-start justify-between mb-6">
+                            <div>
+                              <h2 className="text-xl font-semibold">Manage Other Services</h2>
+                              <p className="text-sm text-muted-foreground">
+                                Add, edit, or remove other services for this booking.
+                              </p>
+                            </div>
+                            <Button
+                              className="text-foreground hover:text-foreground/70 transition-all"
+                              variant="link"
+                              onClick={() => setIsOtherServicesDialogOpen(false)}
+                            >
+                              <X />
+                            </Button>
+                          </div>
+
+                          {/* 2-Column Layout */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* LEFT COLUMN - Current Services & Add New */}
+                            <div className="space-y-6">
+                              {/* Current Booking Services */}
+                              <div>
+                                <h3 className="text-lg font-medium mb-3">
+                                  Current Services for this Booking
+                                </h3>
+                                <div className="border rounded-md max-h-[70vh] overflow-y-auto">
+                                  <ScrollArea className="h-[200px] w-full flex flex-1 grow">
+                                    <Table>
+                                      <TableHeader className="sticky top-0 bg-white z-10">
+                                        <TableRow>
+                                          <TableHead>Service Name</TableHead>
+                                          <TableHead>Category</TableHead>
+                                          <TableHead className="w-20">Actions</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+
+                                      <TableBody>
+                                        {bookingOtherServices.length === 0 ? (
+                                          <TableRow>
+                                            <TableCell
+                                              colSpan={3}
+                                              className="text-center text-muted-foreground"
+                                            >
+                                              No services assigned to this booking
+                                            </TableCell>
+                                          </TableRow>
+                                        ) : (
+                                          bookingOtherServices.map(service => (
+                                            <TableRow key={service.id}>
+                                              <TableCell className="font-medium flex-1 grow">
+                                                {service.name}
+                                              </TableCell>
+                                              <TableCell>{service.categoryName}</TableCell>
+                                              <TableCell>
+                                                <div className="flex gap-2">
+                                                  <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setEditingService(service)}
+                                                  >
+                                                    <Pencil className="w-3 h-3" />
+                                                  </Button>
+                                                  <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-red-600"
+                                                    onClick={() =>
+                                                      removeServiceFromBookingMutation.mutate(
+                                                        service.id
+                                                      )
+                                                    }
+                                                    disabled={
+                                                      removeServiceFromBookingMutation.isPending
+                                                    }
+                                                  >
+                                                    <Trash2 className="w-3 h-3" />
+                                                  </Button>
+                                                </div>
+                                              </TableCell>
+                                            </TableRow>
+                                          ))
+                                        )}
+                                      </TableBody>
+                                    </Table>
+                                  </ScrollArea>
+                                </div>
+                              </div>
+
+                              {/* Add New Service */}
+                              <div>
+                                <h3 className="text-lg font-medium mb-3">Add New Service</h3>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label htmlFor="service-name">Service Name</Label>
+                                    <Input
+                                      id="service-name"
+                                      value={newServiceName}
+                                      onChange={e => setNewServiceName(e.target.value)}
+                                      placeholder="Enter service name"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor="service-category">Category</Label>
+                                    <Select
+                                      value={newServiceCategory}
+                                      onValueChange={setNewServiceCategory}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select category" />
+                                      </SelectTrigger>
+                                      <SelectContent className="z-[400]">
+                                        {serviceCategoriesData?.map(
+                                          (category: { id: number; name: string }) => (
+                                            <SelectItem
+                                              key={category.id}
+                                              value={category.id.toString()}
+                                            >
+                                              {category.name}
+                                            </SelectItem>
+                                          )
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <Button
+                                    onClick={handleCreateService}
+                                    disabled={
+                                      !newServiceName.trim() ||
+                                      !newServiceCategory ||
+                                      createServiceMutation.isPending
+                                    }
+                                    className="w-full"
+                                  >
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    {createServiceMutation.isPending ? "Adding..." : "Add Service"}
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* RIGHT COLUMN - All Available Services */}
+                            <div>
+                              <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-lg font-medium">All Available Services</h3>
+                                <span className="text-sm text-muted-foreground">
+                                  {filteredServices.length} of {allServicesData?.length || 0}{" "}
+                                  services
+                                </span>
+                              </div>
+                              <div className="flex gap-2 mb-2">
+                                <Select
+                                  value={selectedCategoryFilter}
+                                  onValueChange={setSelectedCategoryFilter}
+                                >
+                                  <SelectTrigger className="w-[200px]">
+                                    <SelectValue placeholder="Category" />
+                                  </SelectTrigger>
+                                  <SelectContent className="z-[400]">
+                                    <SelectItem value="all">All Categories</SelectItem>
+                                    {serviceCategoriesData?.map(
+                                      (category: { id: number; name: string }) => (
+                                        <SelectItem
+                                          key={category.id}
+                                          value={category.id.toString()}
+                                        >
+                                          {category.name}
+                                        </SelectItem>
+                                      )
+                                    )}
+                                  </SelectContent>
+                                </Select>
+
+                                <InputGroup className="mb-2">
+                                  <InputGroupInput
+                                    placeholder="Search services..."
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                  />
+                                  <InputGroupAddon>
+                                    <SearchIcon />
+                                  </InputGroupAddon>
+                                  <InputGroupAddon align="inline-end">
+                                    <InputGroupButton onClick={resetFilters}>
+                                      Clear All
+                                    </InputGroupButton>
+                                  </InputGroupAddon>
+                                </InputGroup>
+                              </div>
+
+                              <div className="border rounded-md max-h-[70vh] overflow-y-auto">
+                                <ScrollArea className="h-[400px] w-full flex flex-1 grow">
+                                  <Table>
+                                    <TableHeader className="sticky top-0 bg-white">
+                                      <TableRow>
+                                        <TableHead>Service Name</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead className="w-24">Actions</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {filteredServices.length > 0 ? (
+                                        filteredServices.map(
+                                          (service: {
+                                            id: number;
+                                            name: string;
+                                            categoryId: number | null;
+                                            packageId?: number | null;
+                                            amount?: number | null;
+                                            description?: string | null;
+                                          }) => {
+                                            const category = serviceCategoriesData?.find(
+                                              (c: { id: number; name: string }) =>
+                                                c.id === service.categoryId
+                                            );
+                                            const isAssigned = bookingOtherServices.some(
+                                              bs => bs.id === service.id
+                                            );
+
+                                            return (
+                                              <TableRow
+                                                key={service.id}
+                                                className={isAssigned ? "bg-green-50" : ""}
+                                              >
+                                                <TableCell className="font-medium">
+                                                  {service.name}
+                                                </TableCell>
+                                                <TableCell>{category?.name ?? "—"}</TableCell>
+                                                <TableCell>
+                                                  <Button
+                                                    variant={isAssigned ? "secondary" : "outline"}
+                                                    size="sm"
+                                                    disabled={
+                                                      isAssigned ||
+                                                      addServiceToBookingMutation.isPending
+                                                    }
+                                                    onClick={() =>
+                                                      !isAssigned &&
+                                                      addServiceToBookingMutation.mutate(service.id)
+                                                    }
+                                                  >
+                                                    {isAssigned ? "Assigned" : "Add"}
+                                                  </Button>
+                                                </TableCell>
+                                              </TableRow>
+                                            );
+                                          }
+                                        )
+                                      ) : (
+                                        <TableRow>
+                                          <TableCell
+                                            colSpan={3}
+                                            className="text-center py-8 text-muted-foreground"
+                                          >
+                                            {searchQuery.trim() !== "" ||
+                                            selectedCategoryFilter !== "all"
+                                              ? `No services found matching your filters. ${searchQuery.trim() !== "" ? `Search: ${searchQuery}` : ""} ${selectedCategoryFilter !== "all" ? `Category: ${serviceCategoriesData?.find(c => c.id.toString() === selectedCategoryFilter)?.name}` : ""}`
+                                              : "No services available"}
+                                          </TableCell>
+                                        </TableRow>
+                                      )}
+                                    </TableBody>
+                                  </Table>
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Nested Edit Service Modal */}
+                        {editingService && (
+                          <>
+                            <div
+                              className="fixed inset-0 bg-black/60 z-[209]"
+                              onClick={() => setEditingService(null)}
+                            />
+                            <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
+                              <div className="bg-white rounded-xl shadow-xl w-full max-w-[600px] max-h-[80vh] overflow-auto p-6">
+                                <div className="flex items-start justify-between mb-4">
+                                  <h3 className="text-lg font-semibold">Edit Service</h3>
+                                  <Button
+                                    variant="link"
+                                    onClick={() => setEditingService(null)}
+                                    className="text-foreground hover:text-foreground/80 transition-all"
+                                  >
+                                    <X />
+                                  </Button>
+                                </div>
+
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label htmlFor="edit-service-name">Service Name</Label>
+                                    <Input
+                                      id="edit-service-name"
+                                      defaultValue={editingService.name}
+                                      placeholder="Enter service name"
+                                      onChange={e =>
+                                        setEditingService({
+                                          ...editingService,
+                                          name: e.target.value,
+                                        })
+                                      }
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor="edit-service-category">Category</Label>
+                                    <Select
+                                      value={
+                                        serviceCategoriesData
+                                          ?.find((c: any) => c.name === editingService.categoryName)
+                                          ?.id.toString() || ""
+                                      }
+                                      onValueChange={value => {
+                                        const category = serviceCategoriesData?.find(
+                                          (c: any) => c.id.toString() === value
+                                        );
+                                        if (category) {
+                                          setEditingService({
+                                            ...editingService,
+                                            categoryName: category.name,
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="z-[400]">
+                                        {serviceCategoriesData?.map(
+                                          (category: { id: number; name: string }) => (
+                                            <SelectItem
+                                              key={category.id}
+                                              value={category.id.toString()}
+                                            >
+                                              {category.name}
+                                            </SelectItem>
+                                          )
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="flex gap-2 justify-end pt-4">
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => setEditingService(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      onClick={() => {
+                                        const categoryId = serviceCategoriesData?.find(
+                                          (c: any) => c.name === editingService.categoryName
+                                        )?.id;
+                                        if (categoryId) {
+                                          updateServiceMutation.mutate({
+                                            serviceId: editingService.id,
+                                            name: editingService.name,
+                                            categoryId: categoryId,
+                                          });
+                                        }
+                                      }}
+                                      disabled={updateServiceMutation.isPending}
+                                    >
+                                      {updateServiceMutation.isPending
+                                        ? "Saving..."
+                                        : "Save Changes"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
               <div className="border-1 rounded-md mt-2 flex-grow min-h-0 overflow-y-auto pr-1">
                 <Table>
                   <TableHeader className="sticky top-0 bg-white shadow-sm">
@@ -411,7 +1347,11 @@ export default function BookingDialogComponent({
                     className="mt-2"
                     placeholder="First Name"
                     type="text"
-                    defaultValue={clientData?.firstName || ""}
+                    value={isEditMode ? editFormData.firstName : clientData?.firstName || ""}
+                    onChange={e =>
+                      setEditFormData(prev => ({ ...prev, firstName: e.target.value }))
+                    }
+                    disabled={!isEditMode}
                   />
                 </div>
                 <div className="grow">
@@ -420,7 +1360,9 @@ export default function BookingDialogComponent({
                     className="mt-2"
                     placeholder="Last Name"
                     type="text"
-                    defaultValue={clientData?.lastName || ""}
+                    value={isEditMode ? editFormData.lastName : clientData?.lastName || ""}
+                    onChange={e => setEditFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                    disabled={!isEditMode}
                   />
                 </div>
               </div>
@@ -430,18 +1372,45 @@ export default function BookingDialogComponent({
                   className="mt-2"
                   placeholder="Number"
                   type="text"
-                  defaultValue={clientData?.phoneNumber || ""}
+                  value={isEditMode ? editFormData.phoneNumber : clientData?.phoneNumber || ""}
+                  onChange={e =>
+                    setEditFormData(prev => ({ ...prev, phoneNumber: e.target.value }))
+                  }
+                  disabled={!isEditMode}
                 />
               </div>
-              <div className="mt-4">
-                <Label className="font-normal">Address</Label>
-                <Input
-                  className="mt-2"
-                  placeholder="Last Name"
-                  type="text"
-                  defaultValue={`${clientData?.region}, ${clientData?.province}, ${clientData?.municipality}, ${clientData?.barangay}`}
-                />
-              </div>
+              {isEditMode ? (
+                <div className="mt-4 space-y-2">
+                  <Label className="font-normal">Address</Label>
+                  <RegionComboBoxComponent
+                    initialRegion={editFormData.region}
+                    initialProvince={editFormData.province}
+                    initialMunicipality={editFormData.municipality}
+                    initialBarangay={editFormData.barangay}
+                    regionOnChange={value => setEditFormData(prev => ({ ...prev, region: value }))}
+                    provinceOnChange={value =>
+                      setEditFormData(prev => ({ ...prev, province: value }))
+                    }
+                    municipalityOnChange={value =>
+                      setEditFormData(prev => ({ ...prev, municipality: value }))
+                    }
+                    barangayOnChange={value =>
+                      setEditFormData(prev => ({ ...prev, barangay: value }))
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <Label className="font-normal">Address</Label>
+                  <Input
+                    className="mt-2"
+                    placeholder="Address"
+                    type="text"
+                    value={`${clientData?.region || ""}, ${clientData?.province || ""}, ${clientData?.municipality || ""}, ${clientData?.barangay || ""}`}
+                    disabled
+                  />
+                </div>
+              )}
 
               <div className="mt-4">
                 <div className="grid grid-cols-2 mt-2 divide-x divide-neutral-200">
@@ -588,19 +1557,35 @@ export default function BookingDialogComponent({
         )}
 
         <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          {isEditMode ? (
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+              onClick={handleCancelEdit}
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+              onClick={handleEditClick}
+            >
+              Edit
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={handleClose}
-            className="inline-flex h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={handleClose}
+            onClick={isEditMode && hasChanges ? handleSaveChanges : handleClose}
             className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            disabled={isEditMode && !hasChanges}
           >
-            Okay
+            {isEditMode && hasChanges
+              ? updateBookingMutation.isPending || updateClientMutation.isPending
+                ? "Saving..."
+                : "Save"
+              : "Okay"}
           </button>
         </div>
       </div>

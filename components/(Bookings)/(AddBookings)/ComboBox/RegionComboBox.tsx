@@ -1,7 +1,7 @@
 "use client";
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 
-import { regions, provinces, municipalities, barangays } from "psgc";
+import { municipalities, provinces, regions } from "psgc";
 
 import { Label } from "@/components/ui/label";
 import {
@@ -11,19 +11,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import React from "react";
+
+interface RegionComboBoxProps {
+  regionOnChange: (value: string) => void;
+  provinceOnChange: (value: string) => void;
+  municipalityOnChange: (value: string) => void;
+  barangayOnChange: (value: string) => void;
+  // Initial values for editing mode
+  initialRegion?: string;
+  initialProvince?: string;
+  initialMunicipality?: string;
+  initialBarangay?: string;
+  // Optional disabled state
+  disabled?: boolean;
+}
 
 export default function RegionComboBoxComponent({
   regionOnChange,
   provinceOnChange,
   municipalityOnChange,
   barangayOnChange,
-}: {
-  regionOnChange: (value: string) => void;
-  provinceOnChange: (value: string) => void;
-  municipalityOnChange: (value: string) => void;
-  barangayOnChange: (value: string) => void;
-}) {
+  initialRegion = "",
+  initialProvince = "",
+  initialMunicipality = "",
+  initialBarangay = "",
+  disabled = false,
+}: RegionComboBoxProps) {
   const id = useId();
   const provinceID = useId();
   const municipalityID = useId();
@@ -31,60 +44,113 @@ export default function RegionComboBoxComponent({
 
   const allRegions = regions.all();
 
-  const [regionValue, setRegionValue] = React.useState("");
-  const [provinceValue, setProvinceValue] = React.useState("");
-  const [municipalityValue, setMunicipalityValue] = React.useState("");
-  const [barangayValue, setBarangayValue] = React.useState("");
+  const [regionValue, setRegionValue] = useState(initialRegion);
+  const [provinceValue, setProvinceValue] = useState(initialProvince);
+  const [municipalityValue, setMunicipalityValue] = useState(initialMunicipality);
+  const [barangayValue, setBarangayValue] = useState(initialBarangay);
 
-  const [provincesValues, setProvincesValues] = React.useState<Array<string>>();
-  const [municipalitiesValues, setmunicipalitiesValues] = React.useState<Array<string>>();
-  const [barangayValues, setBarangayValues] = React.useState<Array<string>>();
+  const [provincesValues, setProvincesValues] = useState<Array<string>>([]);
+  const [municipalitiesValues, setmunicipalitiesValues] = useState<Array<string>>([]);
+  const [barangayValues, setBarangayValues] = useState<Array<string>>([]);
 
-  const [openProvince, setopenProvince] = React.useState<boolean>(false);
-  const [openMunicipality, setopenMunicipality] = React.useState<boolean>(false);
-  const [openBarangay, setopenBarangay] = React.useState<boolean>(false);
+  const [showProvince, setShowProvince] = useState<boolean>(false);
+  const [showMunicipality, setShowMunicipality] = useState<boolean>(false);
+  const [showBarangay, setShowBarangay] = useState<boolean>(false);
+
+  // Initialize dropdowns based on initial values
+  useEffect(() => {
+    if (initialRegion) {
+      const allProvinces = regions.find(initialRegion);
+      const mappedProvinces = allProvinces ? allProvinces.provinces : [];
+      setProvincesValues(mappedProvinces.map(province => province.name));
+      setShowProvince(true);
+
+      if (initialProvince) {
+        const allMunicipalities = provinces.find(initialProvince);
+        const mappedMunicipalities = allMunicipalities ? allMunicipalities.municipalities : [];
+        setmunicipalitiesValues(mappedMunicipalities.map(municipality => municipality.name));
+        setShowMunicipality(true);
+
+        if (initialMunicipality) {
+          const allBarangays = municipalities.find(initialMunicipality);
+          const mappedBarangays = allBarangays ? allBarangays.barangays : [];
+          setBarangayValues(mappedBarangays.map(barangay => barangay.name));
+          setShowBarangay(true);
+        }
+      }
+    }
+  }, [initialRegion, initialProvince, initialMunicipality]);
+
+  // Reset dependent fields when initial values change
+  useEffect(() => {
+    setRegionValue(initialRegion);
+    setProvinceValue(initialProvince);
+    setMunicipalityValue(initialMunicipality);
+    setBarangayValue(initialBarangay);
+  }, [initialRegion, initialProvince, initialMunicipality, initialBarangay]);
 
   const handleClickRegion = (value: string) => {
-    setopenProvince(false);
     setRegionValue(value);
-    console.log("Region: " + value);
+    // Reset dependent values
+    setProvinceValue("");
+    setMunicipalityValue("");
+    setBarangayValue("");
+    setShowProvince(false);
+    setShowMunicipality(false);
+    setShowBarangay(false);
 
     const allProvinces = regions.find(value);
-
     const mappedProvinces = allProvinces ? allProvinces.provinces : [];
     setProvincesValues(mappedProvinces.map(province => province.name));
+
     regionOnChange(value);
+    // Clear dependent onChange calls
+    provinceOnChange("");
+    municipalityOnChange("");
+    barangayOnChange("");
 
     if (mappedProvinces.length > 0) {
-      setopenProvince(true);
+      setShowProvince(true);
     }
   };
 
   const handleClickProvince = (value: string) => {
-    setopenMunicipality(false);
     setProvinceValue(value);
+    // Reset dependent values
+    setMunicipalityValue("");
+    setBarangayValue("");
+    setShowMunicipality(false);
+    setShowBarangay(false);
 
     const allMunicipalities = provinces.find(value);
     const mappedMunicipalities = allMunicipalities ? allMunicipalities.municipalities : [];
 
     setmunicipalitiesValues(mappedMunicipalities.map(municipality => municipality.name));
     provinceOnChange(value);
+    // Clear dependent onChange calls
+    municipalityOnChange("");
+    barangayOnChange("");
+
     if (mappedMunicipalities.length > 0) {
-      setopenMunicipality(true);
+      setShowMunicipality(true);
     }
   };
 
   const handleClickMunicipality = (value: string) => {
-    setopenBarangay(false);
     setMunicipalityValue(value);
+    // Reset dependent values
+    setBarangayValue("");
+    setShowBarangay(false);
 
     const allBarangays = municipalities.find(value);
     const mappedBarangays = allBarangays ? allBarangays.barangays : [];
 
     setBarangayValues(mappedBarangays.map(barangay => barangay.name));
     municipalityOnChange(value);
+    barangayOnChange("");
+
     if (mappedBarangays.length > 0) {
-      setopenBarangay(true);
+      setShowBarangay(true);
     }
   };
 
@@ -94,41 +160,45 @@ export default function RegionComboBoxComponent({
   };
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <div>
-        <Label htmlFor={"region"} className="mb-3 font-normal text-foreground/50">
-          Region
-        </Label>
-        <div className="mt-2">
-          <Select value={regionValue} onValueChange={handleClickRegion}>
-            <SelectTrigger id={id}>
-              <SelectValue placeholder="Select region" />
-            </SelectTrigger>
-            <SelectContent>
-              {allRegions.map(region => (
-                <SelectItem value={region.name} key={region.name}>
-                  {region.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor={id} className="font-normal text-foreground/50">
+            Region
+          </Label>
+          <div className="mt-2">
+            <Select value={regionValue} onValueChange={handleClickRegion} disabled={disabled}>
+              <SelectTrigger id={id}>
+                <SelectValue placeholder="Select region" />
+              </SelectTrigger>
+              <SelectContent className="z-[500]">
+                {allRegions.map(region => (
+                  <SelectItem value={region.name} key={region.name}>
+                    {region.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
 
-      <div hidden={!openProvince} className="">
-        <div className="">
-          <Label htmlFor={"region"} className="font-normal text-foreground/50 ">
+        <div className={showProvince ? "" : "opacity-50"}>
+          <Label htmlFor={provinceID} className="font-normal text-foreground/50">
             Province
           </Label>
           <div className="mt-2">
-            <Select value={provinceValue} onValueChange={handleClickProvince}>
+            <Select
+              value={provinceValue}
+              onValueChange={handleClickProvince}
+              disabled={disabled || !showProvince}
+            >
               <SelectTrigger id={provinceID}>
                 <SelectValue placeholder="Select province" />
               </SelectTrigger>
-              <SelectContent>
-                {provincesValues?.map(region => (
-                  <SelectItem value={region} key={region}>
-                    {region}
+              <SelectContent className="z-[500]">
+                {provincesValues?.map(province => (
+                  <SelectItem value={province} key={province}>
+                    {province}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -137,39 +207,45 @@ export default function RegionComboBoxComponent({
         </div>
       </div>
 
-      <div hidden={!openMunicipality} className="">
-        <div className="">
-          <Label htmlFor={"region"} className="font-normal text-foreground/50">
+      <div className="grid grid-cols-2 gap-3">
+        <div className={showMunicipality ? "" : "opacity-50"}>
+          <Label htmlFor={municipalityID} className="font-normal text-foreground/50">
             Municipality
           </Label>
           <div className="mt-2">
-            <Select value={municipalityValue} onValueChange={handleClickMunicipality}>
+            <Select
+              value={municipalityValue}
+              onValueChange={handleClickMunicipality}
+              disabled={disabled || !showMunicipality}
+            >
               <SelectTrigger id={municipalityID}>
-                <SelectValue placeholder="Select province" />
+                <SelectValue placeholder="Select municipality" />
               </SelectTrigger>
-              <SelectContent>
-                {municipalitiesValues?.map(municipalities => (
-                  <SelectItem value={municipalities} key={municipalities}>
-                    {municipalities}
+              <SelectContent className="z-[500]">
+                {municipalitiesValues?.map(municipality => (
+                  <SelectItem value={municipality} key={municipality}>
+                    {municipality}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </div>
-      </div>
 
-      <div hidden={!openBarangay} className="">
-        <div className="">
-          <Label htmlFor={"barangay"} className="font-normal text-foreground/50">
+        <div className={showBarangay ? "" : "opacity-50"}>
+          <Label htmlFor={barangayID} className="font-normal text-foreground/50">
             Barangay
           </Label>
           <div className="mt-2">
-            <Select value={barangayValue} onValueChange={handleClickBarangay}>
+            <Select
+              value={barangayValue}
+              onValueChange={handleClickBarangay}
+              disabled={disabled || !showBarangay}
+            >
               <SelectTrigger id={barangayID}>
                 <SelectValue placeholder="Select barangay" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[500]">
                 {barangayValues?.map((barangay, idx) => {
                   const compositeKey = `${barangay}::${idx}`;
                   return (

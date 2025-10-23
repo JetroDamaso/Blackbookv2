@@ -146,7 +146,7 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
         />
       </div>
       {bookingId != null && (
-        <div className="absolute z-100">
+        <div className="">
           <BookingDialogComponent
             bookingId={bookingId}
             open={dialogOpen}

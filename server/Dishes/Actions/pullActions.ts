@@ -1,4 +1,6 @@
+"use server";
 import { prisma } from "@/server/db";
+import "server-only";
 
 export async function getAllDishes() {
   try {

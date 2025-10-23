@@ -153,8 +153,8 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger className="w-full flex grow">
-        <Button className="grow">
+      <DialogTrigger asChild>
+        <Button className="w-full flex grow">
           <HandCoins /> Add Payment
         </Button>
       </DialogTrigger>

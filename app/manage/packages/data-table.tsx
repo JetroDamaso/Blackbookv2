@@ -1,14 +1,15 @@
 "use client";
-
 import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
+  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   SortingState,
   useReactTable,
   VisibilityState,
+  ColumnFiltersState,
 } from "@tanstack/react-table";
 
 import {
@@ -22,27 +23,12 @@ import {
 
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { Label } from "@/components/ui/label";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -50,49 +36,83 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronFirstIcon, ChevronLastIcon, CirclePlus, SearchIcon, Trash } from "lucide-react";
-import React, { useState } from "react";
+import { ChevronFirstIcon, ChevronLastIcon, SearchIcon, Trash } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { getAllPavilions } from "@/server/Pavilions/Actions/pullActions";
+import { useQuery } from "@tanstack/react-query";
+import { getAllPackages } from "@/server/Packages/pullActions";
+import AddPackageDialog from "@/components/(Packages)/AddPackageDialog";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   onRowClick?: (clientId: number) => void;
+  selectedPavilion?: string;
 }
+
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   onRowClick,
+  selectedPavilion = "all",
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelection, setRowSelection] = React.useState({});
-
-  const [region, setRegion] = useState();
-  const [province, setProvince] = useState();
-  const [municipality, setMunicipality] = useState();
-  const [barangay, setBarangay] = useState();
-
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [globalFilter, setGlobalFilter] = React.useState<string>("");
+  const [pavilionFilter, setPavilionFilter] = useState<string>(selectedPavilion);
+
+  const { data: pavilionsData } = useQuery({
+    queryKey: ["allPavilions"],
+    queryFn: () => getAllPavilions(),
+  });
+
+  const { data: packagesData } = useQuery({
+    queryKey: ["allPackages"],
+    queryFn: () => getAllPackages(),
+  });
+
+  // Update pavilion filter when prop changes
+  React.useEffect(() => {
+    setPavilionFilter(selectedPavilion);
+  }, [selectedPavilion]);
+
+  const filteredPackages = useMemo(() => {
+    if (pavilionFilter === "all") {
+      return packagesData || [];
+    }
+    return packagesData?.filter(pkg => pkg.pavilionId === parseInt(pavilionFilter)) || [];
+  }, [packagesData, pavilionFilter]);
 
   const table = useReactTable({
-    data,
+    data: filteredPackages as TData[],
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     onRowSelectionChange: setRowSelection,
+    onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: "includesString",
     state: {
       sorting,
       columnVisibility,
       rowSelection,
+      columnFilters,
+      globalFilter,
     },
   });
 
+
   return (
     <div className="flex flex-col">
-      <div className="flex gap-2 items-center mb-2">
+      {/* Main controls row */}
+      <div className="flex gap-2 items-center mb-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">
@@ -118,108 +138,63 @@ export function DataTable<TData, TValue>({
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <Select value={pavilionFilter} onValueChange={setPavilionFilter}>
+          <SelectTrigger className="w-[350px] bg-background">
+            <SelectValue placeholder="Select pavilion" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Pavilions</SelectItem>
+            {pavilionsData?.map(pavilion => (
+              <SelectItem key={pavilion.id} value={pavilion.id.toString()}>
+                {pavilion.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <InputGroup className="bg-white">
-          <InputGroupInput placeholder="Search..." />
+          <InputGroupInput
+            placeholder="Search packages..."
+            value={globalFilter}
+            onChange={e => setGlobalFilter(e.target.value)}
+          />
           <InputGroupAddon>
             <SearchIcon />
           </InputGroupAddon>
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton>Search</InputGroupButton>
-          </InputGroupAddon>
         </InputGroup>
+
+        <Button
+          variant={"outline"}
+          onClick={() => {
+            setGlobalFilter("");
+            setColumnFilters([]);
+            setPavilionFilter("all");
+          }}
+        >
+          Clear Filters
+        </Button>
 
         <Button variant={"outline"}>
           <Trash /> Delete
         </Button>
 
-        <Dialog>
-          <DialogTrigger>
-            <Button>
-              <CirclePlus /> Add New Package
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="mb-4">Add new package</DialogTitle>
-              <DialogDescription>
-                <form className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid items-center gap-3">
-                      <Label htmlFor="package_name" className="font-normal">
-                        Package Name *
-                      </Label>
-                      <Input type="text" id="package_name" placeholder="Premium Package" required />
-                    </div>
-
-                    <div className="grid items-center gap-3">
-                      <Label htmlFor="package_price" className="font-normal">
-                        Price *
-                      </Label>
-                      <Input
-                        type="number"
-                        id="package_price"
-                        placeholder="50000"
-                        min="0"
-                        step="0.01"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid items-center gap-3 col-span-2">
-                      <Label htmlFor="package_description" className="font-normal">
-                        Description *
-                      </Label>
-                      <Input
-                        type="text"
-                        id="package_description"
-                        placeholder="Package description..."
-                        required
-                      />
-                    </div>
-
-                    <div className="grid items-center gap-3">
-                      <Label htmlFor="pavilion_select" className="font-normal">
-                        Pavilion
-                      </Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select pavilion" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No Pavilion</SelectItem>
-                          {/* Add pavilion options here */}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid items-center gap-3">
-                      <Label htmlFor="include_pool" className="font-normal">
-                        Include Pool Access
-                      </Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Yes/No" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="true">Yes</SelectItem>
-                          <SelectItem value="false">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-4">
-                    <Button type="button" variant="outline">
-                      Cancel
-                    </Button>
-                    <Button type="submit">Create Package</Button>
-                  </div>
-                </form>
-              </DialogDescription>
-            </DialogHeader>
-          </DialogContent>
-        </Dialog>
+        <AddPackageDialog />
       </div>
+
+      {/* Filter controls */}
+
+      {/* Filter status */}
+      {(globalFilter || columnFilters.length > 0 || pavilionFilter !== "all") && (
+        <div className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
+          <span>
+            Showing {table.getFilteredRowModel().rows.length} of {data.length} packages
+            {globalFilter && ` (filtered by "${globalFilter}")`}
+            {pavilionFilter !== "all" &&
+              ` (pavilion: ${pavilionsData?.find(p => p.id.toString() === pavilionFilter)?.name || "Unknown"})`}
+          </span>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-md border h-fit bg-white">
         <Table>
           <TableHeader>

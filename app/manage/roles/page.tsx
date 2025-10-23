@@ -49,36 +49,6 @@ export default function ManageRoles() {
             <p className="text-xs">Available roles</p>
           </div>
         </div>
-
-        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
-          <div className="flex flex-col">
-            <p className="text-md flex items-center gap-1">
-              <Crown size={16} /> Admin
-            </p>
-            <p className="text-2xl font-semibold">Full Access</p>
-            <p className="text-xs">System administration</p>
-          </div>
-        </div>
-
-        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
-          <div className="flex flex-col">
-            <p className="text-md flex items-center gap-1">
-              <UserCog size={16} /> Manager
-            </p>
-            <p className="text-2xl font-semibold">Management</p>
-            <p className="text-xs">Operations management</p>
-          </div>
-        </div>
-
-        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
-          <div className="flex flex-col">
-            <p className="text-md flex items-center gap-1">
-              <Users size={16} /> Staff
-            </p>
-            <p className="text-2xl font-semibold">Limited</p>
-            <p className="text-xs">Basic operations</p>
-          </div>
-        </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">

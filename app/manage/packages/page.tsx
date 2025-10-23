@@ -108,30 +108,7 @@ export default function ManagePackages() {
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="flex items-center gap-2">
-            <label htmlFor="pavilion-filter" className="text-sm font-medium">
-              Filter by Pavilion:
-            </label>
-            <Select value={selectedPavilion} onValueChange={setSelectedPavilion}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select pavilion" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Pavilions</SelectItem>
-                {pavilionsData?.map((pavilion) => (
-                  <SelectItem key={pavilion.id} value={pavilion.id.toString()}>
-                    {pavilion.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            Showing {filteredPackages.length} of {totalPackages} packages
-          </div>
-        </div>
-        <DataTable columns={columns} data={filteredPackages} />
+        <DataTable columns={columns} data={packagesData || []} selectedPavilion={selectedPavilion} />
       </div>
     </>
   );

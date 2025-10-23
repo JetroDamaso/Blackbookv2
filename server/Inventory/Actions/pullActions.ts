@@ -40,7 +40,33 @@ export async function getInventoryCategories() {
 
 export async function getInventoryStatus() {
   try {
-    const data = await prisma.inventoryStatus.findMany();
+    const data = await prisma.inventoryStatus.findMany({
+      include: {
+        booking: {
+          select: {
+            id: true,
+            eventName: true,
+            startAt: true,
+            endAt: true,
+            pavilionId: true,
+            status: true,
+          },
+        },
+        inventory: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        pavilion: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      // No WHERE clause - fetch all inventory statuses for client-side filtering
+    });
     return data;
   } catch (error) {
     console.error("Failed to fetch inventory status", error);

@@ -4,24 +4,20 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
-  Beef,
   CalendarIcon,
   CalendarPlus,
-  Carrot,
   Check,
-  CookingPot,
-  Drumstick,
-  Ellipsis,
-  Fish,
-  GlassWater,
-  Ham,
-  IceCream,
+  Edit,
   Layers,
-  List,
   MinusCircle,
   Pen,
+  Pencil,
+  Plus,
+  SearchIcon,
+  Trash2,
   Truck,
   Users,
+  X,
 } from "lucide-react";
 import React, { useEffect, useId, useState } from "react";
 
@@ -43,7 +39,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // removed unused Carousel imports
 import {
   Select,
@@ -73,32 +69,53 @@ import type {
   Pavilion,
 } from "@/generated/prisma";
 import RegionComboBoxComponent from "./ComboBox/RegionComboBox";
-import DishSelectComponent from "./DishCards/DishSelect";
-import SelectedItems from "./DishCards/SelectedItems";
 import TimeEndPickerCreateBookingComponent from "./TimeDatePicker/timeEndPicker";
 import TimeStartPickerCreateBookingComponent from "./TimeDatePicker/timeStartPicker";
 // removed unused psgc helpers
 import { Textarea } from "@/components/ui/textarea";
 import { createBooking } from "@/server/Booking/pushActions";
 import { createClient } from "@/server/clients/pushActions";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { EndDatePickerForm } from "./TimeDatePicker/endDatePicker";
 import { StartDatePickerForm } from "./TimeDatePicker/startDatePicker";
 // import MultipleSelector from "@/components/ui/multiselect";
-import { createNewService } from "@/server/Services/pushActions";
+import { createNewService, createServiceCategory } from "@/server/Services/pushActions";
 // Removed unused Command imports and Autocomplete
 import SearchService from "@/components/searchService";
 import { Button } from "@/components/ui/button";
 import {
   InputGroup,
   InputGroupAddon,
+  InputGroupButton,
   InputGroupInput,
   InputGroupText,
 } from "@/components/ui/input-group";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  useAllDishes,
+  useCreateDish,
+  useDeleteDish,
+  useDishCategories,
+  useUpdateDish,
+} from "@/hooks/useDishes";
 import { getDiscountById } from "@/server/Billing & Payments/pullActions";
 import { createBilling, createPayment } from "@/server/Billing & Payments/pushActions";
-import { createMenuWithDishes } from "@/server/Menu/pushActions";
+import { getAllClients } from "@/server/clients/pullActions";
 import { createDiscount } from "@/server/discount/pushActions";
+import {
+  getAllInventory,
+  getInventoryCategories,
+  getInventoryStatus,
+} from "@/server/Inventory/Actions/pullActions";
+import { createInventoryStatus } from "@/server/Inventory/Actions/pushActions";
+import { createMenuWithDishes } from "@/server/Menu/pushActions";
 // Removed server-side imports from client component
 
 type SelectedDish = Dish & { quantity: number };
@@ -122,15 +139,15 @@ const AddBookingsPageClient = (props: {
   bookings?: { startAt: Date; endAt: Date; pavilionId: number | null }[];
 }) => {
   const id = useId();
-  const allDishes = props.allDishes ?? [];
-  const dishCategories = props.dishCategories ?? [];
-  // Removed inventory-related props (allInventory, inventoryCategories) as inventory block is disabled
+
+  // Enable inventory-related props for inventory block
+  const allInventory = props.allInventory ?? [];
   const pavilions = props.pavilions ?? [];
   const eventTypes = props.eventTypes ?? [];
   const discounts = props.discounts ?? [];
   const modeOfPayments = props.modeOfPayments ?? [];
   const allServices = props.services ?? [];
-  const servicesCategory = props.servicesCategory ?? [];
+  const [servicesCategory, setServicesCategory] = useState(props.servicesCategory ?? []);
   const packages = props.packages ?? [];
   const preSelectedStartDate = props.preSelectedStartDate;
   const preSelectedEndDate = props.preSelectedEndDate;
@@ -143,6 +160,64 @@ const AddBookingsPageClient = (props: {
   }, [props.bookings]);
   const [isVisible] = useState(true);
   const [selectedDishes, setSelectedDishes] = useState<SelectedDish[]>([]);
+
+  // Dish Management State
+  const [isDishesDialogOpen, setIsDishesDialogOpen] = useState(false);
+  const [editingDish, setEditingDish] = useState<Dish | null>(null);
+  const [selectedDishCategoryFilter, setSelectedDishCategoryFilter] = useState("all");
+  const [dishSearchQuery, setDishSearchQuery] = useState("");
+
+  // Selected Dishes Filter State
+  const [selectedDishesSearchQuery, setSelectedDishesSearchQuery] = useState("");
+  const [selectedDishesCategoryFilter, setSelectedDishesCategoryFilter] = useState("all");
+
+  // Inventory Selection State
+  const [selectedInventoryItems, setSelectedInventoryItems] = useState<
+    Array<{ id: number; quantity: number }>
+  >([]);
+
+  // Inventory Conflict Dialog State
+  const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
+  const [conflictData, setConflictData] = useState<{
+    inventoryItem: any;
+    conflictingBookings: Array<{
+      bookingId: number;
+      eventName: string;
+      pavilionName: string;
+      quantity: number;
+      startAt: Date;
+      endAt: Date;
+    }>;
+    requestedQuantity: number;
+    selectedStartDate: Date;
+    selectedEndDate: Date;
+  } | null>(null);
+  const [inventorySearchQuery, setInventorySearchQuery] = useState("");
+  const [selectedInventoryCategoryFilter, setSelectedInventoryCategoryFilter] = useState("all");
+  const [isInventoryDialogOpen, setIsInventoryDialogOpen] = useState(false);
+
+  // Handle ESC key for closing inventory dialog
+  React.useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isInventoryDialogOpen) {
+        setIsInventoryDialogOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleEscKey);
+    return () => {
+      document.removeEventListener("keydown", handleEscKey);
+    };
+  }, [isInventoryDialogOpen]);
+
+  // Service Category Management State
+  const [isServiceCategoryDialogOpen, setIsServiceCategoryDialogOpen] = useState(false);
+  const [newServiceCategoryName, setNewServiceCategoryName] = useState("");
+
+  // Client Selection State
+  const [clientSelectionMode, setClientSelectionMode] = useState<"new" | "existing">("new");
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
   // Map simple Tailwind color tokens to their 500 shade hex values for inline left border coloring.
   const COLOR_TOKEN_TO_HEX: Record<string, string> = {
     emerald: "#10b981",
@@ -189,7 +264,30 @@ const AddBookingsPageClient = (props: {
   const [isLoadingCustomDiscount, setIsLoadingCustomDiscount] = useState(false);
 
   // Removed unused pavilion/hour pricing interim states (reintroduce if needed)
-  const [selectedCatering, setSelectedCatering] = useState<string>("0");
+  const [selectedCatering, setSelectedCatering] = useState<string>("1");
+
+  // Queries for dish management using custom hooks
+  const allDishesQuery = useAllDishes();
+  const dishCategoriesQuery = useDishCategories();
+
+  // Query for all clients
+  const { data: allClients = [] } = useQuery({
+    queryKey: ["allClients"],
+    queryFn: () => getAllClients(),
+  });
+
+  // Queries for inventory
+  const { data: inventoryItems = [] } = useQuery({
+    queryKey: ["allInventory"],
+    queryFn: () => getAllInventory(),
+  });
+
+  const { data: inventoryCategoriesData = [] } = useQuery({
+    queryKey: ["inventoryCategories"],
+    queryFn: () => getInventoryCategories(),
+  });
+
+  // State declarations first
   const [selectedPavilionId, setSelectedPavilionId] = useState<number | null>(
     preSelectedPavilionId ? parseInt(preSelectedPavilionId, 10) : null
   );
@@ -203,6 +301,58 @@ const AddBookingsPageClient = (props: {
   const [endDate, setEndDate] = useState<Date | null>(
     preSelectedEndDate ? new Date(preSelectedEndDate) : null
   );
+
+  const { data: inventoryStatuses = [] } = useQuery({
+    queryKey: ["inventoryStatus"],
+    queryFn: () => getInventoryStatus(),
+  });
+
+  // Use useEffect for debugging instead of onSuccess
+  useEffect(() => {
+    if (inventoryStatuses.length > 0) {
+      console.log("Inventory statuses fetched:", inventoryStatuses.length, "records");
+      const activeBookings = inventoryStatuses.filter((s: any) => s.booking?.status === 1);
+      console.log("Active booking inventory statuses:", activeBookings.length);
+
+      // Debug: Show all inventory statuses with details
+      inventoryStatuses.forEach((status: any) => {
+        if (status.booking?.status === 1) {
+          console.log(
+            `InventoryStatus: Item ${status.inventoryId}, Pavilion ${status.pavilionId}, Booking ${status.bookingId}, Quantity ${status.quantity}, Event: ${status.booking?.eventName}, Dates: ${status.booking?.startAt} to ${status.booking?.endAt}`
+          );
+        }
+      });
+    }
+  }, [inventoryStatuses]);
+
+  // Query client for cache invalidation
+  const queryClient = useQueryClient();
+
+  // Debug tracking for selectedInventoryItems
+  useEffect(() => {
+    console.log("selectedInventoryItems changed:", selectedInventoryItems);
+    const total = selectedInventoryItems.reduce((sum, item) => {
+      console.log(`Item ${item.id}: quantity ${item.quantity}`);
+      return sum + item.quantity;
+    }, 0);
+    console.log(`Total calculated: ${total}`);
+  }, [selectedInventoryItems]);
+
+  // Mutations for dish management using custom hooks
+  const createDishMutation = useCreateDish();
+  const updateDishMutation = useUpdateDish();
+  const deleteDishMutation = useDeleteDish();
+
+  // Service category mutation
+  const createServiceCategoryMutation = useMutation({
+    mutationFn: (categoryName: string) => createServiceCategory(categoryName),
+    onSuccess: newCategory => {
+      setNewServiceCategoryName("");
+      setIsServiceCategoryDialogOpen(false);
+      // Update local state with the new category
+      setServicesCategory(prev => [...prev, newCategory]);
+    },
+  });
   const [paymentDate, setPaymentDate] = useState<Date | undefined>(undefined);
 
   // Payment form state variables
@@ -334,6 +484,10 @@ const AddBookingsPageClient = (props: {
         data.packageId,
         data.catering
       ),
+    onSuccess: () => {
+      // Invalidate inventory status query to refresh the data
+      queryClient.invalidateQueries({ queryKey: ["inventoryStatus"] });
+    },
   });
 
   const createBillingMutation = useMutation({
@@ -392,70 +546,6 @@ const AddBookingsPageClient = (props: {
       ),
   });
 
-  //Sets dishIcon
-  const DishIcon = ({ categoryId }: { categoryId: number }) => {
-    const categoryID = categoryId || "";
-
-    if (categoryID == 1) {
-      return (
-        <>
-          <Beef size={16} className="shrink-0 max-md:mt-0.5" />
-        </>
-      );
-    }
-    if (categoryID == 2)
-      return (
-        <>
-          <Ham size={16} className="shrink-0 max-md:mt-0.5" />
-        </>
-      );
-
-    if (categoryID == 3)
-      return (
-        <>
-          <Drumstick size={16} className="shrink-0 max-md:mt-0.5" />
-        </>
-      );
-    if (categoryID == 4)
-      return (
-        <>
-          <Fish size={16} className="shrink-0 max-md:mt-0.5" />
-        </>
-      );
-    if (categoryID == 5)
-      return (
-        <>
-          <Carrot size={16} className="shrink-0 max-md:mt-0.5" />
-        </>
-      );
-    if (categoryID == 6)
-      return (
-        <>
-          <CookingPot size={16} className="shrink-0 max-md:mt-0.5" />
-        </>
-      );
-    if (categoryID == 7)
-      return (
-        <>
-          <IceCream size={16} className="shrink-0 max-md:mt-0.5" />
-        </>
-      );
-    if (categoryID == 8)
-      return (
-        <>
-          <GlassWater size={16} className="shrink-0 max-md:mt-0.5" />
-        </>
-      );
-    if (categoryID == 9)
-      return (
-        <>
-          <Ellipsis size={16} className="shrink-0 max-md:mt-0.5" />
-        </>
-      );
-
-    return <></>;
-  };
-
   // Add dish: increment quantity if exists, else add with quantity 1
   const addDish = (dish: Dish) => {
     setSelectedDishes(prev => {
@@ -481,8 +571,314 @@ const AddBookingsPageClient = (props: {
     );
   };
 
-  // Removed unused inventory handlers
-  // discountType state removed; discount id read directly from form on submit.
+  const resetDishFilters = () => {
+    setSelectedDishCategoryFilter("all");
+    setDishSearchQuery("");
+  };
+
+  const resetSelectedDishesFilters = () => {
+    setSelectedDishesCategoryFilter("all");
+    setSelectedDishesSearchQuery("");
+  };
+
+  // Filter available dishes - use query data first, fallback to props
+  // Filter dishes based on search and category
+  const dishesSource = allDishesQuery.data;
+  const categoriesSource = dishCategoriesQuery.data;
+  const filteredDishes =
+    dishesSource?.filter((dish: any) => {
+      const matchesSearch = dish.name.toLowerCase().includes(dishSearchQuery.toLowerCase());
+      const matchesCategory =
+        selectedDishCategoryFilter === "all" ||
+        dish.categoryId?.toString() === selectedDishCategoryFilter;
+      return matchesSearch && matchesCategory;
+    }) ?? [];
+
+  // Filter selected dishes based on search and category
+  const filteredSelectedDishes = selectedDishes.filter((dish: SelectedDish) => {
+    const matchesSearch = dish.name.toLowerCase().includes(selectedDishesSearchQuery.toLowerCase());
+    const matchesCategory =
+      selectedDishesCategoryFilter === "all" ||
+      dish.categoryId?.toString() === selectedDishesCategoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Inventory handlers
+  const addInventoryItem = (inventoryId: number, quantity: number = 1) => {
+    console.log(`addInventoryItem called: inventoryId=${inventoryId}, quantity=${quantity}`);
+    setSelectedInventoryItems(prev => {
+      const existingIndex = prev.findIndex(item => item.id === inventoryId);
+      console.log(`existingIndex: ${existingIndex}, prev items:`, prev);
+      if (existingIndex !== -1) {
+        const updated = prev.map((item, index) =>
+          index === existingIndex ? { ...item, quantity: item.quantity + quantity } : item
+        );
+        console.log(`Updated existing item:`, updated);
+        return updated;
+      } else {
+        const newItems = [...prev, { id: inventoryId, quantity }];
+        console.log(`Added new item:`, newItems);
+        return newItems;
+      }
+    });
+  };
+
+  const removeInventoryItem = (inventoryId: number) => {
+    setSelectedInventoryItems(prev => prev.filter(item => item.id !== inventoryId));
+  };
+
+  const updateInventoryQuantity = (inventoryId: number, quantity: number) => {
+    console.log(`updateInventoryQuantity called: inventoryId=${inventoryId}, quantity=${quantity}`);
+    if (quantity <= 0) {
+      removeInventoryItem(inventoryId);
+      return;
+    }
+    setSelectedInventoryItems(prev => {
+      const updated = prev.map(item => (item.id === inventoryId ? { ...item, quantity } : item));
+      console.log(`Updated quantity:`, updated);
+      return updated;
+    });
+  };
+
+  // Check inventory conflicts and stock levels
+  const getInventoryConflicts = (
+    inventoryId: number,
+    requestedQuantity: number,
+    isHypothetical: boolean = false
+  ) => {
+    const inventory = inventoryItems.find(item => item.id === inventoryId);
+    if (!inventory) return { conflicts: [], warnings: [] };
+
+    // Get actual selected quantity for display purposes
+    const selectedItem = selectedInventoryItems.find(item => item.id === inventoryId);
+    const actualSelectedQuantity = selectedItem?.quantity || 0;
+    const displayQuantity = isHypothetical ? actualSelectedQuantity : requestedQuantity;
+
+    // If no dates selected, only check against total stock (no date-based conflicts)
+    if (!startDate || !endDate) {
+      const availableStock = inventory.quantity - (inventory.out || 0);
+      if (requestedQuantity > availableStock) {
+        return {
+          conflicts: [],
+          warnings: [
+            `Insufficient stock: Only ${availableStock} items available, but ${displayQuantity} items requested.`,
+          ],
+        };
+      }
+      return { conflicts: [], warnings: [] };
+    }
+
+    const conflicts: string[] = [];
+    const warnings: string[] = [];
+
+    // Calculate total used inventory ONLY for overlapping dates
+    console.log(`\n=== Checking inventory ${inventoryId} (${inventory.name}) ===`);
+    console.log(`Selected dates: ${startDate.toDateString()} to ${endDate.toDateString()}`);
+    console.log(
+      `All inventory statuses for item ${inventoryId}:`,
+      (inventoryStatuses as any[]).filter((s: any) => s.inventoryId === inventoryId)
+    );
+
+    const totalUsedQuantity = (inventoryStatuses as any[])
+      .filter((status: any) => {
+        if (status.inventoryId !== inventoryId) return false;
+        if (!status.booking?.startAt || !status.booking?.endAt) return false;
+        if (status.booking.status !== 1) return false; // Only consider Active bookings
+
+        // Check for date overlap with selected booking dates
+        const bookingStart = new Date(status.booking.startAt);
+        const bookingEnd = new Date(status.booking.endAt);
+
+        // Normalize dates to start of day for comparison to avoid time component issues
+        const normalizedBookingStart = new Date(
+          bookingStart.getFullYear(),
+          bookingStart.getMonth(),
+          bookingStart.getDate()
+        );
+        const normalizedBookingEnd = new Date(
+          bookingEnd.getFullYear(),
+          bookingEnd.getMonth(),
+          bookingEnd.getDate()
+        );
+        const normalizedStartDate = new Date(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          startDate.getDate()
+        );
+        const normalizedEndDate = new Date(
+          endDate.getFullYear(),
+          endDate.getMonth(),
+          endDate.getDate()
+        );
+
+        const hasOverlap =
+          normalizedBookingStart <= normalizedEndDate &&
+          normalizedBookingEnd >= normalizedStartDate;
+
+        console.log(
+          `Checking booking ${status.bookingId}: ${normalizedBookingStart.toDateString()} to ${normalizedBookingEnd.toDateString()}, Overlap: ${hasOverlap}, Quantity: ${status.quantity}, Pavilion: ${status.pavilionId}`
+        );
+
+        return hasOverlap;
+      })
+      .reduce((sum: number, status: any) => sum + (status.quantity || 0), 0);
+
+    // Calculate available stock considering "out" items and used inventory on overlapping dates only
+    const availableStock = inventory.quantity - (inventory.out || 0) - totalUsedQuantity;
+
+    // Debug logging
+    console.log(
+      `RESULT: Inventory ${inventoryId} (${inventory.name}): Used on overlapping dates: ${totalUsedQuantity}, Available: ${availableStock} (${inventory.quantity} total - ${inventory.out || 0} out - ${totalUsedQuantity} used)`
+    );
+    console.log(`=== End check for inventory ${inventoryId} ===\n`);
+
+    // Check if requesting more than available stock
+    if (requestedQuantity > availableStock) {
+      warnings.push(
+        `Insufficient stock: Only ${availableStock} items available (${inventory.quantity} total - ${inventory.out || 0} out - ${totalUsedQuantity} used on selected dates), but ${displayQuantity} items requested.`
+      );
+    }
+
+    // Check for conflicts with overlapping dates
+    const conflictingStatuses = (inventoryStatuses as any[]).filter((status: any) => {
+      if (status.inventoryId !== inventoryId) return false;
+      if (!status.booking?.startAt || !status.booking?.endAt) return false;
+      if (status.booking.status !== 1) return false; // Only consider Active bookings
+
+      // Check for date overlap with normalized dates
+      const bookingStart = new Date(status.booking.startAt);
+      const bookingEnd = new Date(status.booking.endAt);
+
+      // Normalize dates to start of day for comparison
+      const normalizedBookingStart = new Date(
+        bookingStart.getFullYear(),
+        bookingStart.getMonth(),
+        bookingStart.getDate()
+      );
+      const normalizedBookingEnd = new Date(
+        bookingEnd.getFullYear(),
+        bookingEnd.getMonth(),
+        bookingEnd.getDate()
+      );
+      const normalizedStartDate = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate()
+      );
+      const normalizedEndDate = new Date(
+        endDate.getFullYear(),
+        endDate.getMonth(),
+        endDate.getDate()
+      );
+
+      const hasDateOverlap =
+        normalizedBookingStart <= normalizedEndDate && normalizedBookingEnd >= normalizedStartDate;
+
+      return hasDateOverlap;
+    });
+
+    if (conflictingStatuses.length > 0) {
+      // Group by pavilion to show conflicts more clearly
+      const conflictsByPavilion = new Map();
+      conflictingStatuses.forEach((status: any) => {
+        const pavilionName = status.pavilion?.name || `Pavilion ${status.pavilionId}`;
+        const bookingName = status.booking?.eventName || "Unknown Event";
+        const key = `${pavilionName} - ${bookingName}`;
+
+        if (!conflictsByPavilion.has(key)) {
+          conflictsByPavilion.set(key, 0);
+        }
+        conflictsByPavilion.set(key, conflictsByPavilion.get(key) + (status.quantity || 0));
+      });
+
+      conflictsByPavilion.forEach((quantity, conflictKey) => {
+        conflicts.push(`Already reserved ${quantity} items for ${conflictKey}.`);
+      });
+    }
+
+    // Check if stock will be low after this booking
+    const remainingStock = availableStock - requestedQuantity;
+
+    if (remainingStock < 5 && remainingStock >= 0) {
+      warnings.push(
+        `Low stock warning: Only ${remainingStock} items will remain after this booking.`
+      );
+    }
+
+    return { conflicts, warnings };
+  };
+
+  // Handle conflict click to show detailed dialog
+  const handleConflictClick = (inventoryId: number, requestedQuantity: number = 0) => {
+    const inventory = inventoryItems.find(item => item.id === inventoryId);
+    if (!inventory || !startDate || !endDate) return;
+
+    const conflictingBookings = (inventoryStatuses as any[])
+      .filter((status: any) => {
+        if (status.inventoryId !== inventoryId) return false;
+        if (!status.booking?.startAt || !status.booking?.endAt) return false;
+        if (status.booking.status !== 1) return false;
+
+        const bookingStart = new Date(status.booking.startAt);
+        const bookingEnd = new Date(status.booking.endAt);
+
+        const normalizedBookingStart = new Date(
+          bookingStart.getFullYear(),
+          bookingStart.getMonth(),
+          bookingStart.getDate()
+        );
+        const normalizedBookingEnd = new Date(
+          bookingEnd.getFullYear(),
+          bookingEnd.getMonth(),
+          bookingEnd.getDate()
+        );
+        const normalizedStartDate = new Date(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          startDate.getDate()
+        );
+        const normalizedEndDate = new Date(
+          endDate.getFullYear(),
+          endDate.getMonth(),
+          endDate.getDate()
+        );
+
+        return (
+          normalizedBookingStart <= normalizedEndDate && normalizedBookingEnd >= normalizedStartDate
+        );
+      })
+      .map((status: any) => ({
+        bookingId: status.bookingId || 0,
+        eventName: status.booking?.eventName || "Unknown Event",
+        pavilionName: status.pavilion?.name || `Pavilion ${status.pavilionId}`,
+        quantity: status.quantity || 0,
+        startAt: new Date(status.booking!.startAt!),
+        endAt: new Date(status.booking!.endAt!),
+      }));
+
+    setConflictData({
+      inventoryItem: inventory,
+      conflictingBookings,
+      requestedQuantity,
+      selectedStartDate: startDate,
+      selectedEndDate: endDate,
+    });
+    setIsConflictDialogOpen(true);
+  };
+
+  // Filter inventory items
+  const filteredInventoryItems = inventoryItems.filter((item: any) => {
+    const matchesSearch = item.name.toLowerCase().includes(inventorySearchQuery.toLowerCase());
+    const matchesCategory =
+      selectedInventoryCategoryFilter === "all" ||
+      item.categoryId?.toString() === selectedInventoryCategoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  const resetInventoryFilters = () => {
+    setSelectedInventoryCategoryFilter("all");
+    setInventorySearchQuery("");
+  };
 
   // Removed discountData query; discount name fetched directly on submit.
 
@@ -505,7 +901,6 @@ const AddBookingsPageClient = (props: {
           setDiscountPercentage(typeof rec?.percent === "number" ? rec.percent : 0);
         }
       } catch (e) {
-        console.error("Failed loading discount", e);
         if (active) {
           setDiscountPercentage(0);
           setDiscountName("");
@@ -521,17 +916,12 @@ const AddBookingsPageClient = (props: {
   // Removed mop state & remote fetch; we derive selected mode of payment directly on submit
 
   const handleSubmitDraft = async (e: React.FormEvent<HTMLFormElement>) => {
-    console.log("u clicked me");
     e.preventDefault();
 
     // Validate required fields
-    if (!selectedPavilionId) {
-      alert("Please select a pavilion before creating the booking.");
-      return;
-    }
 
-    if (!startAt || !endAt) {
-      alert("Please select both start and end date/time for the booking.");
+    // Validate client selection
+    if (clientSelectionMode === "existing" && !selectedClientId) {
       return;
     }
 
@@ -540,11 +930,6 @@ const AddBookingsPageClient = (props: {
     const eventName = formData.get("eventName");
     const firstName = formData.get("firstName");
     const lastName = formData.get("lastName");
-
-    if (!eventName || !firstName || !lastName) {
-      alert("Please fill in all required fields (Event Name, Client Name).");
-      return;
-    }
 
     // Check if payment is filled
     if (!isPaymentFilled()) {
@@ -615,27 +1000,35 @@ const AddBookingsPageClient = (props: {
               );
             }
           } catch (err) {
-            console.error("Failed to create service on submit", err);
+            // Failed to create service on submit
           }
         }
       }
     }
 
-    const client = await createClientMutation.mutateAsync({
-      firstName: String(firstName ?? ""),
-      lastName: String(lastName ?? ""),
-      phoneNumber: String(phoneNumber ?? ""),
-      email: String(email ?? ""),
-      province: province ?? "",
-      region: region ?? "",
-      municipality: municipality ?? "",
-      barangay: barangay ?? "",
-    });
+    let clientID: number;
 
-    const clientID = Number(client?.id);
+    if (clientSelectionMode === "existing" && selectedClientId) {
+      // Use existing client
+      clientID = selectedClientId;
+    } else {
+      // Create new client
+      const client = await createClientMutation.mutateAsync({
+        firstName: String(firstName ?? ""),
+        lastName: String(lastName ?? ""),
+        phoneNumber: String(phoneNumber ?? ""),
+        email: String(email ?? ""),
+        province: province ?? "",
+        region: region ?? "",
+        municipality: municipality ?? "",
+        barangay: barangay ?? "",
+      });
 
-    if (!clientID || isNaN(clientID)) {
-      throw new Error("Failed to create client or invalid client ID");
+      clientID = Number(client?.id);
+
+      if (!clientID || isNaN(clientID)) {
+        throw new Error("Failed to create client or invalid client ID");
+      }
     }
 
     const serviceIdsFlat = Object.values(mergedServiceIdsByCategory).flat();
@@ -664,12 +1057,48 @@ const AddBookingsPageClient = (props: {
     if (selectedCatering === "1" && bookingId) {
       try {
         const dishIds = selectedDishes.flatMap(d => Array(d.quantity).fill(d.id));
-        if (dishIds.length) {
-          await createMenuWithDishes(bookingId, dishIds);
-        }
+        await createMenuWithDishes(bookingId, dishIds);
       } catch (err) {
-        console.error("Failed to create menu with dishes", err);
+        console.error("Error creating menu:", err);
       }
+    }
+
+    // Create inventory status entries for selected inventory items
+    if (selectedInventoryItems.length > 0 && bookingId) {
+      console.log("Creating inventory statuses for booking:", bookingId);
+      console.log("Selected inventory items:", selectedInventoryItems);
+      console.log("Selected pavilion ID:", selectedPavilionId);
+      try {
+        for (const item of selectedInventoryItems) {
+          console.log(
+            `Creating inventory status: Item ${item.id}, Quantity ${item.quantity}, Pavilion ${selectedPavilionId}, Booking ${bookingId}`
+          );
+          const result = await createInventoryStatus(
+            item.id,
+            selectedPavilionId,
+            bookingId,
+            item.quantity
+          );
+          console.log("Inventory status created:", result);
+        }
+        // Invalidate inventory status query to refresh the data immediately
+        queryClient.invalidateQueries({ queryKey: ["inventoryStatus"] });
+
+        // Force refetch after a small delay to ensure data is saved
+        setTimeout(() => {
+          queryClient.refetchQueries({ queryKey: ["inventoryStatus"] });
+          console.log("Forced refetch of inventory status data");
+        }, 500);
+
+        console.log("Inventory status query invalidated - should refresh data");
+      } catch (err) {
+        console.error("Error creating inventory status:", err);
+      }
+    } else {
+      console.log("No inventory items to create status for:", {
+        selectedInventoryItemsLength: selectedInventoryItems.length,
+        bookingId,
+      });
     }
 
     // Calculate original price for discount calculations
@@ -732,7 +1161,6 @@ const AddBookingsPageClient = (props: {
           finalIsCustomDiscount = true;
         }
       } catch (err) {
-        console.error("Failed to create custom discount", err);
         // Continue with no discount if creation fails
         finalDiscountId = null;
         finalDiscountType = "";
@@ -743,22 +1171,6 @@ const AddBookingsPageClient = (props: {
 
     // Calculate final discounted price
     const finalDiscountedPrice = Math.max(0, originalPrice - finalDiscountAmount);
-
-    // Debug logging for discount calculation
-    console.log("Discount Debug Info:", {
-      discountType,
-      selectedDiscountId,
-      customDiscountName,
-      customDiscountValue,
-      customDiscountType,
-      originalPrice,
-      finalDiscountType,
-      finalDiscountPercentage,
-      finalDiscountAmount,
-      finalDiscountedPrice,
-      finalDiscountId,
-      finalIsCustomDiscount,
-    });
 
     const billing = await createBillingMutation.mutateAsync({
       bookingId: Number(bookingId ?? 0),
@@ -791,70 +1203,16 @@ const AddBookingsPageClient = (props: {
           notes: paymentNotes || undefined,
           orNumber: paymentORNumber || undefined,
         });
-
-        console.log("Payment created successfully:", {
-          billingId: billingId,
-          clientId: clientID,
-          amount: parseFloat(paymentAmount),
-          orNumber: paymentORNumber,
-          date: paymentDate,
-          notes: paymentNotes,
-        });
       } catch (err) {
-        console.error("Failed to create payment", err);
-        alert(
-          "Booking created successfully, but payment creation failed. You can add payment details later."
-        );
+        // Payment creation failed - continue silently
       }
     }
-
-    console.log({
-      bookingCreated: true,
-      bookingId: Number(bookingId),
-      billingId: billingId,
-      firstName,
-      lastName,
-      phoneNumber,
-      email,
-      eventName,
-      numberOfPax,
-      eventType,
-      pavilionId: selectedPavilionId,
-      packageId: selectedPackageId,
-      deposit: isPaymentFilled() ? parseFloat(paymentAmount) : 0,
-      balance: finalDiscountedPrice - (isPaymentFilled() ? parseFloat(paymentAmount) : 0),
-      paymentCreated: isPaymentFilled(),
-      discountApplied: finalDiscountAmount > 0,
-      discountType: finalDiscountType,
-      discountAmount: finalDiscountAmount,
-      startAt,
-      endAt,
-      selectedServiceIdsByCategory: mergedServiceIdsByCategory,
-      paymentInfo: isPaymentFilled()
-        ? {
-            modeOfPayment: paymentModeOfPayment,
-            amount: paymentAmount,
-            orNumber: paymentORNumber,
-            date: paymentDate,
-            notes: paymentNotes,
-          }
-        : null,
-    });
   };
 
   const handleCreateBookingWithoutPayment = async () => {
     setShowPaymentConfirmDialog(false);
 
     // Validate required fields again
-    if (!selectedPavilionId) {
-      alert("Please select a pavilion before creating the booking.");
-      return;
-    }
-
-    if (!startAt || !endAt) {
-      alert("Please select both start and end date/time for the booking.");
-      return;
-    }
 
     // Additional validation for form fields
     const formElement = document.getElementById("booking-form") as HTMLFormElement;
@@ -863,11 +1221,6 @@ const AddBookingsPageClient = (props: {
       const eventName = formData.get("eventName");
       const firstName = formData.get("firstName");
       const lastName = formData.get("lastName");
-
-      if (!eventName || !firstName || !lastName) {
-        alert("Please fill in all required fields (Event Name, Client Name).");
-        return;
-      }
     }
 
     // Create a form event manually to reuse the same logic
@@ -882,7 +1235,7 @@ const AddBookingsPageClient = (props: {
   };
 
   const handlePavilionSelect = (e: string) => {
-    console.log("PAVILION SELECT" + e);
+    // Handle pavilion selection
   };
 
   // Removed unused price change handlers (hours, pavilion, total) to satisfy lint; add back if needed where values are updated.
@@ -1358,205 +1711,482 @@ const AddBookingsPageClient = (props: {
               <div className="mt-4"></div>
             </div>
           </div>
-          {/* === Select DIshesBLOCK === */}
+
+          {/* === DISHES BLOCK === */}
           {selectedCatering === "1" && (
-            <div
-              id="menu"
-              className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
-            >
-              <p className="font-bold text-lg">Dishes</p>
-              <p className="text-sm text-zinc-500">Select dishes for the booking</p>
-              <div className="">
-                <div className="mt-5">
-                  <div>
-                    {/* select here */}
-                    <div className="flex">
-                      <div className="flex ">
-                        <div>
-                          <p>Dishes:</p>
-                          <Tabs
-                            defaultValue={String(dishCategories[0]?.id ?? "")}
-                            orientation="vertical"
-                            className="w-full flex-row "
-                          >
-                            <TabsList className="flex-col justify-start items-start">
-                              <TabsTrigger
-                                value={`allCategory`}
-                                className="w-full"
-                                key={`allCategory`}
+            <div className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4">
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-bold text-lg">Dishes</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDishesDialogOpen(true)}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Manage Dishes
+                </Button>
+              </div>
+
+              <div className="border rounded-md">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-white z-10">
+                    <TableRow>
+                      <TableHead>Dish</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead className="w-20">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+
+                  <TableBody>
+                    {selectedDishes.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          No dishes selected
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      selectedDishes.map(dish => {
+                        const category = categoriesSource?.find(c => c.id === dish.categoryId);
+                        return (
+                          <TableRow key={dish.id}>
+                            <TableCell className="font-medium flex-1 grow">{dish.name}</TableCell>
+                            <TableCell>{category?.name || "—"}</TableCell>
+                            <TableCell>{dish.quantity}</TableCell>
+                            <TableCell>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600"
+                                onClick={() => removeDish(dish.id)}
                               >
-                                <List size={16} className="shrink-0 max-md:mt-0.5" />
-                                <p>All</p>
-                              </TabsTrigger>
-                              {dishCategories.map(category => (
-                                <TabsTrigger
-                                  value={`${category.id}`}
-                                  className="w-full"
-                                  key={category.id}
-                                >
-                                  <DishIcon categoryId={category.id} />
-                                  {category.name}
-                                </TabsTrigger>
-                              ))}
-                            </TabsList>
-                            <div className="grow rounded-md border text-start">
-                              <TabsContent key={`allCategory`} value={`allCategory`}>
-                                {/* DISH ITEM */}
-                                <ScrollArea className="h-[325px] w-full">
-                                  <DishSelectComponent dishes={allDishes} onAddDish={addDish} />
-                                </ScrollArea>
-                              </TabsContent>
-                              {dishCategories.map(category => {
-                                const dishesForCategory = allDishes.filter(
-                                  d => d.categoryId === category.id
-                                );
-                                return (
-                                  <TabsContent key={category.id} value={`${category.id}`}>
-                                    {/* DISH ITEM */}
-                                    <ScrollArea className="h-[325px] w-full">
-                                      <DishSelectComponent
-                                        dishes={dishesForCategory}
-                                        onAddDish={addDish}
-                                      />
-                                    </ScrollArea>
-                                  </TabsContent>
-                                );
-                              })}
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Custom Manage Dishes Modal */}
+              {isDishesDialogOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 bg-black/60 z-[200]"
+                    onClick={() => setIsDishesDialogOpen(false)}
+                  />
+                  <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-[1400px] max-h-[90vh] overflow-auto p-6">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-6">
+                        <div>
+                          <h2 className="text-xl font-semibold">Manage Dishes</h2>
+                          <p className="text-sm text-muted-foreground">
+                            Add, edit, or remove dishes from your menu.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          className="text-foreground hover:text-foreground/70 transition-all"
+                          variant="link"
+                          onClick={() => setIsDishesDialogOpen(false)}
+                        >
+                          <X />
+                        </Button>
+                      </div>
+
+                      {/* 2-Column Layout */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* LEFT COLUMN - Current Selected Dishes */}
+                        <div className="space-y-6">
+                          {/* Current Selected Dishes */}
+                          <div>
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="text-lg font-medium">
+                                Selected Dishes for this Booking
+                              </h3>
+                              <span className="text-sm text-muted-foreground">
+                                {filteredSelectedDishes.length} of {selectedDishes.length} dishes
+                              </span>
                             </div>
-                          </Tabs>
+
+                            {/* Filter and Search Controls for Selected Dishes */}
+                            <div className="flex gap-2 mb-2">
+                              <Select
+                                value={selectedDishesCategoryFilter}
+                                onValueChange={setSelectedDishesCategoryFilter}
+                              >
+                                <SelectTrigger className="w-[200px]">
+                                  <SelectValue placeholder="Category" />
+                                </SelectTrigger>
+                                <SelectContent className="z-[400]">
+                                  <SelectItem value="all">All Categories</SelectItem>
+                                  {categoriesSource?.map(
+                                    (category: { id: number; name: string }) => (
+                                      <SelectItem key={category.id} value={category.id.toString()}>
+                                        {category.name}
+                                      </SelectItem>
+                                    )
+                                  )}
+                                </SelectContent>
+                              </Select>
+
+                              <InputGroup className="mb-2">
+                                <InputGroupInput
+                                  placeholder="Search selected dishes..."
+                                  value={selectedDishesSearchQuery}
+                                  onChange={e => setSelectedDishesSearchQuery(e.target.value)}
+                                />
+                                <InputGroupAddon>
+                                  <SearchIcon />
+                                </InputGroupAddon>
+                                <InputGroupAddon align="inline-end">
+                                  <InputGroupButton
+                                    type="button"
+                                    onClick={resetSelectedDishesFilters}
+                                  >
+                                    Clear All
+                                  </InputGroupButton>
+                                </InputGroupAddon>
+                              </InputGroup>
+                            </div>
+                            <div className="border rounded-md max-h-[70vh] overflow-y-auto">
+                              <ScrollArea className="h-[200px] w-full flex flex-1 grow">
+                                <Table>
+                                  <TableHeader className="sticky top-0 bg-white z-10">
+                                    <TableRow>
+                                      <TableHead>Dish Name</TableHead>
+                                      <TableHead>Category</TableHead>
+                                      <TableHead>Quantity</TableHead>
+                                      <TableHead className="w-20">Actions</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+
+                                  <TableBody>
+                                    {selectedDishes.length === 0 ? (
+                                      <TableRow>
+                                        <TableCell
+                                          colSpan={4}
+                                          className="text-center text-muted-foreground"
+                                        >
+                                          No dishes selected for this booking
+                                        </TableCell>
+                                      </TableRow>
+                                    ) : filteredSelectedDishes.length === 0 ? (
+                                      <TableRow>
+                                        <TableCell
+                                          colSpan={4}
+                                          className="text-center text-muted-foreground"
+                                        >
+                                          {selectedDishesSearchQuery.trim() !== "" ||
+                                          selectedDishesCategoryFilter !== "all"
+                                            ? `No selected dishes found matching your filters. ${selectedDishesSearchQuery.trim() !== "" ? `Search: ${selectedDishesSearchQuery}` : ""} ${selectedDishesCategoryFilter !== "all" ? `Category: ${categoriesSource?.find(c => c.id.toString() === selectedDishesCategoryFilter)?.name}` : ""}`
+                                            : "No dishes selected for this booking"}
+                                        </TableCell>
+                                      </TableRow>
+                                    ) : (
+                                      filteredSelectedDishes.map(dish => {
+                                        const category = categoriesSource?.find(
+                                          (c: { id: number; name: string }) =>
+                                            c.id === dish.categoryId
+                                        );
+                                        return (
+                                          <TableRow key={dish.id}>
+                                            <TableCell className="font-medium flex-1 grow">
+                                              {dish.name}
+                                            </TableCell>
+                                            <TableCell>{category?.name ?? "—"}</TableCell>
+                                            <TableCell>{dish.quantity}</TableCell>
+                                            <TableCell>
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-red-600"
+                                                onClick={() => removeDish(dish.id)}
+                                              >
+                                                <Trash2 className="w-3 h-3" />
+                                              </Button>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </ScrollArea>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* RIGHT COLUMN - All Available Dishes */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-lg font-medium">All Available Dishes</h3>
+                            <span className="text-sm text-muted-foreground">
+                              {filteredDishes.length} of {dishesSource?.length || 0} dishes
+                              {allDishesQuery.isLoading && " (Loading...)"}
+                              {allDishesQuery.error && " (Error loading)"}
+                            </span>
+                          </div>
+                          <div className="flex gap-2 mb-2">
+                            <Select
+                              value={selectedDishCategoryFilter}
+                              onValueChange={setSelectedDishCategoryFilter}
+                            >
+                              <SelectTrigger className="w-[200px]">
+                                <SelectValue placeholder="Category" />
+                              </SelectTrigger>
+                              <SelectContent className="z-[400]">
+                                <SelectItem value="all">All Categories</SelectItem>
+                                {categoriesSource?.map((category: { id: number; name: string }) => (
+                                  <SelectItem key={category.id} value={category.id.toString()}>
+                                    {category.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+
+                            <InputGroup className="mb-2">
+                              <InputGroupInput
+                                placeholder="Search dishes..."
+                                value={dishSearchQuery}
+                                onChange={e => setDishSearchQuery(e.target.value)}
+                              />
+                              <InputGroupAddon>
+                                <SearchIcon />
+                              </InputGroupAddon>
+                              <InputGroupAddon align="inline-end">
+                                <InputGroupButton type="button" onClick={resetDishFilters}>
+                                  Clear All
+                                </InputGroupButton>
+                              </InputGroupAddon>
+                            </InputGroup>
+                          </div>
+
+                          <div className="border rounded-md max-h-[70vh] overflow-y-auto">
+                            <ScrollArea className="h-[400px] w-full flex flex-1 grow">
+                              <Table>
+                                <TableHeader className="sticky top-0 bg-white">
+                                  <TableRow>
+                                    <TableHead>Dish Name</TableHead>
+                                    <TableHead>Category</TableHead>
+                                    <TableHead className="w-24">Actions</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {allDishesQuery.isLoading ? (
+                                    <TableRow>
+                                      <TableCell colSpan={3} className="text-center py-8">
+                                        Loading dishes...
+                                      </TableCell>
+                                    </TableRow>
+                                  ) : allDishesQuery.error ? (
+                                    <TableRow>
+                                      <TableCell
+                                        colSpan={3}
+                                        className="text-center py-8 text-red-600"
+                                      >
+                                        Error loading dishes: {allDishesQuery.error?.message}
+                                      </TableCell>
+                                    </TableRow>
+                                  ) : filteredDishes.length > 0 ? (
+                                    filteredDishes.map((dish: any) => {
+                                      const category = categoriesSource?.find(
+                                        (c: { id: number; name: string }) =>
+                                          c.id === dish.categoryId
+                                      );
+                                      const isSelected = selectedDishes.some(
+                                        sd => sd.id === dish.id
+                                      );
+
+                                      return (
+                                        <TableRow
+                                          key={dish.id}
+                                          className={isSelected ? "bg-green-50" : ""}
+                                        >
+                                          <TableCell className="font-medium">{dish.name}</TableCell>
+                                          <TableCell>{category?.name ?? "—"}</TableCell>
+                                          <TableCell>
+                                            <div className="flex gap-1">
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => addDish(dish)}
+                                              >
+                                                <Plus className="w-3 h-3" />
+                                              </Button>
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setEditingDish(dish)}
+                                              >
+                                                <Pencil className="w-3 h-3" />
+                                              </Button>
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-red-600"
+                                                onClick={() => deleteDishMutation.mutate(dish.id)}
+                                                disabled={deleteDishMutation.isPending}
+                                              >
+                                                <Trash2 className="w-3 h-3" />
+                                              </Button>
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })
+                                  ) : (
+                                    <TableRow>
+                                      <TableCell
+                                        colSpan={3}
+                                        className="text-center py-8 text-muted-foreground"
+                                      >
+                                        {dishSearchQuery.trim() !== "" ||
+                                        selectedDishCategoryFilter !== "all"
+                                          ? `No dishes found matching your filters. ${dishSearchQuery.trim() !== "" ? `Search: ${dishSearchQuery}` : ""} ${selectedDishCategoryFilter !== "all" ? `Category: ${categoriesSource?.find(c => c.id.toString() === selectedDishCategoryFilter)?.name}` : ""}`
+                                          : "No dishes available."}
+                                      </TableCell>
+                                    </TableRow>
+                                  )}
+                                </TableBody>
+                              </Table>
+                            </ScrollArea>
+                          </div>
                         </div>
                       </div>
-                      {/* select here end */}
-                      {/* selected block */}
-                      <SelectedItems
-                        selectedDishes={selectedDishes}
-                        onRemoveDish={removeDish}
-                        dishCategories={dishCategories}
-                      />
-                      {/* selected block end */}
                     </div>
+
+                    {/* Nested Edit Dish Modal */}
+                    {editingDish && (
+                      <>
+                        <div
+                          className="fixed inset-0 bg-black/60 z-[209]"
+                          onClick={() => setEditingDish(null)}
+                        />
+                        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
+                          <div className="bg-white rounded-xl shadow-xl w-full max-w-[600px] max-h-[80vh] overflow-auto p-6">
+                            <div className="flex items-start justify-between mb-4">
+                              <h3 className="text-lg font-semibold">Edit Dish</h3>
+                              <Button
+                                type="button"
+                                variant="link"
+                                onClick={() => setEditingDish(null)}
+                                className="text-foreground hover:text-foreground/80 transition-all"
+                              >
+                                <X />
+                              </Button>
+                            </div>
+
+                            <div className="space-y-4">
+                              <div>
+                                <Label htmlFor="edit-dish-name">Dish Name</Label>
+                                <Input
+                                  id="edit-dish-name"
+                                  defaultValue={editingDish.name}
+                                  placeholder="Enter dish name"
+                                  onChange={e =>
+                                    setEditingDish({
+                                      ...editingDish,
+                                      name: e.target.value,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="edit-dish-category">Category</Label>
+                                <Select
+                                  value={editingDish.categoryId?.toString() || ""}
+                                  onValueChange={value => {
+                                    setEditingDish({
+                                      ...editingDish,
+                                      categoryId: Number(value),
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="z-[400]">
+                                    {categoriesSource?.map(
+                                      (category: { id: number; name: string }) => (
+                                        <SelectItem
+                                          key={category.id}
+                                          value={category.id.toString()}
+                                        >
+                                          {category.name}
+                                        </SelectItem>
+                                      )
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex gap-2 justify-end pt-4">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => setEditingDish(null)}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  type="button"
+                                  onClick={() => {
+                                    updateDishMutation.mutate(
+                                      {
+                                        dishId: editingDish.id,
+                                        name: editingDish.name,
+                                        categoryId: editingDish.categoryId || 1,
+                                      },
+                                      {
+                                        onSuccess: () => {
+                                          setEditingDish(null);
+                                        },
+                                      }
+                                    );
+                                  }}
+                                  disabled={updateDishMutation.isPending}
+                                >
+                                  {updateDishMutation.isPending ? "Saving..." : "Save Changes"}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </div>
-                <div className="mt-4"></div>
-              </div>
+                </>
+              )}
             </div>
           )}
-          {/* === INVENTORY BLOCK === */}
-          {/* <div
-            id="inventory"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
-          >
-            <p className="font-bold text-lg">Inventory</p>
-            <p className="text-sm text-zinc-500">
-              Select inventory for the booking
-            </p>
-            <div className="">
-              <div className="mt-5">
-                <div>
-                  <div className="flex">
-                    <div className="flex ">
-                      <div>
-                        <p>Inventory:</p>
-                        <Tabs
-                          defaultValue={String(
-                            inventoryCategories[0]?.id ?? "allInventory"
-                          )}
-                          orientation="vertical"
-                          className="w-full flex-row "
-                        >
-                          <TabsList className="flex-col justify-start items-start">
-                            <TabsTrigger
-                              value={`allInventory`}
-                              className="w-full"
-                              key={`allInventory`}
-                            >
-                              <List
-                                size={16}
-                                className="shrink-0 max-md:mt-0.5"
-                              />
-                              <p>All</p>
-                            </TabsTrigger>
-                            {inventoryCategories.map((category) => (
-                              <TabsTrigger
-                                value={`${category.id}`}
-                                className="w-full"
-                                key={category.id}
-                              >
-                                <InventoryIcon categoryId={category.id} />
-                                {category.name}
-                              </TabsTrigger>
-                            ))}
-                          </TabsList>
-                          <div className="grow rounded-md border text-start">
-                            <TabsContent
-                              key={`allInventory`}
-                              value={`allInventory`}
-                            >
-                              <ScrollArea className="h-[325px] w-full">
-                                <InventorySelectComponent
-                                  items={allInventory}
-                                  onAddItem={addInventoryItem}
-                                />
-                              </ScrollArea>
-                            </TabsContent>
-                            {inventoryCategories.map((category) => {
-                              const itemsForCategory = allInventory.filter(
-                                (i) => i.categoryId === category.id
-                              );
-                              return (
-                                <TabsContent
-                                  key={category.id}
-                                  value={`${category.id}`}
-                                >
-                                  <ScrollArea className="h-[325px] w-full">
-                                    <InventorySelectComponent
-                                      items={itemsForCategory}
-                                      onAddItem={addInventoryItem}
-                                    />
-                                  </ScrollArea>
-                                </TabsContent>
-                              );
-                            })}
-                          </div>
-                        </Tabs>
-                      </div>
-                    </div>
-                    <InventorySelectedItems
-                      selectedItems={selectedInventory}
-                      onRemoveItem={removeInventoryItem}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4"></div>
-            </div>
-          </div> */}
-          {/* === SELECT SERVICES BLOCK === */}
-          {/* <div
-            id="services"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
-          >
-            <p className="font-bold text-lg">Services</p>
-            <p className="text-sm text-zinc-500">
-              Pick additional services that the client wants to include in the booking.
-            </p>
-            <div className="">
-              <div className="mt-5">
-                <div className="flex items-center [--primary:var(--color-red-500)] [--ring:var(--color-red-500)] in-[.dark]:[--primary:var(--color-red-500)] in-[.dark]:[--ring:var(--color-red-500)]">
-                  <div className="grid grid-cols-3 gap-3 w-full">
 
-
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div> */}
           {/* === SELECT SERVICES BLOCK === */}
           <div
             id="services"
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
-            <p className="font-bold text-lg">3rd Party Services</p>
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-bold text-lg">3rd Party Services</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsServiceCategoryDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Service Category
+              </Button>
+            </div>
             <div className="">
               <div className="mt-2">
                 <div className="flex items-center [--primary:var(--color-red-500)] [--ring:var(--color-red-500)] in-[.dark]:[--primary:var(--color-red-500)] in-[.dark]:[--ring:var(--color-red-500)]">
@@ -1619,44 +2249,1078 @@ const AddBookingsPageClient = (props: {
               </div>
             </div>
           </div>
+
+          {/* Add Service Category Modal */}
+          {isServiceCategoryDialogOpen && (
+            <>
+              <div
+                className="fixed inset-0 bg-black/60 z-[200]"
+                onClick={() => setIsServiceCategoryDialogOpen(false)}
+              />
+              <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-xl w-full max-w-[500px] max-h-[80vh] overflow-auto p-6">
+                  <div className="flex items-start justify-between mb-6">
+                    <div>
+                      <h2 className="text-xl font-semibold">Add Service Category</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Create a new category for organizing services.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      className="text-foreground hover:text-foreground/70 transition-all"
+                      variant="link"
+                      onClick={() => setIsServiceCategoryDialogOpen(false)}
+                    >
+                      <X />
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="service-category-name">Category Name</Label>
+                      <Input
+                        id="service-category-name"
+                        value={newServiceCategoryName}
+                        onChange={e => setNewServiceCategoryName(e.target.value)}
+                        placeholder="Enter category name (e.g., Photography, Catering, Entertainment)"
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsServiceCategoryDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (newServiceCategoryName.trim()) {
+                            createServiceCategoryMutation.mutate(newServiceCategoryName.trim());
+                          }
+                        }}
+                        disabled={
+                          !newServiceCategoryName.trim() || createServiceCategoryMutation.isPending
+                        }
+                      >
+                        {createServiceCategoryMutation.isPending
+                          ? "Creating..."
+                          : "Create Category"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* === INVENTORY BLOCK === */}
+          <div
+            id="inventory"
+            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+          >
+            <p className="font-bold text-lg -mb-2">Inventory Items</p>
+            <div className="">
+              <div className="mt-5">
+                <div
+                  className="flex border-1 p-4 rounded-md justify-between items-center cursor-pointer hover:bg-gray-50"
+                  onClick={() => setIsInventoryDialogOpen(true)}
+                >
+                  <div className="flex flex-col justify-start items-start">
+                    <p className="flex font-medium gap-2 items-center text-md">
+                      {selectedInventoryItems.length > 0
+                        ? `${selectedInventoryItems.length} inventory item(s) selected`
+                        : "Select inventory items"}
+                    </p>
+                    <p className="text-xs font-normal text-foreground/50 text-left">
+                      {selectedInventoryItems.length > 0
+                        ? `Total items: ${selectedInventoryItems.reduce((sum, item) => sum + item.quantity, 0)}`
+                        : "Choose inventory items to see details"}
+                    </p>
+                  </div>
+                  <Pen size={18} />
+                </div>
+
+                {/* Custom Inventory Dialog */}
+                {isInventoryDialogOpen && (
+                  <>
+                    {/* Backdrop */}
+                    <div
+                      className="fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity duration-200"
+                      onClick={() => setIsInventoryDialogOpen(false)}
+                    />
+
+                    {/* Dialog Content */}
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                      <div
+                        className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[90vh] flex flex-col transform transition-all duration-200 scale-100"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-6 border-b">
+                          <div>
+                            <h2 className="text-xl font-semibold">Select Inventory Items</h2>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Choose inventory items needed for this booking
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setIsInventoryDialogOpen(false);
+                            }}
+                            className="text-gray-400 hover:text-gray-600 transition-colors duration-200 p-1 rounded-md hover:bg-gray-100"
+                            aria-label="Close dialog"
+                          >
+                            <X size={24} />
+                          </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 p-6 overflow-hidden">
+                          <div className="h-full flex flex-col space-y-4">
+                            {/* Filter Controls */}
+                            <div className="flex gap-2">
+                              <Select
+                                value={selectedInventoryCategoryFilter}
+                                onValueChange={setSelectedInventoryCategoryFilter}
+                              >
+                                <SelectTrigger className="w-[200px]">
+                                  <SelectValue placeholder="Category" />
+                                </SelectTrigger>
+                                <SelectContent className="z-[60]">
+                                  <SelectItem value="all">All Categories</SelectItem>
+                                  {inventoryCategoriesData?.map((category: any) => (
+                                    <SelectItem key={category.id} value={category.id.toString()}>
+                                      {category.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+
+                              <InputGroup className="flex-1">
+                                <InputGroupInput
+                                  placeholder="Search inventory..."
+                                  value={inventorySearchQuery}
+                                  onChange={e => setInventorySearchQuery(e.target.value)}
+                                />
+                                <InputGroupAddon>
+                                  <SearchIcon />
+                                </InputGroupAddon>
+                                <InputGroupAddon align="inline-end">
+                                  <InputGroupButton type="button" onClick={resetInventoryFilters}>
+                                    Clear All
+                                  </InputGroupButton>
+                                </InputGroupAddon>
+                              </InputGroup>
+                            </div>
+
+                            {/* Selected Items Summary */}
+                            {selectedInventoryItems.length > 0 && (
+                              <div className="border rounded-md p-3 bg-blue-50">
+                                <h4 className="font-medium text-sm mb-2">Selected Items:</h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {selectedInventoryItems.map(selectedItem => {
+                                    const item = inventoryItems.find(
+                                      inv => inv.id === selectedItem.id
+                                    );
+                                    return (
+                                      <Badge key={selectedItem.id} variant="secondary">
+                                        {item?.name} × {selectedItem.quantity}
+                                      </Badge>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Inventory Items List */}
+                            <div className="flex-1 border rounded-md overflow-hidden">
+                              <div className="h-full overflow-y-auto">
+                                <Table>
+                                  <TableHeader className="sticky top-0 bg-white z-10">
+                                    <TableRow>
+                                      <TableHead>Item Name</TableHead>
+                                      <TableHead>Category</TableHead>
+                                      <TableHead>Available</TableHead>
+                                      <TableHead>Selected</TableHead>
+                                      <TableHead className="w-32">Actions</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {filteredInventoryItems.length === 0 ? (
+                                      <TableRow>
+                                        <TableCell
+                                          colSpan={5}
+                                          className="text-center py-8 text-muted-foreground"
+                                        >
+                                          {inventorySearchQuery.trim() !== "" ||
+                                          selectedInventoryCategoryFilter !== "all"
+                                            ? "No inventory items found matching your filters"
+                                            : "No inventory items available"}
+                                        </TableCell>
+                                      </TableRow>
+                                    ) : (
+                                      filteredInventoryItems.map((item: any) => {
+                                        const selectedItem = selectedInventoryItems.find(
+                                          si => si.id === item.id
+                                        );
+                                        const selectedQuantity = selectedItem?.quantity || 0;
+                                        const conflicts = getInventoryConflicts(
+                                          item.id,
+                                          selectedQuantity + 1,
+                                          true
+                                        );
+                                        const category = inventoryCategoriesData?.find(
+                                          (c: any) => c.id === item.categoryId
+                                        );
+
+                                        // Calculate available quantity for this item
+                                        let totalUsedQuantity = 0;
+                                        let availableQuantity = item.quantity - (item.out || 0);
+
+                                        // If dates are selected, calculate used quantity for overlapping dates only
+                                        if (startDate && endDate) {
+                                          totalUsedQuantity = (inventoryStatuses as any[])
+                                            .filter((status: any) => {
+                                              if (status.inventoryId !== item.id) return false;
+                                              if (
+                                                !status.booking?.startAt ||
+                                                !status.booking?.endAt
+                                              )
+                                                return false;
+                                              if (status.booking.status !== 1) return false; // Only consider Active bookings
+
+                                              // Only consider bookings that overlap with selected dates
+                                              const bookingStart = new Date(status.booking.startAt);
+                                              const bookingEnd = new Date(status.booking.endAt);
+
+                                              // Normalize dates to start of day for comparison
+                                              const normalizedBookingStart = new Date(
+                                                bookingStart.getFullYear(),
+                                                bookingStart.getMonth(),
+                                                bookingStart.getDate()
+                                              );
+                                              const normalizedBookingEnd = new Date(
+                                                bookingEnd.getFullYear(),
+                                                bookingEnd.getMonth(),
+                                                bookingEnd.getDate()
+                                              );
+                                              const normalizedStartDate = new Date(
+                                                startDate.getFullYear(),
+                                                startDate.getMonth(),
+                                                startDate.getDate()
+                                              );
+                                              const normalizedEndDate = new Date(
+                                                endDate.getFullYear(),
+                                                endDate.getMonth(),
+                                                endDate.getDate()
+                                              );
+
+                                              return (
+                                                normalizedBookingStart <= normalizedEndDate &&
+                                                normalizedBookingEnd >= normalizedStartDate
+                                              );
+                                            })
+                                            .reduce(
+                                              (sum: number, status: any) =>
+                                                sum + (status.quantity || 0),
+                                              0
+                                            );
+
+                                          availableQuantity =
+                                            item.quantity - (item.out || 0) - totalUsedQuantity;
+                                        }
+
+                                        return (
+                                          <TableRow
+                                            key={item.id}
+                                            className={selectedQuantity > 0 ? "bg-blue-50" : ""}
+                                          >
+                                            <TableCell className="font-medium">
+                                              <div>
+                                                {item.name}
+                                                {conflicts.warnings.length > 0 && (
+                                                  <div className="mt-1">
+                                                    {conflicts.warnings.map((warning, idx) => (
+                                                      <div
+                                                        key={idx}
+                                                        className="text-xs text-orange-600 bg-orange-50 p-1 rounded-md border-red-200 border-1"
+                                                      >
+                                                        {warning}
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                                {conflicts.conflicts.length > 0 && (
+                                                  <div className="mt-2">
+                                                    {conflicts.conflicts.map((conflict, idx) => (
+                                                      <div
+                                                        key={idx}
+                                                        className="text-xs text-red-600 bg-red-50 p-2 border border-red-200 rounded-md -mt-1"
+                                                      >
+                                                        <button
+                                                          type="button"
+                                                          onClick={e => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            const selectedItem =
+                                                              selectedInventoryItems.find(
+                                                                si => si.id === item.id
+                                                              );
+                                                            handleConflictClick(
+                                                              item.id,
+                                                              selectedItem?.quantity || 1
+                                                            );
+                                                          }}
+                                                          className="text-left hover:underline"
+                                                        >
+                                                          {conflict}
+                                                        </button>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </TableCell>
+                                            <TableCell>{category?.name || "—"}</TableCell>
+                                            <TableCell>
+                                              <div className="flex flex-col">
+                                                <span
+                                                  className={
+                                                    availableQuantity < 5
+                                                      ? "text-orange-600 font-medium"
+                                                      : ""
+                                                  }
+                                                >
+                                                  {availableQuantity} available
+                                                  {availableQuantity < 5 && " (Low Stock)"}
+                                                </span>
+                                                <span className="text-xs text-gray-500">
+                                                  {item.quantity} total
+                                                  {(item.out || 0) > 0 && `, ${item.out} out`}
+                                                  {totalUsedQuantity > 0 &&
+                                                    startDate &&
+                                                    endDate &&
+                                                    `, ${totalUsedQuantity} used on selected dates`}
+                                                  {!startDate || !endDate
+                                                    ? " (select dates to check conflicts)"
+                                                    : ""}
+                                                </span>
+                                              </div>
+                                            </TableCell>
+                                            <TableCell>{selectedQuantity}</TableCell>
+                                            <TableCell>
+                                              <div className="flex gap-1">
+                                                <Button
+                                                  type="button"
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() => addInventoryItem(item.id, 1)}
+                                                  disabled={selectedQuantity >= availableQuantity}
+                                                >
+                                                  <Plus className="w-3 h-3" />
+                                                </Button>
+                                                {selectedQuantity > 0 && (
+                                                  <>
+                                                    <Input
+                                                      type="text"
+                                                      min="0"
+                                                      max={availableQuantity}
+                                                      value={selectedQuantity}
+                                                      onChange={e => {
+                                                        const newQuantity =
+                                                          parseInt(e.target.value) || 0;
+                                                        console.log(
+                                                          `Input onChange: itemId=${item.id}, inputValue=${e.target.value}, parsedQuantity=${newQuantity}, currentSelectedQuantity=${selectedQuantity}`
+                                                        );
+                                                        updateInventoryQuantity(
+                                                          item.id,
+                                                          newQuantity
+                                                        );
+                                                      }}
+                                                      className="w-16 h-8 text-center text-xs"
+                                                    />
+                                                    <Button
+                                                      type="button"
+                                                      variant="outline"
+                                                      size="sm"
+                                                      className="text-red-600"
+                                                      onClick={() => removeInventoryItem(item.id)}
+                                                    >
+                                                      <Trash2 className="w-3 h-3" />
+                                                    </Button>
+                                                  </>
+                                                )}
+                                              </div>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex items-center justify-between p-6 border-t bg-gray-50 rounded-b-lg">
+                          <div className="text-sm text-gray-600">
+                            {selectedInventoryItems.length > 0 && (
+                              <span>
+                                {selectedInventoryItems.length} item(s) selected • Total quantity:{" "}
+                                {selectedInventoryItems.reduce(
+                                  (sum, item) => sum + item.quantity,
+                                  0
+                                )}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={e => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsInventoryDialogOpen(false);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={e => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsInventoryDialogOpen(false);
+                              }}
+                              disabled={selectedInventoryItems.length === 0}
+                            >
+                              Done ({selectedInventoryItems.length})
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Inventory Conflict Dialog */}
+                {isConflictDialogOpen && conflictData && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
+                      <div className="border-b px-6 py-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              Inventory Conflict Details
+                            </h3>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {conflictData.inventoryItem.name} - Requested:{" "}
+                              {conflictData.requestedQuantity} items
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setIsConflictDialogOpen(false);
+                            }}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+                        {/* Booking Comparison - Side by Side */}
+                        <div className="mb-6">
+                          <h4 className="font-medium text-gray-900 mb-4">
+                            Booking Timeline Comparison
+                          </h4>
+                          {/* Your New Booking - Always First */}
+                          <div className="mb-4">
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                              <div className="text-center">
+                                <h5 className="font-medium text-blue-900 text-start ">
+                                  Your New Booking
+                                </h5>
+                              </div>
+                              <div>
+                                <div className="text-sm text-blue-700">
+                                  {/* Extract pavilion from selected pavilion ID */}
+                                  {pavilions.find(p => p.id === selectedPavilionId)?.name ||
+                                    "Selected Pavilion"}
+                                </div>
+                                <div className="text-sm text-blue-700">
+                                  {format(conflictData.selectedStartDate, "MMM dd, h:mm a")} -{" "}
+                                  {format(conflictData.selectedEndDate, "h:mm a")}
+                                </div>
+                                <div className="text-sm font-medium text-blue-900">
+                                  Needs: {conflictData.requestedQuantity} items
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Conflicting Bookings Grid */}
+                          <div
+                            className={`grid gap-2 ${conflictData.conflictingBookings.length === 1 ? "grid-cols-1 mx-auto" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"}`}
+                          >
+                            {conflictData.conflictingBookings.map((booking, index) => {
+                              // Calculate time gap between bookings
+                              const newBookingEnd = conflictData.selectedEndDate;
+                              const newBookingStart = conflictData.selectedStartDate;
+                              const conflictEnd = booking.endAt;
+                              const conflictStart = booking.startAt;
+
+                              let timeGap = "";
+                              let gapDirection = "";
+
+                              if (conflictEnd <= newBookingStart) {
+                                // Conflict ends before new booking starts
+                                const hoursApart = Math.round(
+                                  (newBookingStart.getTime() - conflictEnd.getTime()) /
+                                    (1000 * 60 * 60)
+                                );
+                                timeGap = `${hoursApart} hours apart`;
+                                gapDirection = "before";
+                              } else if (newBookingEnd <= conflictStart) {
+                                // New booking ends before conflict starts
+                                const hoursApart = Math.round(
+                                  (conflictStart.getTime() - newBookingEnd.getTime()) /
+                                    (1000 * 60 * 60)
+                                );
+                                timeGap = `${hoursApart} hours apart`;
+                                gapDirection = "after";
+                              } else {
+                                // Overlapping
+                                timeGap = "Overlapping";
+                                gapDirection = "overlap";
+                              }
+
+                              return (
+                                <div
+                                  key={index}
+                                  className="bg-red-50 border border-red-200 rounded-lg p-4 w-full"
+                                >
+                                  <div className="text-center flex gap-2 items-center">
+                                    <h5 className="font-medium text-red-900 text-start">
+                                      Conflicting Booking
+                                    </h5>
+                                    {timeGap && (
+                                      <div
+                                        className={`text-xs px-2 py-1 rounded-full inline-block ${
+                                          gapDirection === "overlap"
+                                            ? "bg-red-200 text-red-800"
+                                            : "bg-yellow-200 text-yellow-800"
+                                        }`}
+                                      >
+                                        {timeGap}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-red-900">
+                                      {booking.eventName}
+                                    </div>
+                                    <div className="text-sm text-red-700">
+                                      {booking.pavilionName}
+                                    </div>
+                                    <div className="text-sm text-red-700">
+                                      {format(booking.startAt, "MMM dd, h:mm a")} -{" "}
+                                      {format(booking.endAt, "h:mm a")}
+                                    </div>
+                                    <div className="text-sm font-medium text-red-900">
+                                      Using: {booking.quantity} items
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Summary & Analysis */}
+                        <div className="bg-gray-50 border rounded-lg p-4">
+                          <h4 className="font-medium text-gray-900 mb-3">Analysis</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <div className="font-medium text-gray-700">Total Inventory</div>
+                              <div className="text-2xl font-bold text-gray-900">
+                                {conflictData.inventoryItem.quantity}
+                              </div>
+                              <div className="text-xs text-gray-500">Available items</div>
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-700">Currently Used</div>
+                              <div className="text-2xl font-bold text-red-600">
+                                {conflictData.conflictingBookings.reduce(
+                                  (sum, booking) => sum + booking.quantity,
+                                  0
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                On{" "}
+                                {conflictData.conflictingBookings.map(b => b.eventName).join(", ")}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-700">Remaining</div>
+                              <div className="text-2xl font-bold text-green-600">
+                                {conflictData.inventoryItem.quantity -
+                                  conflictData.conflictingBookings.reduce(
+                                    (sum, booking) => sum + booking.quantity,
+                                    0
+                                  )}
+                              </div>
+                              <div className="text-xs text-gray-500">Available for booking</div>
+                            </div>
+                          </div>
+
+                          {conflictData.requestedQuantity >
+                            conflictData.inventoryItem.quantity -
+                              conflictData.conflictingBookings.reduce(
+                                (sum, booking) => sum + booking.quantity,
+                                0
+                              ) && (
+                            <div className="mt-4 p-3 bg-red-100 border border-red-300 rounded-md">
+                              <div className="text-sm text-red-800">
+                                <strong>Cannot proceed:</strong> You requested{" "}
+                                {conflictData.requestedQuantity} items, but only{" "}
+                                {conflictData.inventoryItem.quantity -
+                                  conflictData.conflictingBookings.reduce(
+                                    (sum, booking) => sum + booking.quantity,
+                                    0
+                                  )}{" "}
+                                items are available on the selected dates.
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="border-t px-6 py-4 bg-gray-50">
+                        <div className="flex justify-end gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setIsConflictDialogOpen(false);
+                            }}
+                          >
+                            Close
+                          </Button>
+                          <Button
+                            type="button"
+                            onClick={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setIsConflictDialogOpen(false);
+                              // Could add logic to auto-adjust quantity or dates
+                            }}
+                          >
+                            Understood
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Display Selected Inventory Items */}
+                {selectedInventoryItems.length > 0 && (
+                  <div className="mt-4 border rounded-md p-4 bg-gray-50">
+                    <h4 className="font-medium mb-3">Selected Inventory Items:</h4>
+                    <div className="flex flex-col gap-2">
+                      {selectedInventoryItems.map(selectedItem => {
+                        const item = inventoryItems.find(inv => inv.id === selectedItem.id);
+                        const category = inventoryCategoriesData?.find(
+                          (c: any) => c.id === item?.categoryId
+                        );
+                        const conflicts = getInventoryConflicts(
+                          selectedItem.id,
+                          selectedItem.quantity
+                        );
+
+                        return (
+                          <div
+                            key={selectedItem.id}
+                            className="flex items-center justify-between bg-white p-2 rounded-md border-1"
+                          >
+                            <div className="flex-1">
+                              <div className="font-medium text-sm flex justify-between items-center">
+                                <p className="-mt-4">{item?.name}</p>
+
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-500"
+                                  onClick={() => removeInventoryItem(selectedItem.id)}
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                              <div className="text-xs text-gray-500 -mt-4">
+                                {category?.name} • Quantity: {selectedItem.quantity}
+                              </div>
+                              {(conflicts.warnings.length > 0 ||
+                                conflicts.conflicts.length > 0) && (
+                                <div className="text-xs mt-1 space-y-1">
+                                  {conflicts.warnings.map((warning, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="text-orange-600 p-1 bg-orange-50 rounded-md"
+                                    >
+                                      {warning}
+                                    </div>
+                                  ))}
+                                  {conflicts.conflicts.map((conflict, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="text-red-600 p-1 bg-red-50 rounded-md"
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={e => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          handleConflictClick(
+                                            selectedItem.id,
+                                            selectedItem.quantity
+                                          );
+                                        }}
+                                        className="text-left hover:underline"
+                                      >
+                                        {conflict}
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* === CLIENT BLOCK === */}
           <div
             id="services"
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
-            <p className="font-bold text-lg">Client Details</p>
-            <p className="text-sm text-zinc-500">
-              Details about the person or organization booking.
-            </p>
+            <p className="font-bold text-lg -mb-2">Client Details</p>
+
+            {/* Client Selection Mode */}
+            <div className="mt-5">
+              <RadioGroup
+                value={clientSelectionMode}
+                onValueChange={(value: "new" | "existing") => {
+                  setClientSelectionMode(value);
+                  if (value === "new") {
+                    setSelectedClientId(null);
+                    setClientSearchQuery("");
+                  }
+                }}
+                className="grid grid-cols-2 gap-4"
+              >
+                {/* New Client Radio Card */}
+                <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-row flex-1 items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
+                  <div className="flex flex-col grow gap-2 justify-start items-baseline">
+                    <Label htmlFor={`${id}-new-client`} className="flex items-center">
+                      <Plus className="mr-2" size={20} />
+                      New Client
+                    </Label>
+                  </div>
+                  <RadioGroupItem
+                    value="new"
+                    id={`${id}-new-client`}
+                    aria-describedby={`${id}-new-client-description`}
+                    className="after:absolute after:inset-0"
+                  />
+                </div>
+
+                {/* Existing Client Radio Card */}
+                <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-row flex-1 items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
+                  <div className="flex flex-col grow gap-2 justify-start items-baseline">
+                    <Label htmlFor={`${id}-existing-client`} className="flex items-center">
+                      <Users className="mr-2" size={20} />
+                      Existing Client
+                    </Label>
+                  </div>
+                  <RadioGroupItem
+                    value="existing"
+                    id={`${id}-existing-client`}
+                    aria-describedby={`${id}-existing-client-description`}
+                    className="after:absolute after:inset-0"
+                  />
+                </div>
+              </RadioGroup>
+            </div>
+
             <div className="">
               <div className="mt-5">
                 <div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="*:not-first:mt-2">
-                      <Label className="font-normal text-foreground/50">First name</Label>
-                      <Input name="firstName" placeholder="John" type="text" />
+                  {clientSelectionMode === "existing" ? (
+                    /* Existing Client Selection with Package Button Design */
+                    <div className="space-y-4">
+                      <Dialog>
+                        <DialogTrigger className="w-full">
+                          <div className="flex border-1 p-4 rounded-md justify-between items-center">
+                            <div className="flex flex-col justify-start items-start">
+                              <p className="flex font-medium gap-2 items-center text-md">
+                                {selectedClientId
+                                  ? (() => {
+                                      const selectedClient = allClients.find(
+                                        c => c.id === selectedClientId
+                                      );
+                                      return selectedClient
+                                        ? `${selectedClient.firstName} ${selectedClient.lastName}`
+                                        : "Select an existing client";
+                                    })()
+                                  : "Select an existing client"}
+                                {selectedClientId &&
+                                  (() => {
+                                    const selectedClient = allClients.find(
+                                      c => c.id === selectedClientId
+                                    );
+                                    return selectedClient?.phoneNumber ? (
+                                      <span className="text-xs font-normal">
+                                        ({selectedClient.phoneNumber})
+                                      </span>
+                                    ) : null;
+                                  })()}
+                              </p>
+                              <p className="text-xs font-normal text-foreground/50 text-left">
+                                {selectedClientId
+                                  ? (() => {
+                                      const selectedClient = allClients.find(
+                                        c => c.id === selectedClientId
+                                      );
+                                      return selectedClient
+                                        ? [
+                                            selectedClient.region,
+                                            selectedClient.province,
+                                            selectedClient.municipality,
+                                            selectedClient.barangay,
+                                          ]
+                                            .filter(Boolean)
+                                            .join(", ") || "No address available"
+                                        : "Choose a client to see details";
+                                    })()
+                                  : "Choose a client to see details"}
+                              </p>
+                            </div>
+                            <Pen size={18} />
+                          </div>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Select an Existing Client</DialogTitle>
+                            <DialogDescription className="mt-4">
+                              <div className="space-y-4">
+                                <div>
+                                  <Label className="font-normal text-foreground/50">
+                                    Search Client
+                                  </Label>
+                                  <InputGroup className="mt-2">
+                                    <InputGroupInput
+                                      placeholder="Search by name, email, or phone..."
+                                      value={clientSearchQuery}
+                                      onChange={e => setClientSearchQuery(e.target.value)}
+                                    />
+                                    <InputGroupAddon>
+                                      <SearchIcon />
+                                    </InputGroupAddon>
+                                    {clientSearchQuery && (
+                                      <InputGroupAddon align="inline-end">
+                                        <InputGroupButton
+                                          type="button"
+                                          onClick={() => setClientSearchQuery("")}
+                                        >
+                                          Clear
+                                        </InputGroupButton>
+                                      </InputGroupAddon>
+                                    )}
+                                  </InputGroup>
+                                </div>
+
+                                <div className="border rounded-md max-h-[300px] overflow-y-auto">
+                                  <RadioGroup
+                                    value={selectedClientId?.toString() || ""}
+                                    onValueChange={val => setSelectedClientId(Number(val))}
+                                    className="p-2"
+                                  >
+                                    {allClients
+                                      .filter(client => {
+                                        if (!clientSearchQuery) return true;
+                                        const searchTerm = clientSearchQuery.toLowerCase();
+                                        return (
+                                          client.firstName?.toLowerCase().includes(searchTerm) ||
+                                          client.lastName?.toLowerCase().includes(searchTerm) ||
+                                          client.email?.toLowerCase().includes(searchTerm) ||
+                                          client.phoneNumber?.toLowerCase().includes(searchTerm) ||
+                                          client.region?.toLowerCase().includes(searchTerm) ||
+                                          client.province?.toLowerCase().includes(searchTerm) ||
+                                          client.municipality?.toLowerCase().includes(searchTerm) ||
+                                          client.barangay?.toLowerCase().includes(searchTerm)
+                                        );
+                                      })
+                                      .slice(0, 20)
+                                      .map(client => (
+                                        <div
+                                          key={client.id}
+                                          className="border-input has-data-[state=checked]:border-primary/50 relative flex w-full items-start gap-2 rounded-md border p-3 shadow-xs outline-none mb-2"
+                                        >
+                                          <RadioGroupItem
+                                            value={client.id.toString()}
+                                            id={`client-${client.id}`}
+                                            aria-describedby={`client-${client.id}-description`}
+                                            className="order-1 after:absolute after:inset-0"
+                                          />
+                                          <div className="grid grow gap-1">
+                                            <Label
+                                              className="flex items-center font-medium"
+                                              htmlFor={`client-${client.id}`}
+                                            >
+                                              {client.firstName} {client.lastName}
+                                              <span className="ml-2 text-muted-foreground text-xs font-normal">
+                                                {client.phoneNumber}
+                                              </span>
+                                            </Label>
+                                            <div
+                                              id={`client-${client.id}-description`}
+                                              className="text-muted-foreground text-xs"
+                                            >
+                                              <div className="mb-1">
+                                                {[
+                                                  client.region,
+                                                  client.province,
+                                                  client.municipality,
+                                                  client.barangay,
+                                                ]
+                                                  .filter(Boolean)
+                                                  .join(", ") || "No address"}
+                                              </div>
+                                              {client.bookings && client.bookings.length > 0 && (
+                                                <div className="text-blue-600">
+                                                  {client.bookings.length} past booking(s) • Latest:{" "}
+                                                  {client.bookings.sort((a, b) => {
+                                                    if (!a.startAt || !b.startAt) return 0;
+                                                    return (
+                                                      new Date(b.startAt).getTime() -
+                                                      new Date(a.startAt).getTime()
+                                                    );
+                                                  })[0]?.eventName || "Unknown"}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    {allClients.filter(client => {
+                                      if (!clientSearchQuery) return true;
+                                      const searchTerm = clientSearchQuery.toLowerCase();
+                                      return (
+                                        client.firstName?.toLowerCase().includes(searchTerm) ||
+                                        client.lastName?.toLowerCase().includes(searchTerm) ||
+                                        client.email?.toLowerCase().includes(searchTerm) ||
+                                        client.phoneNumber?.toLowerCase().includes(searchTerm)
+                                      );
+                                    }).length === 0 && (
+                                      <div className="text-center p-4 text-muted-foreground">
+                                        {clientSearchQuery
+                                          ? "No clients found matching your search"
+                                          : "No clients available"}
+                                      </div>
+                                    )}
+                                  </RadioGroup>
+                                </div>
+                              </div>
+                            </DialogDescription>
+                          </DialogHeader>
+                        </DialogContent>
+                      </Dialog>
+
+                      {!selectedClientId && (
+                        <p className="text-red-500 text-sm">Please select a client to proceed</p>
+                      )}
                     </div>
-                    <div className="*:not-first:mt-2">
-                      <Label className="font-normal text-foreground/50">Last name</Label>
-                      <Input name="lastName" placeholder="Doe" type="text" />
+                  ) : (
+                    /* New Client Form */
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="*:not-first:mt-2">
+                          <Label className="font-normal text-foreground/50">First name</Label>
+                          <Input name="firstName" placeholder="John" type="text" />
+                        </div>
+                        <div className="*:not-first:mt-2">
+                          <Label className="font-normal text-foreground/50">Last name</Label>
+                          <Input name="lastName" placeholder="Doe" type="text" />
+                        </div>
+                        <div className="*:not-first:mt-2">
+                          <Label className="font-normal text-foreground/50">Phone number</Label>
+                          <Input name="phoneNumber" placeholder="09123456789" type="tel" />
+                        </div>
+                        <div className="*:not-first:mt-2">
+                          <Label className="font-normal text-foreground/50">Email address</Label>
+                          <Input name="email" placeholder="johndoe@gmail.com" type="email" />
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <RegionComboBoxComponent
+                          regionOnChange={setRegion}
+                          provinceOnChange={setProvince}
+                          municipalityOnChange={setMunicipality}
+                          barangayOnChange={setBarangay}
+                        />
+                      </div>
                     </div>
-                    <div className="*:not-first:mt-2">
-                      <Label className="font-normal text-foreground/50">Phone number</Label>
-                      <Input name="phoneNumber" placeholder="09123456789" type="tel" />
-                    </div>
-                    <div className="*:not-first:mt-2">
-                      <Label className="font-normal text-foreground/50">Email address</Label>
-                      <Input name="email" placeholder="johndoe@gmail.com" type="email" />
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    <RegionComboBoxComponent
-                      regionOnChange={setRegion}
-                      provinceOnChange={setProvince}
-                      municipalityOnChange={setMunicipality}
-                      barangayOnChange={setBarangay}
-                    />
-                  </div>
+                  )}
+
+                  {/* Hidden inputs for existing client data */}
+                  {clientSelectionMode === "existing" &&
+                    selectedClientId &&
+                    (() => {
+                      const selectedClient = allClients.find(c => c.id === selectedClientId);
+                      return selectedClient ? (
+                        <>
+                          <input
+                            type="hidden"
+                            name="firstName"
+                            value={selectedClient.firstName || ""}
+                          />
+                          <input
+                            type="hidden"
+                            name="lastName"
+                            value={selectedClient.lastName || ""}
+                          />
+                          <input
+                            type="hidden"
+                            name="phoneNumber"
+                            value={selectedClient.phoneNumber || ""}
+                          />
+                          <input type="hidden" name="email" value={selectedClient.email || ""} />
+                        </>
+                      ) : null;
+                    })()}
                 </div>
               </div>
             </div>
@@ -1668,8 +3332,7 @@ const AddBookingsPageClient = (props: {
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
             <p className="font-bold text-lg">Discount</p>
-            <p className="text-sm text-zinc-500">Choose a discount option for this booking.</p>
-            <div className="mt-5">
+            <div className="mt-2">
               <div className="space-y-4">
                 {/* Discount Type Selection */}
                 <div>
@@ -1802,7 +3465,7 @@ const AddBookingsPageClient = (props: {
                           Discount Name
                         </Label>
                         <Input
-                          placeholder="e.g., Special Event Discount"
+                          placeholder="Special Event Discount"
                           value={customDiscountName}
                           onChange={e => setCustomDiscountName(e.target.value)}
                         />
@@ -1864,16 +3527,6 @@ const AddBookingsPageClient = (props: {
                           </span>
                         </div>
                       </div>
-                      <div>
-                        <Label className="font-normal text-foreground/50 mb-2 block mt-4">
-                          Description (Optional)
-                        </Label>
-                        <Input
-                          placeholder="Brief description"
-                          value={customDiscountDescription}
-                          onChange={e => setCustomDiscountDescription(e.target.value)}
-                        />
-                      </div>
                     </div>
                   </div>
                 )}
@@ -1881,7 +3534,7 @@ const AddBookingsPageClient = (props: {
             </div>
           </div>
 
-          {/* === BILLING BLOCK === */}
+          {/* === PAYMENT BLOCK === */}
           <div
             id="discount"
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
@@ -1889,7 +3542,7 @@ const AddBookingsPageClient = (props: {
             <p className="font-bold text-lg">Deposit</p>
             <div className="mt-5 grid grid-cols-2 gap-4">
               <div className="gap-2 flex flex-col">
-                <Label className="font-normal">Mode of payment *</Label>
+                <Label className="font-normal text-foreground/50">Mode of payment *</Label>
                 <Select value={paymentModeOfPayment} onValueChange={setPaymentModeOfPayment}>
                   <SelectTrigger>
                     <SelectValue placeholder="Mode of payment" />
@@ -1904,7 +3557,7 @@ const AddBookingsPageClient = (props: {
                 </Select>
               </div>
               <div className="gap-2 flex flex-col">
-                <Label className="font-normal">Amount *</Label>
+                <Label className="font-normal text-foreground/50">Amount *</Label>
                 <InputGroup>
                   <InputGroupAddon>
                     <InputGroupText>₱</InputGroupText>
@@ -1944,7 +3597,7 @@ const AddBookingsPageClient = (props: {
               </div>
 
               <div className="gap-2 flex flex-col">
-                <Label className="font-normal">OR Number</Label>
+                <Label className="font-normal text-foreground/50">OR Number</Label>
                 <Input
                   placeholder="Official Receipt Number"
                   value={paymentORNumber}
@@ -1953,10 +3606,11 @@ const AddBookingsPageClient = (props: {
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label className="font-normal">Date</Label>
+                <Label className="font-normal text-foreground/50">Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
+                      type="button"
                       variant="outline"
                       className={cn(
                         "w-full justify-start text-left font-normal",
@@ -1987,7 +3641,7 @@ const AddBookingsPageClient = (props: {
               </div>
 
               <div className="col-span-2 gap-2 flex flex-col">
-                <Label className="font-normal">Payment Notes</Label>
+                <Label className="font-normal text-foreground/50">Payment Notes</Label>
                 <Textarea
                   placeholder="Optional notes about this payment..."
                   value={paymentNotes}

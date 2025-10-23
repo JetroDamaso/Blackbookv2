@@ -28,5 +28,40 @@ export async function createClient(
     return data;
   } catch (error) {
     console.error("Error creating client:", error);
+    throw error;
+  }
+}
+
+export async function updateClient(
+  clientId: number,
+  firstName?: string,
+  lastName?: string,
+  region?: string,
+  province?: string,
+  municipality?: string,
+  barangay?: string,
+  phoneNumber?: string,
+  email?: string
+) {
+  try {
+    const updateData: any = {};
+
+    if (firstName !== undefined) updateData.firstName = firstName;
+    if (lastName !== undefined) updateData.lastName = lastName;
+    if (region !== undefined) updateData.region = region;
+    if (province !== undefined) updateData.province = province;
+    if (municipality !== undefined) updateData.municipality = municipality;
+    if (barangay !== undefined) updateData.barangay = barangay;
+    if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+    if (email !== undefined) updateData.email = email;
+
+    const data = await prisma.client.update({
+      where: { id: clientId },
+      data: updateData,
+    });
+    return data;
+  } catch (error) {
+    console.error("Error updating client:", error);
+    throw error;
   }
 }
