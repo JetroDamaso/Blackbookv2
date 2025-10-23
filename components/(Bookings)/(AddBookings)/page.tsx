@@ -4,6 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
+  Banknote,
   CalendarIcon,
   CalendarPlus,
   Check,
@@ -12,6 +13,7 @@ import {
   MinusCircle,
   Pen,
   Pencil,
+  PersonStanding,
   Plus,
   SearchIcon,
   Trash2,
@@ -194,6 +196,8 @@ const AddBookingsPageClient = (props: {
   } | null>(null);
   const [inventorySearchQuery, setInventorySearchQuery] = useState("");
   const [selectedInventoryCategoryFilter, setSelectedInventoryCategoryFilter] = useState("all");
+  const [selectedItemsSearchQuery, setSelectedItemsSearchQuery] = useState("");
+  const [selectedItemsCategoryFilter, setSelectedItemsCategoryFilter] = useState("all");
   const [isInventoryDialogOpen, setIsInventoryDialogOpen] = useState(false);
 
   // Handle ESC key for closing inventory dialog
@@ -302,6 +306,39 @@ const AddBookingsPageClient = (props: {
     preSelectedEndDate ? new Date(preSelectedEndDate) : null
   );
 
+  // State for start and end time
+  const [startTime, setStartTime] = useState<{
+    hour: number;
+    minute: number;
+    second?: number;
+  } | null>(null);
+
+  const [endTime, setEndTime] = useState<{
+    hour: number;
+    minute: number;
+    second?: number;
+  } | null>(null);
+
+  // Sync dates and times with preselected props and set defaults
+  useEffect(() => {
+    // Set start date from preselected if available
+    if (preSelectedStartDate && !startDate) {
+      setStartDate(new Date(preSelectedStartDate));
+    }
+
+    // Don't set default start time - let user select it manually
+
+    // Set end date from preselected if available, otherwise default to start date
+    if (preSelectedEndDate && !endDate) {
+      setEndDate(new Date(preSelectedEndDate));
+    } else if (!endDate && startDate) {
+      // If no end date is selected, default to start date
+      setEndDate(new Date(startDate));
+    }
+
+    // Don't set default end time - let user select it manually
+  }, [preSelectedStartDate, preSelectedEndDate, startDate, endDate, startTime, endTime]);
+
   const { data: inventoryStatuses = [] } = useQuery({
     queryKey: ["inventoryStatus"],
     queryFn: () => getInventoryStatus(),
@@ -368,16 +405,6 @@ const AddBookingsPageClient = (props: {
   const isPaymentFilled = () => {
     return paymentModeOfPayment && paymentAmount && parseFloat(paymentAmount) > 0;
   };
-  const [startTime, setStartTime] = useState<{
-    hour: number;
-    minute: number;
-    second?: number;
-  } | null>(null);
-  const [endTime, setEndTime] = useState<{
-    hour: number;
-    minute: number;
-    second?: number;
-  } | null>(null);
 
   // Pre-compute a set of booked calendar days (date-only) for quick disable lookup
   const bookedDaySet = React.useMemo(() => {
@@ -505,6 +532,8 @@ const AddBookingsPageClient = (props: {
       discountAmount?: number;
       discountId?: number;
       isCustomDiscount?: boolean;
+      catering?: number;
+      cateringPerPaxAmount?: number;
     }) =>
       createBilling(
         data.bookingId,
@@ -520,7 +549,9 @@ const AddBookingsPageClient = (props: {
         undefined,
         data.discountAmount,
         data.discountId,
-        data.isCustomDiscount
+        data.isCustomDiscount,
+        data.catering,
+        data.cateringPerPaxAmount
       ),
   });
 
@@ -660,9 +691,7 @@ const AddBookingsPageClient = (props: {
       if (requestedQuantity > availableStock) {
         return {
           conflicts: [],
-          warnings: [
-            `Insufficient stock: Only ${availableStock} items available, but ${displayQuantity} items requested.`,
-          ],
+          warnings: [`Insufficient stock: Only ${availableStock} items available.`],
         };
       }
       return { conflicts: [], warnings: [] };
@@ -734,9 +763,7 @@ const AddBookingsPageClient = (props: {
 
     // Check if requesting more than available stock
     if (requestedQuantity > availableStock) {
-      warnings.push(
-        `Insufficient stock: Only ${availableStock} items available (${inventory.quantity} total - ${inventory.out || 0} out - ${totalUsedQuantity} used on selected dates), but ${displayQuantity} items requested.`
-      );
+      warnings.push(`Insufficient stock: Only ${availableStock} items available.`);
     }
 
     // Check for conflicts with overlapping dates
@@ -800,9 +827,7 @@ const AddBookingsPageClient = (props: {
     const remainingStock = availableStock - requestedQuantity;
 
     if (remainingStock < 5 && remainingStock >= 0) {
-      warnings.push(
-        `Low stock warning: Only ${remainingStock} items will remain after this booking.`
-      );
+      warnings.push(`Low stock warning: Only ${remainingStock} items will remain on this day.`);
     }
 
     return { conflicts, warnings };
@@ -878,6 +903,11 @@ const AddBookingsPageClient = (props: {
   const resetInventoryFilters = () => {
     setSelectedInventoryCategoryFilter("all");
     setInventorySearchQuery("");
+  };
+
+  const resetSelectedItemsFilters = () => {
+    setSelectedItemsCategoryFilter("all");
+    setSelectedItemsSearchQuery("");
   };
 
   // Removed discountData query; discount name fetched directly on submit.
@@ -1110,7 +1140,14 @@ const AddBookingsPageClient = (props: {
       startAt && endAt ? Math.round((endAt.getTime() - startAt.getTime()) / (60 * 60 * 1000)) : 0;
     const extraHours = Math.max(0, hoursCount - 5);
     const extraHoursFee = extraHours * 2000;
-    const originalPrice = basePackagePrice + extraHoursFee;
+
+    // Calculate catering cost if in-house catering is selected
+    const cateringCost =
+      selectedCatering === "1" && cateringPax && pricePerPax
+        ? parseFloat(cateringPax) * parseFloat(pricePerPax)
+        : 0;
+
+    const originalPrice = basePackagePrice + extraHoursFee + cateringCost;
 
     // Handle discount creation and calculation
     let finalDiscountId = selectedDiscountId;
@@ -1187,6 +1224,9 @@ const AddBookingsPageClient = (props: {
       discountAmount: finalDiscountAmount,
       discountId: finalDiscountId || undefined,
       isCustomDiscount: finalIsCustomDiscount,
+      catering: selectedCatering === "1" && cateringCost > 0 ? cateringCost : undefined,
+      cateringPerPaxAmount:
+        selectedCatering === "1" && pricePerPax ? parseFloat(pricePerPax) : undefined,
     });
 
     const billingId = Number(billing?.id);
@@ -1241,6 +1281,10 @@ const AddBookingsPageClient = (props: {
   // Removed unused price change handlers (hours, pavilion, total) to satisfy lint; add back if needed where values are updated.
 
   const [numPax, setNumPax] = useState<string>("");
+
+  // Catering pax and price per pax state
+  const [cateringPax, setCateringPax] = useState<string>("");
+  const [pricePerPax, setPricePerPax] = useState<string>("");
 
   const getMonthName = (d: Date) => d.toLocaleString("en-US", { month: "long" });
 
@@ -1300,7 +1344,14 @@ const AddBookingsPageClient = (props: {
   const hoursCount = typeof totalHours === "number" ? totalHours : 0;
   const extraHours = Math.max(0, hoursCount - 5);
   const extraHoursFee = extraHours * 2000;
-  const originalPrice = basePackagePrice + extraHoursFee; // before discount
+
+  // Calculate catering cost if in-house catering is selected
+  const cateringCost =
+    selectedCatering === "1" && cateringPax && pricePerPax
+      ? parseFloat(cateringPax) * parseFloat(pricePerPax)
+      : 0;
+
+  const originalPrice = basePackagePrice + extraHoursFee + cateringCost; // before discount
 
   // Calculate discount amount based on type
   let discountAmount = 0;
@@ -1416,7 +1467,7 @@ const AddBookingsPageClient = (props: {
                 </div>
               </div>
               <div className="">
-                <div className="mt-5">
+                <div className="mt-2">
                   <Dialog>
                     <DialogTrigger className="w-full">
                       <div className=" flex border-1 p-4 rounded-md justify-between  items-center">
@@ -1523,23 +1574,14 @@ const AddBookingsPageClient = (props: {
                     />
                   </div>
                   <div className="flex-grow w-full">
-                    {!preSelectedEndDate && (
-                      <EndDatePickerForm
-                        endDateOnChange={setEndDate}
-                        initialDate={startDate}
-                        disabledDates={bookedDaySet}
-                        minDate={startDate}
-                      />
-                    )}
-
-                    {preSelectedEndDate && (
-                      <EndDatePickerForm
-                        endDateOnChange={setEndDate}
-                        initialDate={endDate}
-                        disabledDates={bookedDaySet}
-                        minDate={startDate}
-                      />
-                    )}
+                    <EndDatePickerForm
+                      endDateOnChange={setEndDate}
+                      initialDate={
+                        preSelectedEndDate ? new Date(preSelectedEndDate) : startDate || undefined
+                      }
+                      disabledDates={bookedDaySet}
+                      minDate={startDate}
+                    />
                   </div>
                 </div>
                 <div className="mt-4">
@@ -1601,15 +1643,28 @@ const AddBookingsPageClient = (props: {
             id="catering"
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
-            <p className="font-bold text-lg">Catering</p>
-            <p className="text-sm text-zinc-500">
-              Choose the catering service for the client’s event.
-            </p>
+            <div className="flex justify-between items-center">
+              <p className="font-bold text-lg">Catering</p>
+
+              {selectedCatering === "1" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDishesDialogOpen(true)}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Manage Dishes
+                </Button>
+              )}
+            </div>
+
             <div className="">
-              <div className="mt-5">
+              <div className="mt-2">
                 <div>
                   <RadioGroup
                     className="grid grid-cols-4 "
+                    defaultValue="4"
                     orientation="horizontal"
                     name="catering"
                     onValueChange={setSelectedCatering}
@@ -1708,415 +1763,265 @@ const AddBookingsPageClient = (props: {
                   </RadioGroup>
                 </div>
               </div>
-              <div className="mt-4"></div>
-            </div>
-          </div>
-
-          {/* === DISHES BLOCK === */}
-          {selectedCatering === "1" && (
-            <div className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4">
-              <div className="flex items-center justify-between mb-4">
-                <p className="font-bold text-lg">Dishes</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsDishesDialogOpen(true)}
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Manage Dishes
-                </Button>
-              </div>
-
-              <div className="border rounded-md">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-white z-10">
-                    <TableRow>
-                      <TableHead>Dish</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead className="w-20">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-
-                  <TableBody>
-                    {selectedDishes.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground">
-                          No dishes selected
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      selectedDishes.map(dish => {
-                        const category = categoriesSource?.find(c => c.id === dish.categoryId);
-                        return (
-                          <TableRow key={dish.id}>
-                            <TableCell className="font-medium flex-1 grow">{dish.name}</TableCell>
-                            <TableCell>{category?.name || "—"}</TableCell>
-                            <TableCell>{dish.quantity}</TableCell>
-                            <TableCell>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="text-red-600"
-                                onClick={() => removeDish(dish.id)}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Custom Manage Dishes Modal */}
-              {isDishesDialogOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 bg-black/60 z-[200]"
-                    onClick={() => setIsDishesDialogOpen(false)}
-                  />
-                  <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-[1400px] max-h-[90vh] overflow-auto p-6">
-                      {/* Header */}
-                      <div className="flex items-start justify-between mb-6">
-                        <div>
-                          <h2 className="text-xl font-semibold">Manage Dishes</h2>
-                          <p className="text-sm text-muted-foreground">
-                            Add, edit, or remove dishes from your menu.
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          className="text-foreground hover:text-foreground/70 transition-all"
-                          variant="link"
-                          onClick={() => setIsDishesDialogOpen(false)}
-                        >
-                          <X />
-                        </Button>
-                      </div>
-
-                      {/* 2-Column Layout */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* LEFT COLUMN - Current Selected Dishes */}
-                        <div className="space-y-6">
-                          {/* Current Selected Dishes */}
-                          <div>
-                            <div className="flex items-center justify-between mb-3">
-                              <h3 className="text-lg font-medium">
-                                Selected Dishes for this Booking
-                              </h3>
-                              <span className="text-sm text-muted-foreground">
-                                {filteredSelectedDishes.length} of {selectedDishes.length} dishes
-                              </span>
-                            </div>
-
-                            {/* Filter and Search Controls for Selected Dishes */}
-                            <div className="flex gap-2 mb-2">
-                              <Select
-                                value={selectedDishesCategoryFilter}
-                                onValueChange={setSelectedDishesCategoryFilter}
-                              >
-                                <SelectTrigger className="w-[200px]">
-                                  <SelectValue placeholder="Category" />
-                                </SelectTrigger>
-                                <SelectContent className="z-[400]">
-                                  <SelectItem value="all">All Categories</SelectItem>
-                                  {categoriesSource?.map(
-                                    (category: { id: number; name: string }) => (
-                                      <SelectItem key={category.id} value={category.id.toString()}>
-                                        {category.name}
-                                      </SelectItem>
-                                    )
-                                  )}
-                                </SelectContent>
-                              </Select>
-
-                              <InputGroup className="mb-2">
-                                <InputGroupInput
-                                  placeholder="Search selected dishes..."
-                                  value={selectedDishesSearchQuery}
-                                  onChange={e => setSelectedDishesSearchQuery(e.target.value)}
-                                />
-                                <InputGroupAddon>
-                                  <SearchIcon />
-                                </InputGroupAddon>
-                                <InputGroupAddon align="inline-end">
-                                  <InputGroupButton
-                                    type="button"
-                                    onClick={resetSelectedDishesFilters}
-                                  >
-                                    Clear All
-                                  </InputGroupButton>
-                                </InputGroupAddon>
-                              </InputGroup>
-                            </div>
-                            <div className="border rounded-md max-h-[70vh] overflow-y-auto">
-                              <ScrollArea className="h-[200px] w-full flex flex-1 grow">
-                                <Table>
-                                  <TableHeader className="sticky top-0 bg-white z-10">
-                                    <TableRow>
-                                      <TableHead>Dish Name</TableHead>
-                                      <TableHead>Category</TableHead>
-                                      <TableHead>Quantity</TableHead>
-                                      <TableHead className="w-20">Actions</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-
-                                  <TableBody>
-                                    {selectedDishes.length === 0 ? (
-                                      <TableRow>
-                                        <TableCell
-                                          colSpan={4}
-                                          className="text-center text-muted-foreground"
-                                        >
-                                          No dishes selected for this booking
-                                        </TableCell>
-                                      </TableRow>
-                                    ) : filteredSelectedDishes.length === 0 ? (
-                                      <TableRow>
-                                        <TableCell
-                                          colSpan={4}
-                                          className="text-center text-muted-foreground"
-                                        >
-                                          {selectedDishesSearchQuery.trim() !== "" ||
-                                          selectedDishesCategoryFilter !== "all"
-                                            ? `No selected dishes found matching your filters. ${selectedDishesSearchQuery.trim() !== "" ? `Search: ${selectedDishesSearchQuery}` : ""} ${selectedDishesCategoryFilter !== "all" ? `Category: ${categoriesSource?.find(c => c.id.toString() === selectedDishesCategoryFilter)?.name}` : ""}`
-                                            : "No dishes selected for this booking"}
-                                        </TableCell>
-                                      </TableRow>
-                                    ) : (
-                                      filteredSelectedDishes.map(dish => {
-                                        const category = categoriesSource?.find(
-                                          (c: { id: number; name: string }) =>
-                                            c.id === dish.categoryId
-                                        );
-                                        return (
-                                          <TableRow key={dish.id}>
-                                            <TableCell className="font-medium flex-1 grow">
-                                              {dish.name}
-                                            </TableCell>
-                                            <TableCell>{category?.name ?? "—"}</TableCell>
-                                            <TableCell>{dish.quantity}</TableCell>
-                                            <TableCell>
-                                              <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                className="text-red-600"
-                                                onClick={() => removeDish(dish.id)}
-                                              >
-                                                <Trash2 className="w-3 h-3" />
-                                              </Button>
-                                            </TableCell>
-                                          </TableRow>
-                                        );
-                                      })
-                                    )}
-                                  </TableBody>
-                                </Table>
-                              </ScrollArea>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* RIGHT COLUMN - All Available Dishes */}
-                        <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-lg font-medium">All Available Dishes</h3>
-                            <span className="text-sm text-muted-foreground">
-                              {filteredDishes.length} of {dishesSource?.length || 0} dishes
-                              {allDishesQuery.isLoading && " (Loading...)"}
-                              {allDishesQuery.error && " (Error loading)"}
-                            </span>
-                          </div>
-                          <div className="flex gap-2 mb-2">
-                            <Select
-                              value={selectedDishCategoryFilter}
-                              onValueChange={setSelectedDishCategoryFilter}
-                            >
-                              <SelectTrigger className="w-[200px]">
-                                <SelectValue placeholder="Category" />
-                              </SelectTrigger>
-                              <SelectContent className="z-[400]">
-                                <SelectItem value="all">All Categories</SelectItem>
-                                {categoriesSource?.map((category: { id: number; name: string }) => (
-                                  <SelectItem key={category.id} value={category.id.toString()}>
-                                    {category.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-
-                            <InputGroup className="mb-2">
-                              <InputGroupInput
-                                placeholder="Search dishes..."
-                                value={dishSearchQuery}
-                                onChange={e => setDishSearchQuery(e.target.value)}
-                              />
-                              <InputGroupAddon>
-                                <SearchIcon />
-                              </InputGroupAddon>
-                              <InputGroupAddon align="inline-end">
-                                <InputGroupButton type="button" onClick={resetDishFilters}>
-                                  Clear All
-                                </InputGroupButton>
-                              </InputGroupAddon>
-                            </InputGroup>
-                          </div>
-
-                          <div className="border rounded-md max-h-[70vh] overflow-y-auto">
-                            <ScrollArea className="h-[400px] w-full flex flex-1 grow">
-                              <Table>
-                                <TableHeader className="sticky top-0 bg-white">
-                                  <TableRow>
-                                    <TableHead>Dish Name</TableHead>
-                                    <TableHead>Category</TableHead>
-                                    <TableHead className="w-24">Actions</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {allDishesQuery.isLoading ? (
-                                    <TableRow>
-                                      <TableCell colSpan={3} className="text-center py-8">
-                                        Loading dishes...
-                                      </TableCell>
-                                    </TableRow>
-                                  ) : allDishesQuery.error ? (
-                                    <TableRow>
-                                      <TableCell
-                                        colSpan={3}
-                                        className="text-center py-8 text-red-600"
-                                      >
-                                        Error loading dishes: {allDishesQuery.error?.message}
-                                      </TableCell>
-                                    </TableRow>
-                                  ) : filteredDishes.length > 0 ? (
-                                    filteredDishes.map((dish: any) => {
-                                      const category = categoriesSource?.find(
-                                        (c: { id: number; name: string }) =>
-                                          c.id === dish.categoryId
-                                      );
-                                      const isSelected = selectedDishes.some(
-                                        sd => sd.id === dish.id
-                                      );
-
-                                      return (
-                                        <TableRow
-                                          key={dish.id}
-                                          className={isSelected ? "bg-green-50" : ""}
-                                        >
-                                          <TableCell className="font-medium">{dish.name}</TableCell>
-                                          <TableCell>{category?.name ?? "—"}</TableCell>
-                                          <TableCell>
-                                            <div className="flex gap-1">
-                                              <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => addDish(dish)}
-                                              >
-                                                <Plus className="w-3 h-3" />
-                                              </Button>
-                                              <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setEditingDish(dish)}
-                                              >
-                                                <Pencil className="w-3 h-3" />
-                                              </Button>
-                                              <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                className="text-red-600"
-                                                onClick={() => deleteDishMutation.mutate(dish.id)}
-                                                disabled={deleteDishMutation.isPending}
-                                              >
-                                                <Trash2 className="w-3 h-3" />
-                                              </Button>
-                                            </div>
-                                          </TableCell>
-                                        </TableRow>
-                                      );
-                                    })
-                                  ) : (
-                                    <TableRow>
-                                      <TableCell
-                                        colSpan={3}
-                                        className="text-center py-8 text-muted-foreground"
-                                      >
-                                        {dishSearchQuery.trim() !== "" ||
-                                        selectedDishCategoryFilter !== "all"
-                                          ? `No dishes found matching your filters. ${dishSearchQuery.trim() !== "" ? `Search: ${dishSearchQuery}` : ""} ${selectedDishCategoryFilter !== "all" ? `Category: ${categoriesSource?.find(c => c.id.toString() === selectedDishCategoryFilter)?.name}` : ""}`
-                                          : "No dishes available."}
-                                      </TableCell>
-                                    </TableRow>
-                                  )}
-                                </TableBody>
-                              </Table>
-                            </ScrollArea>
-                          </div>
-                        </div>
-                      </div>
+              {selectedCatering === "1" && (
+                <div className="w-full h-fit mt-4">
+                  <div className="grid grid-cols-2 gap-2 mt-4">
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm text-foreground/50">Pax</p>
+                      <InputGroup>
+                        <InputGroupInput
+                          placeholder="200"
+                          value={cateringPax}
+                          onChange={e => setCateringPax(e.target.value)}
+                          type="number"
+                          min="0"
+                        />
+                        <InputGroupAddon>
+                          <Users />
+                        </InputGroupAddon>
+                      </InputGroup>
                     </div>
 
-                    {/* Nested Edit Dish Modal */}
-                    {editingDish && (
-                      <>
-                        <div
-                          className="fixed inset-0 bg-black/60 z-[209]"
-                          onClick={() => setEditingDish(null)}
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm text-foreground/50">Price per pax</p>
+                      <InputGroup>
+                        <InputGroupInput
+                          placeholder="200"
+                          value={pricePerPax}
+                          onChange={e => setPricePerPax(e.target.value)}
+                          type="number"
+                          min="0"
+                          step="0.01"
                         />
-                        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
-                          <div className="bg-white rounded-xl shadow-xl w-full max-w-[600px] max-h-[80vh] overflow-auto p-6">
-                            <div className="flex items-start justify-between mb-4">
-                              <h3 className="text-lg font-semibold">Edit Dish</h3>
-                              <Button
-                                type="button"
-                                variant="link"
-                                onClick={() => setEditingDish(null)}
-                                className="text-foreground hover:text-foreground/80 transition-all"
-                              >
-                                <X />
-                              </Button>
+                        <InputGroupAddon>
+                          <Banknote />
+                        </InputGroupAddon>
+                      </InputGroup>
+                    </div>
+                  </div>
+
+                  <div className="border rounded-md mt-4">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-white z-10">
+                        <TableRow>
+                          <TableHead>Dish</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Quantity</TableHead>
+                          <TableHead className="w-20">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+
+                      <TableBody>
+                        {selectedDishes.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground">
+                              No dishes selected
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          selectedDishes.map(dish => {
+                            const category = categoriesSource?.find(c => c.id === dish.categoryId);
+                            return (
+                              <TableRow key={dish.id}>
+                                <TableCell className="font-medium flex-1 grow">
+                                  {dish.name}
+                                </TableCell>
+                                <TableCell>{category?.name || "—"}</TableCell>
+                                <TableCell>{dish.quantity}</TableCell>
+                                <TableCell>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-red-600"
+                                    onClick={() => removeDish(dish.id)}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Custom Manage Dishes Modal */}
+                  {isDishesDialogOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 bg-black/60 z-[200]"
+                        onClick={() => setIsDishesDialogOpen(false)}
+                      />
+                      <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl shadow-xl w-full max-w-[1400px] max-h-[90vh] overflow-auto p-6">
+                          {/* Header */}
+                          <div className="flex items-start justify-between mb-6">
+                            <div>
+                              <h2 className="text-xl font-semibold">Manage Dishes</h2>
+                              <p className="text-sm text-muted-foreground">
+                                Add, edit, or remove dishes from your menu.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              className="text-foreground hover:text-foreground/70 transition-all"
+                              variant="link"
+                              onClick={() => setIsDishesDialogOpen(false)}
+                            >
+                              <X />
+                            </Button>
+                          </div>
+
+                          {/* 2-Column Layout */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* LEFT COLUMN - Current Selected Dishes */}
+                            <div className="space-y-6">
+                              {/* Current Selected Dishes */}
+                              <div>
+                                <div className="flex items-center justify-between mb-3">
+                                  <h3 className="text-lg font-medium">
+                                    Selected Dishes for this Booking
+                                  </h3>
+                                  <span className="text-sm text-muted-foreground">
+                                    {filteredSelectedDishes.length} of {selectedDishes.length}{" "}
+                                    dishes
+                                  </span>
+                                </div>
+
+                                {/* Filter and Search Controls for Selected Dishes */}
+                                <div className="flex gap-2 mb-2">
+                                  <Select
+                                    value={selectedDishesCategoryFilter}
+                                    onValueChange={setSelectedDishesCategoryFilter}
+                                  >
+                                    <SelectTrigger className="w-[200px]">
+                                      <SelectValue placeholder="Category" />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-[400]">
+                                      <SelectItem value="all">All Categories</SelectItem>
+                                      {categoriesSource?.map(
+                                        (category: { id: number; name: string }) => (
+                                          <SelectItem
+                                            key={category.id}
+                                            value={category.id.toString()}
+                                          >
+                                            {category.name}
+                                          </SelectItem>
+                                        )
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+
+                                  <InputGroup className="mb-2">
+                                    <InputGroupInput
+                                      placeholder="Search selected dishes..."
+                                      value={selectedDishesSearchQuery}
+                                      onChange={e => setSelectedDishesSearchQuery(e.target.value)}
+                                    />
+                                    <InputGroupAddon>
+                                      <SearchIcon />
+                                    </InputGroupAddon>
+                                    <InputGroupAddon align="inline-end">
+                                      <InputGroupButton
+                                        type="button"
+                                        onClick={resetSelectedDishesFilters}
+                                      >
+                                        Clear All
+                                      </InputGroupButton>
+                                    </InputGroupAddon>
+                                  </InputGroup>
+                                </div>
+                                <div className="border rounded-md max-h-[70vh] overflow-y-auto">
+                                  <ScrollArea className="h-[200px] w-full flex flex-1 grow">
+                                    <Table>
+                                      <TableHeader className="sticky top-0 bg-white z-10">
+                                        <TableRow>
+                                          <TableHead>Dish Name</TableHead>
+                                          <TableHead>Category</TableHead>
+                                          <TableHead>Quantity</TableHead>
+                                          <TableHead className="w-20">Actions</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+
+                                      <TableBody>
+                                        {selectedDishes.length === 0 ? (
+                                          <TableRow>
+                                            <TableCell
+                                              colSpan={4}
+                                              className="text-center text-muted-foreground"
+                                            >
+                                              No dishes selected for this booking
+                                            </TableCell>
+                                          </TableRow>
+                                        ) : filteredSelectedDishes.length === 0 ? (
+                                          <TableRow>
+                                            <TableCell
+                                              colSpan={4}
+                                              className="text-center text-muted-foreground"
+                                            >
+                                              {selectedDishesSearchQuery.trim() !== "" ||
+                                              selectedDishesCategoryFilter !== "all"
+                                                ? `No selected dishes found matching your filters. ${selectedDishesSearchQuery.trim() !== "" ? `Search: ${selectedDishesSearchQuery}` : ""} ${selectedDishesCategoryFilter !== "all" ? `Category: ${categoriesSource?.find(c => c.id.toString() === selectedDishesCategoryFilter)?.name}` : ""}`
+                                                : "No dishes selected for this booking"}
+                                            </TableCell>
+                                          </TableRow>
+                                        ) : (
+                                          filteredSelectedDishes.map(dish => {
+                                            const category = categoriesSource?.find(
+                                              (c: { id: number; name: string }) =>
+                                                c.id === dish.categoryId
+                                            );
+                                            return (
+                                              <TableRow key={dish.id}>
+                                                <TableCell className="font-medium flex-1 grow">
+                                                  {dish.name}
+                                                </TableCell>
+                                                <TableCell>{category?.name ?? "—"}</TableCell>
+                                                <TableCell>{dish.quantity}</TableCell>
+                                                <TableCell>
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-red-600"
+                                                    onClick={() => removeDish(dish.id)}
+                                                  >
+                                                    <Trash2 className="w-3 h-3" />
+                                                  </Button>
+                                                </TableCell>
+                                              </TableRow>
+                                            );
+                                          })
+                                        )}
+                                      </TableBody>
+                                    </Table>
+                                  </ScrollArea>
+                                </div>
+                              </div>
                             </div>
 
-                            <div className="space-y-4">
-                              <div>
-                                <Label htmlFor="edit-dish-name">Dish Name</Label>
-                                <Input
-                                  id="edit-dish-name"
-                                  defaultValue={editingDish.name}
-                                  placeholder="Enter dish name"
-                                  onChange={e =>
-                                    setEditingDish({
-                                      ...editingDish,
-                                      name: e.target.value,
-                                    })
-                                  }
-                                />
+                            {/* RIGHT COLUMN - All Available Dishes */}
+                            <div>
+                              <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-lg font-medium">All Available Dishes</h3>
+                                <span className="text-sm text-muted-foreground">
+                                  {filteredDishes.length} of {dishesSource?.length || 0} dishes
+                                  {allDishesQuery.isLoading && " (Loading...)"}
+                                  {allDishesQuery.error && " (Error loading)"}
+                                </span>
                               </div>
-                              <div>
-                                <Label htmlFor="edit-dish-category">Category</Label>
+                              <div className="flex gap-2 mb-2">
                                 <Select
-                                  value={editingDish.categoryId?.toString() || ""}
-                                  onValueChange={value => {
-                                    setEditingDish({
-                                      ...editingDish,
-                                      categoryId: Number(value),
-                                    });
-                                  }}
+                                  value={selectedDishCategoryFilter}
+                                  onValueChange={setSelectedDishCategoryFilter}
                                 >
-                                  <SelectTrigger>
-                                    <SelectValue />
+                                  <SelectTrigger className="w-[200px]">
+                                    <SelectValue placeholder="Category" />
                                   </SelectTrigger>
                                   <SelectContent className="z-[400]">
+                                    <SelectItem value="all">All Categories</SelectItem>
                                     {categoriesSource?.map(
                                       (category: { id: number; name: string }) => (
                                         <SelectItem
@@ -2129,46 +2034,232 @@ const AddBookingsPageClient = (props: {
                                     )}
                                   </SelectContent>
                                 </Select>
+
+                                <InputGroup className="mb-2">
+                                  <InputGroupInput
+                                    placeholder="Search dishes..."
+                                    value={dishSearchQuery}
+                                    onChange={e => setDishSearchQuery(e.target.value)}
+                                  />
+                                  <InputGroupAddon>
+                                    <SearchIcon />
+                                  </InputGroupAddon>
+                                  <InputGroupAddon align="inline-end">
+                                    <InputGroupButton type="button" onClick={resetDishFilters}>
+                                      Clear All
+                                    </InputGroupButton>
+                                  </InputGroupAddon>
+                                </InputGroup>
                               </div>
-                              <div className="flex gap-2 justify-end pt-4">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => setEditingDish(null)}
-                                >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  type="button"
-                                  onClick={() => {
-                                    updateDishMutation.mutate(
-                                      {
-                                        dishId: editingDish.id,
-                                        name: editingDish.name,
-                                        categoryId: editingDish.categoryId || 1,
-                                      },
-                                      {
-                                        onSuccess: () => {
-                                          setEditingDish(null);
-                                        },
-                                      }
-                                    );
-                                  }}
-                                  disabled={updateDishMutation.isPending}
-                                >
-                                  {updateDishMutation.isPending ? "Saving..." : "Save Changes"}
-                                </Button>
+
+                              <div className="border rounded-md max-h-[70vh] overflow-y-auto">
+                                <ScrollArea className="h-[400px] w-full flex flex-1 grow">
+                                  <Table>
+                                    <TableHeader className="sticky top-0 bg-white">
+                                      <TableRow>
+                                        <TableHead>Dish Name</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead className="w-24">Actions</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {allDishesQuery.isLoading ? (
+                                        <TableRow>
+                                          <TableCell colSpan={3} className="text-center py-8">
+                                            Loading dishes...
+                                          </TableCell>
+                                        </TableRow>
+                                      ) : allDishesQuery.error ? (
+                                        <TableRow>
+                                          <TableCell
+                                            colSpan={3}
+                                            className="text-center py-8 text-red-600"
+                                          >
+                                            Error loading dishes: {allDishesQuery.error?.message}
+                                          </TableCell>
+                                        </TableRow>
+                                      ) : filteredDishes.length > 0 ? (
+                                        filteredDishes.map((dish: any) => {
+                                          const category = categoriesSource?.find(
+                                            (c: { id: number; name: string }) =>
+                                              c.id === dish.categoryId
+                                          );
+                                          const isSelected = selectedDishes.some(
+                                            sd => sd.id === dish.id
+                                          );
+
+                                          return (
+                                            <TableRow
+                                              key={dish.id}
+                                              className={isSelected ? "bg-green-50" : ""}
+                                            >
+                                              <TableCell className="font-medium">
+                                                {dish.name}
+                                              </TableCell>
+                                              <TableCell>{category?.name ?? "—"}</TableCell>
+                                              <TableCell>
+                                                <div className="flex gap-1">
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => addDish(dish)}
+                                                  >
+                                                    <Plus className="w-3 h-3" />
+                                                  </Button>
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setEditingDish(dish)}
+                                                  >
+                                                    <Pencil className="w-3 h-3" />
+                                                  </Button>
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-red-600"
+                                                    onClick={() =>
+                                                      deleteDishMutation.mutate(dish.id)
+                                                    }
+                                                    disabled={deleteDishMutation.isPending}
+                                                  >
+                                                    <Trash2 className="w-3 h-3" />
+                                                  </Button>
+                                                </div>
+                                              </TableCell>
+                                            </TableRow>
+                                          );
+                                        })
+                                      ) : (
+                                        <TableRow>
+                                          <TableCell
+                                            colSpan={3}
+                                            className="text-center py-8 text-muted-foreground"
+                                          >
+                                            {dishSearchQuery.trim() !== "" ||
+                                            selectedDishCategoryFilter !== "all"
+                                              ? `No dishes found matching your filters. ${dishSearchQuery.trim() !== "" ? `Search: ${dishSearchQuery}` : ""} ${selectedDishCategoryFilter !== "all" ? `Category: ${categoriesSource?.find(c => c.id.toString() === selectedDishCategoryFilter)?.name}` : ""}`
+                                              : "No dishes available."}
+                                          </TableCell>
+                                        </TableRow>
+                                      )}
+                                    </TableBody>
+                                  </Table>
+                                </ScrollArea>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </>
-                    )}
-                  </div>
-                </>
+
+                        {/* Nested Edit Dish Modal */}
+                        {editingDish && (
+                          <>
+                            <div
+                              className="fixed inset-0 bg-black/60 z-[209]"
+                              onClick={() => setEditingDish(null)}
+                            />
+                            <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
+                              <div className="bg-white rounded-xl shadow-xl w-full max-w-[600px] max-h-[80vh] overflow-auto p-6">
+                                <div className="flex items-start justify-between mb-4">
+                                  <h3 className="text-lg font-semibold">Edit Dish</h3>
+                                  <Button
+                                    type="button"
+                                    variant="link"
+                                    onClick={() => setEditingDish(null)}
+                                    className="text-foreground hover:text-foreground/80 transition-all"
+                                  >
+                                    <X />
+                                  </Button>
+                                </div>
+
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label htmlFor="edit-dish-name">Dish Name</Label>
+                                    <Input
+                                      id="edit-dish-name"
+                                      defaultValue={editingDish.name}
+                                      placeholder="Enter dish name"
+                                      onChange={e =>
+                                        setEditingDish({
+                                          ...editingDish,
+                                          name: e.target.value,
+                                        })
+                                      }
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor="edit-dish-category">Category</Label>
+                                    <Select
+                                      value={editingDish.categoryId?.toString() || ""}
+                                      onValueChange={value => {
+                                        setEditingDish({
+                                          ...editingDish,
+                                          categoryId: Number(value),
+                                        });
+                                      }}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="z-[400]">
+                                        {categoriesSource?.map(
+                                          (category: { id: number; name: string }) => (
+                                            <SelectItem
+                                              key={category.id}
+                                              value={category.id.toString()}
+                                            >
+                                              {category.name}
+                                            </SelectItem>
+                                          )
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="flex gap-2 justify-end pt-4">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => setEditingDish(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      onClick={() => {
+                                        updateDishMutation.mutate(
+                                          {
+                                            dishId: editingDish.id,
+                                            name: editingDish.name,
+                                            categoryId: editingDish.categoryId || 1,
+                                          },
+                                          {
+                                            onSuccess: () => {
+                                              setEditingDish(null);
+                                            },
+                                          }
+                                        );
+                                      }}
+                                      disabled={updateDishMutation.isPending}
+                                    >
+                                      {updateDishMutation.isPending ? "Saving..." : "Save Changes"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </div>
+
+          {/* === DISHES BLOCK === */}
 
           {/* === SELECT SERVICES BLOCK === */}
           <div
@@ -2325,11 +2416,11 @@ const AddBookingsPageClient = (props: {
             <div className="">
               <div className="mt-5">
                 <div
-                  className="flex border-1 p-4 rounded-md justify-between items-center cursor-pointer hover:bg-gray-50"
+                  className="flex border-1 p-4 rounded-md justify-between items-center cursor-pointer hover:bg-gray-50 -mb-2"
                   onClick={() => setIsInventoryDialogOpen(true)}
                 >
                   <div className="flex flex-col justify-start items-start">
-                    <p className="flex font-medium gap-2 items-center text-md">
+                    <p className="flex font-medium gap-2 items-center text-sm">
                       {selectedInventoryItems.length > 0
                         ? `${selectedInventoryItems.length} inventory item(s) selected`
                         : "Select inventory items"}
@@ -2382,288 +2473,411 @@ const AddBookingsPageClient = (props: {
 
                         {/* Content */}
                         <div className="flex-1 p-6 overflow-hidden">
-                          <div className="h-full flex flex-col space-y-4">
-                            {/* Filter Controls */}
-                            <div className="flex gap-2">
-                              <Select
-                                value={selectedInventoryCategoryFilter}
-                                onValueChange={setSelectedInventoryCategoryFilter}
-                              >
-                                <SelectTrigger className="w-[200px]">
-                                  <SelectValue placeholder="Category" />
-                                </SelectTrigger>
-                                <SelectContent className="z-[60]">
-                                  <SelectItem value="all">All Categories</SelectItem>
-                                  {inventoryCategoriesData?.map((category: any) => (
-                                    <SelectItem key={category.id} value={category.id.toString()}>
-                                      {category.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                          <div className="h-full grid grid-cols-2 gap-4">
+                            {/* LEFT COLUMN - Selected Items Table */}
+                            <div className="flex flex-col gap-2">
+                              <div>
+                                <h3 className="text-lg font-medium ">Selected Inventory Items</h3>
+                              </div>
 
-                              <InputGroup className="flex-1">
-                                <InputGroupInput
-                                  placeholder="Search inventory..."
-                                  value={inventorySearchQuery}
-                                  onChange={e => setInventorySearchQuery(e.target.value)}
-                                />
-                                <InputGroupAddon>
-                                  <SearchIcon />
-                                </InputGroupAddon>
-                                <InputGroupAddon align="inline-end">
-                                  <InputGroupButton type="button" onClick={resetInventoryFilters}>
-                                    Clear All
-                                  </InputGroupButton>
-                                </InputGroupAddon>
-                              </InputGroup>
+                              {/* Filter Controls for Selected Items */}
+                              <div className="flex gap-2">
+                                <Select
+                                  value={selectedItemsCategoryFilter}
+                                  onValueChange={setSelectedItemsCategoryFilter}
+                                >
+                                  <SelectTrigger className="w-[200px]">
+                                    <SelectValue placeholder="Category" />
+                                  </SelectTrigger>
+                                  <SelectContent className="z-[60]">
+                                    <SelectItem value="all">All Categories</SelectItem>
+                                    {inventoryCategoriesData?.map((category: any) => (
+                                      <SelectItem key={category.id} value={category.id.toString()}>
+                                        {category.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+
+                                <InputGroup className="flex-1">
+                                  <InputGroupInput
+                                    placeholder="Search selected..."
+                                    value={selectedItemsSearchQuery}
+                                    onChange={e => setSelectedItemsSearchQuery(e.target.value)}
+                                  />
+                                  <InputGroupAddon>
+                                    <SearchIcon />
+                                  </InputGroupAddon>
+                                  <InputGroupAddon align="inline-end">
+                                    <InputGroupButton
+                                      type="button"
+                                      onClick={resetSelectedItemsFilters}
+                                    >
+                                      Clear
+                                    </InputGroupButton>
+                                  </InputGroupAddon>
+                                </InputGroup>
+                              </div>
+
+                              {/* Selected Items Table */}
+                              <div className="flex-1 border rounded-md overflow-hidden">
+                                <ScrollArea className="h-[calc(90vh-280px)]">
+                                  <Table>
+                                    <TableHeader className="sticky top-0 bg-white z-10">
+                                      <TableRow>
+                                        <TableHead>Item Name</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead>Quantity</TableHead>
+                                        <TableHead className="w-20">Actions</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {selectedInventoryItems.length === 0 ? (
+                                        <TableRow>
+                                          <TableCell
+                                            colSpan={4}
+                                            className="text-center py-8 text-muted-foreground"
+                                          >
+                                            No items selected
+                                          </TableCell>
+                                        </TableRow>
+                                      ) : (
+                                        selectedInventoryItems
+                                          .filter(selectedItem => {
+                                            const item = inventoryItems.find(
+                                              inv => inv.id === selectedItem.id
+                                            );
+                                            if (!item) return false;
+
+                                            const matchesSearch = item.name
+                                              .toLowerCase()
+                                              .includes(selectedItemsSearchQuery.toLowerCase());
+                                            const matchesCategory =
+                                              selectedItemsCategoryFilter === "all" ||
+                                              item.categoryId?.toString() ===
+                                                selectedItemsCategoryFilter;
+                                            return matchesSearch && matchesCategory;
+                                          })
+                                          .map(selectedItem => {
+                                            const item = inventoryItems.find(
+                                              inv => inv.id === selectedItem.id
+                                            );
+                                            const category = inventoryCategoriesData?.find(
+                                              (c: any) => c.id === item?.categoryId
+                                            );
+                                            return (
+                                              <TableRow key={selectedItem.id}>
+                                                <TableCell className="font-medium">
+                                                  {item?.name || "Unknown Item"}
+                                                </TableCell>
+                                                <TableCell>{category?.name || "—"}</TableCell>
+                                                <TableCell>{selectedItem.quantity}</TableCell>
+                                                <TableCell>
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-red-600"
+                                                    onClick={() =>
+                                                      removeInventoryItem(selectedItem.id)
+                                                    }
+                                                  >
+                                                    <Trash2 className="w-3 h-3" />
+                                                  </Button>
+                                                </TableCell>
+                                              </TableRow>
+                                            );
+                                          })
+                                      )}
+                                    </TableBody>
+                                  </Table>
+                                </ScrollArea>
+                              </div>
                             </div>
 
-                            {/* Selected Items Summary */}
-                            {selectedInventoryItems.length > 0 && (
-                              <div className="border rounded-md p-3 bg-blue-50">
-                                <h4 className="font-medium text-sm mb-2">Selected Items:</h4>
-                                <div className="flex flex-wrap gap-2">
-                                  {selectedInventoryItems.map(selectedItem => {
-                                    const item = inventoryItems.find(
-                                      inv => inv.id === selectedItem.id
-                                    );
-                                    return (
-                                      <Badge key={selectedItem.id} variant="secondary">
-                                        {item?.name} × {selectedItem.quantity}
-                                      </Badge>
-                                    );
-                                  })}
-                                </div>
+                            {/* RIGHT COLUMN - Available Inventory Items List */}
+                            <div className="flex flex-col gap-2">
+                              <div>
+                                <h3 className="text-lg font-medium ">Available Inventory Items</h3>
                               </div>
-                            )}
 
-                            {/* Inventory Items List */}
-                            <div className="flex-1 border rounded-md overflow-hidden">
-                              <div className="h-full overflow-y-auto">
-                                <Table>
-                                  <TableHeader className="sticky top-0 bg-white z-10">
-                                    <TableRow>
-                                      <TableHead>Item Name</TableHead>
-                                      <TableHead>Category</TableHead>
-                                      <TableHead>Available</TableHead>
-                                      <TableHead>Selected</TableHead>
-                                      <TableHead className="w-32">Actions</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {filteredInventoryItems.length === 0 ? (
+                              {/* Filter Controls for Available Items */}
+                              <div className="flex gap-2">
+                                <Select
+                                  value={selectedInventoryCategoryFilter}
+                                  onValueChange={setSelectedInventoryCategoryFilter}
+                                >
+                                  <SelectTrigger className="w-[200px]">
+                                    <SelectValue placeholder="Category" />
+                                  </SelectTrigger>
+                                  <SelectContent className="z-[60]">
+                                    <SelectItem value="all">All Categories</SelectItem>
+                                    {inventoryCategoriesData?.map((category: any) => (
+                                      <SelectItem key={category.id} value={category.id.toString()}>
+                                        {category.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+
+                                <InputGroup className="flex-1">
+                                  <InputGroupInput
+                                    placeholder="Search available..."
+                                    value={inventorySearchQuery}
+                                    onChange={e => setInventorySearchQuery(e.target.value)}
+                                  />
+                                  <InputGroupAddon>
+                                    <SearchIcon />
+                                  </InputGroupAddon>
+                                  <InputGroupAddon align="inline-end">
+                                    <InputGroupButton type="button" onClick={resetInventoryFilters}>
+                                      Clear
+                                    </InputGroupButton>
+                                  </InputGroupAddon>
+                                </InputGroup>
+                              </div>
+
+                              {/* Inventory Items List */}
+                              <div className="flex-1 border rounded-md overflow-hidden">
+                                <div className="h-full overflow-y-auto">
+                                  <Table>
+                                    <TableHeader className="sticky top-0 bg-white z-10">
                                       <TableRow>
-                                        <TableCell
-                                          colSpan={5}
-                                          className="text-center py-8 text-muted-foreground"
-                                        >
-                                          {inventorySearchQuery.trim() !== "" ||
-                                          selectedInventoryCategoryFilter !== "all"
-                                            ? "No inventory items found matching your filters"
-                                            : "No inventory items available"}
-                                        </TableCell>
+                                        <TableHead>Item Name</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead>Available</TableHead>
+                                        <TableHead>Selected</TableHead>
+                                        <TableHead className="w-32">Actions</TableHead>
                                       </TableRow>
-                                    ) : (
-                                      filteredInventoryItems.map((item: any) => {
-                                        const selectedItem = selectedInventoryItems.find(
-                                          si => si.id === item.id
-                                        );
-                                        const selectedQuantity = selectedItem?.quantity || 0;
-                                        const conflicts = getInventoryConflicts(
-                                          item.id,
-                                          selectedQuantity + 1,
-                                          true
-                                        );
-                                        const category = inventoryCategoriesData?.find(
-                                          (c: any) => c.id === item.categoryId
-                                        );
-
-                                        // Calculate available quantity for this item
-                                        let totalUsedQuantity = 0;
-                                        let availableQuantity = item.quantity - (item.out || 0);
-
-                                        // If dates are selected, calculate used quantity for overlapping dates only
-                                        if (startDate && endDate) {
-                                          totalUsedQuantity = (inventoryStatuses as any[])
-                                            .filter((status: any) => {
-                                              if (status.inventoryId !== item.id) return false;
-                                              if (
-                                                !status.booking?.startAt ||
-                                                !status.booking?.endAt
-                                              )
-                                                return false;
-                                              if (status.booking.status !== 1) return false; // Only consider Active bookings
-
-                                              // Only consider bookings that overlap with selected dates
-                                              const bookingStart = new Date(status.booking.startAt);
-                                              const bookingEnd = new Date(status.booking.endAt);
-
-                                              // Normalize dates to start of day for comparison
-                                              const normalizedBookingStart = new Date(
-                                                bookingStart.getFullYear(),
-                                                bookingStart.getMonth(),
-                                                bookingStart.getDate()
-                                              );
-                                              const normalizedBookingEnd = new Date(
-                                                bookingEnd.getFullYear(),
-                                                bookingEnd.getMonth(),
-                                                bookingEnd.getDate()
-                                              );
-                                              const normalizedStartDate = new Date(
-                                                startDate.getFullYear(),
-                                                startDate.getMonth(),
-                                                startDate.getDate()
-                                              );
-                                              const normalizedEndDate = new Date(
-                                                endDate.getFullYear(),
-                                                endDate.getMonth(),
-                                                endDate.getDate()
-                                              );
-
-                                              return (
-                                                normalizedBookingStart <= normalizedEndDate &&
-                                                normalizedBookingEnd >= normalizedStartDate
-                                              );
-                                            })
-                                            .reduce(
-                                              (sum: number, status: any) =>
-                                                sum + (status.quantity || 0),
-                                              0
-                                            );
-
-                                          availableQuantity =
-                                            item.quantity - (item.out || 0) - totalUsedQuantity;
-                                        }
-
-                                        return (
-                                          <TableRow
-                                            key={item.id}
-                                            className={selectedQuantity > 0 ? "bg-blue-50" : ""}
+                                    </TableHeader>
+                                    <TableBody>
+                                      {filteredInventoryItems.length === 0 ? (
+                                        <TableRow>
+                                          <TableCell
+                                            colSpan={5}
+                                            className="text-center py-8 text-muted-foreground"
                                           >
-                                            <TableCell className="font-medium">
-                                              <div>
-                                                {item.name}
-                                                {conflicts.warnings.length > 0 && (
-                                                  <div className="mt-1">
-                                                    {conflicts.warnings.map((warning, idx) => (
-                                                      <div
-                                                        key={idx}
-                                                        className="text-xs text-orange-600 bg-orange-50 p-1 rounded-md border-red-200 border-1"
-                                                      >
-                                                        {warning}
-                                                      </div>
-                                                    ))}
+                                            {inventorySearchQuery.trim() !== "" ||
+                                            selectedInventoryCategoryFilter !== "all"
+                                              ? "No inventory items found matching your filters"
+                                              : "No inventory items available"}
+                                          </TableCell>
+                                        </TableRow>
+                                      ) : (
+                                        filteredInventoryItems.map((item: any) => {
+                                          const selectedItem = selectedInventoryItems.find(
+                                            si => si.id === item.id
+                                          );
+                                          const selectedQuantity = selectedItem?.quantity || 0;
+                                          const conflicts = getInventoryConflicts(
+                                            item.id,
+                                            selectedQuantity + 1,
+                                            true
+                                          );
+                                          const category = inventoryCategoriesData?.find(
+                                            (c: any) => c.id === item.categoryId
+                                          );
+
+                                          // Calculate available quantity for this item
+                                          let totalUsedQuantity = 0;
+                                          let availableQuantity = item.quantity - (item.out || 0);
+
+                                          // If dates are selected, calculate used quantity for overlapping dates only
+                                          if (startDate && endDate) {
+                                            totalUsedQuantity = (inventoryStatuses as any[])
+                                              .filter((status: any) => {
+                                                if (status.inventoryId !== item.id) return false;
+                                                if (
+                                                  !status.booking?.startAt ||
+                                                  !status.booking?.endAt
+                                                )
+                                                  return false;
+                                                if (status.booking.status !== 1) return false; // Only consider Active bookings
+
+                                                // Only consider bookings that overlap with selected dates
+                                                const bookingStart = new Date(
+                                                  status.booking.startAt
+                                                );
+                                                const bookingEnd = new Date(status.booking.endAt);
+
+                                                // Normalize dates to start of day for comparison
+                                                const normalizedBookingStart = new Date(
+                                                  bookingStart.getFullYear(),
+                                                  bookingStart.getMonth(),
+                                                  bookingStart.getDate()
+                                                );
+                                                const normalizedBookingEnd = new Date(
+                                                  bookingEnd.getFullYear(),
+                                                  bookingEnd.getMonth(),
+                                                  bookingEnd.getDate()
+                                                );
+                                                const normalizedStartDate = new Date(
+                                                  startDate.getFullYear(),
+                                                  startDate.getMonth(),
+                                                  startDate.getDate()
+                                                );
+                                                const normalizedEndDate = new Date(
+                                                  endDate.getFullYear(),
+                                                  endDate.getMonth(),
+                                                  endDate.getDate()
+                                                );
+
+                                                return (
+                                                  normalizedBookingStart <= normalizedEndDate &&
+                                                  normalizedBookingEnd >= normalizedStartDate
+                                                );
+                                              })
+                                              .reduce(
+                                                (sum: number, status: any) =>
+                                                  sum + (status.quantity || 0),
+                                                0
+                                              );
+
+                                            availableQuantity =
+                                              item.quantity - (item.out || 0) - totalUsedQuantity;
+                                          }
+
+                                          return (
+                                            <>
+                                              <TableRow
+                                                key={item.id}
+                                                className={selectedQuantity > 0 ? "bg-blue-50" : ""}
+                                              >
+                                                <TableCell className="font-medium">
+                                                  {item.name}
+                                                </TableCell>
+                                                <TableCell>{category?.name || "—"}</TableCell>
+                                                <TableCell>
+                                                  <div className="flex flex-col">
+                                                    <span
+                                                      className={
+                                                        availableQuantity < 5
+                                                          ? "text-orange-600 font-medium"
+                                                          : ""
+                                                      }
+                                                    >
+                                                      {availableQuantity}
+                                                      {availableQuantity < 5 && " (Low Stock)"}
+                                                    </span>
                                                   </div>
-                                                )}
-                                                {conflicts.conflicts.length > 0 && (
-                                                  <div className="mt-2">
-                                                    {conflicts.conflicts.map((conflict, idx) => (
-                                                      <div
-                                                        key={idx}
-                                                        className="text-xs text-red-600 bg-red-50 p-2 border border-red-200 rounded-md -mt-1"
-                                                      >
-                                                        <button
-                                                          type="button"
-                                                          onClick={e => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            const selectedItem =
-                                                              selectedInventoryItems.find(
-                                                                si => si.id === item.id
-                                                              );
-                                                            handleConflictClick(
-                                                              item.id,
-                                                              selectedItem?.quantity || 1
-                                                            );
-                                                          }}
-                                                          className="text-left hover:underline"
-                                                        >
-                                                          {conflict}
-                                                        </button>
-                                                      </div>
-                                                    ))}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            </TableCell>
-                                            <TableCell>{category?.name || "—"}</TableCell>
-                                            <TableCell>
-                                              <div className="flex flex-col">
-                                                <span
-                                                  className={
-                                                    availableQuantity < 5
-                                                      ? "text-orange-600 font-medium"
-                                                      : ""
-                                                  }
-                                                >
-                                                  {availableQuantity} available
-                                                  {availableQuantity < 5 && " (Low Stock)"}
-                                                </span>
-                                                <span className="text-xs text-gray-500">
-                                                  {item.quantity} total
-                                                  {(item.out || 0) > 0 && `, ${item.out} out`}
-                                                  {totalUsedQuantity > 0 &&
-                                                    startDate &&
-                                                    endDate &&
-                                                    `, ${totalUsedQuantity} used on selected dates`}
-                                                  {!startDate || !endDate
-                                                    ? " (select dates to check conflicts)"
-                                                    : ""}
-                                                </span>
-                                              </div>
-                                            </TableCell>
-                                            <TableCell>{selectedQuantity}</TableCell>
-                                            <TableCell>
-                                              <div className="flex gap-1">
-                                                <Button
-                                                  type="button"
-                                                  variant="outline"
-                                                  size="sm"
-                                                  onClick={() => addInventoryItem(item.id, 1)}
-                                                  disabled={selectedQuantity >= availableQuantity}
-                                                >
-                                                  <Plus className="w-3 h-3" />
-                                                </Button>
-                                                {selectedQuantity > 0 && (
-                                                  <>
-                                                    <Input
-                                                      type="text"
-                                                      min="0"
-                                                      max={availableQuantity}
-                                                      value={selectedQuantity}
-                                                      onChange={e => {
-                                                        const newQuantity =
-                                                          parseInt(e.target.value) || 0;
-                                                        console.log(
-                                                          `Input onChange: itemId=${item.id}, inputValue=${e.target.value}, parsedQuantity=${newQuantity}, currentSelectedQuantity=${selectedQuantity}`
-                                                        );
-                                                        updateInventoryQuantity(
-                                                          item.id,
-                                                          newQuantity
-                                                        );
-                                                      }}
-                                                      className="w-16 h-8 text-center text-xs"
-                                                    />
+                                                </TableCell>
+                                                <TableCell>{selectedQuantity}</TableCell>
+                                                <TableCell>
+                                                  <div className="flex gap-1">
                                                     <Button
                                                       type="button"
                                                       variant="outline"
                                                       size="sm"
-                                                      className="text-red-600"
-                                                      onClick={() => removeInventoryItem(item.id)}
+                                                      onClick={() => addInventoryItem(item.id, 1)}
+                                                      disabled={
+                                                        selectedQuantity >= availableQuantity
+                                                      }
                                                     >
-                                                      <Trash2 className="w-3 h-3" />
+                                                      <Plus className="w-3 h-3" />
                                                     </Button>
-                                                  </>
-                                                )}
-                                              </div>
-                                            </TableCell>
-                                          </TableRow>
-                                        );
-                                      })
-                                    )}
-                                  </TableBody>
-                                </Table>
+                                                    {selectedQuantity > 0 && (
+                                                      <>
+                                                        <Input
+                                                          type="text"
+                                                          min="0"
+                                                          max={availableQuantity}
+                                                          value={selectedQuantity}
+                                                          onChange={e => {
+                                                            const newQuantity =
+                                                              parseInt(e.target.value) || 0;
+                                                            console.log(
+                                                              `Input onChange: itemId=${item.id}, inputValue=${e.target.value}, parsedQuantity=${newQuantity}, currentSelectedQuantity=${selectedQuantity}`
+                                                            );
+                                                            updateInventoryQuantity(
+                                                              item.id,
+                                                              newQuantity
+                                                            );
+                                                          }}
+                                                          className="w-16 h-8 text-center text-xs"
+                                                        />
+                                                        <Button
+                                                          type="button"
+                                                          variant="outline"
+                                                          size="sm"
+                                                          className="text-red-600"
+                                                          onClick={() =>
+                                                            removeInventoryItem(item.id)
+                                                          }
+                                                        >
+                                                          <Trash2 className="w-3 h-3" />
+                                                        </Button>
+                                                      </>
+                                                    )}
+                                                  </div>
+                                                </TableCell>
+                                              </TableRow>
+
+                                              {/* Warnings Row */}
+                                              {conflicts.warnings.length > 0 && (
+                                                <TableRow key={`${item.id}-warnings`}>
+                                                  <TableCell
+                                                    colSpan={5}
+                                                    className="bg-orange-50/50 p-2"
+                                                  >
+                                                    <div className="space-y-1">
+                                                      {conflicts.warnings.map((warning, idx) => (
+                                                        <div
+                                                          key={idx}
+                                                          className="text-xs text-orange-600 bg-orange-50 p-2 rounded-md border border-orange-200"
+                                                        >
+                                                          {warning}
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </TableCell>
+                                                </TableRow>
+                                              )}
+
+                                              {/* Conflicts/Errors Row */}
+                                              {conflicts.conflicts.length > 0 && (
+                                                <TableRow key={`${item.id}-conflicts`}>
+                                                  <TableCell
+                                                    colSpan={5}
+                                                    className="bg-red-50/50 p-2"
+                                                  >
+                                                    <div className="space-y-1">
+                                                      {conflicts.conflicts.map((conflict, idx) => (
+                                                        <div
+                                                          key={idx}
+                                                          className="text-xs text-red-600 bg-red-50 p-2 border border-red-200 rounded-md"
+                                                        >
+                                                          <button
+                                                            type="button"
+                                                            onClick={e => {
+                                                              e.preventDefault();
+                                                              e.stopPropagation();
+                                                              const selectedItem =
+                                                                selectedInventoryItems.find(
+                                                                  si => si.id === item.id
+                                                                );
+                                                              handleConflictClick(
+                                                                item.id,
+                                                                selectedItem?.quantity || 1
+                                                              );
+                                                            }}
+                                                            className="text-left hover:underline flex items-start gap-1"
+                                                          >
+                                                            <span>🚫</span>
+                                                            <span>{conflict}</span>
+                                                          </button>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </TableCell>
+                                                </TableRow>
+                                              )}
+                                            </>
+                                          );
+                                        })
+                                      )}
+                                    </TableBody>
+                                  </Table>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -2940,83 +3154,105 @@ const AddBookingsPageClient = (props: {
                 )}
 
                 {/* Display Selected Inventory Items */}
-                {selectedInventoryItems.length > 0 && (
-                  <div className="mt-4 border rounded-md p-4 bg-gray-50">
-                    <h4 className="font-medium mb-3">Selected Inventory Items:</h4>
-                    <div className="flex flex-col gap-2">
-                      {selectedInventoryItems.map(selectedItem => {
-                        const item = inventoryItems.find(inv => inv.id === selectedItem.id);
-                        const category = inventoryCategoriesData?.find(
-                          (c: any) => c.id === item?.categoryId
-                        );
-                        const conflicts = getInventoryConflicts(
-                          selectedItem.id,
-                          selectedItem.quantity
-                        );
+                <div className="border rounded-md mt-4">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-white z-10">
+                      <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Quantity</TableHead>
+                        <TableHead className="w-20">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
 
-                        return (
-                          <div
-                            key={selectedItem.id}
-                            className="flex items-center justify-between bg-white p-2 rounded-md border-1"
-                          >
-                            <div className="flex-1">
-                              <div className="font-medium text-sm flex justify-between items-center">
-                                <p className="-mt-4">{item?.name}</p>
+                    <TableBody>
+                      {selectedInventoryItems.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            No items selected
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        selectedInventoryItems.map(selectedItem => {
+                          const item = inventoryItems.find(inv => inv.id === selectedItem.id);
+                          const category = inventoryCategoriesData?.find(
+                            (c: any) => c.id === item?.categoryId
+                          );
+                          const conflicts = getInventoryConflicts(
+                            selectedItem.id,
+                            selectedItem.quantity
+                          );
 
-                                <Button
-                                  type="button"
-                                  variant="link"
-                                  size="sm"
-                                  className="text-red-600 hover:text-red-500"
-                                  onClick={() => removeInventoryItem(selectedItem.id)}
-                                >
-                                  <X className="w-3 h-3" />
-                                </Button>
-                              </div>
-                              <div className="text-xs text-gray-500 -mt-4">
-                                {category?.name} • Quantity: {selectedItem.quantity}
-                              </div>
-                              {(conflicts.warnings.length > 0 ||
-                                conflicts.conflicts.length > 0) && (
-                                <div className="text-xs mt-1 space-y-1">
-                                  {conflicts.warnings.map((warning, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="text-orange-600 p-1 bg-orange-50 rounded-md"
-                                    >
-                                      {warning}
-                                    </div>
-                                  ))}
-                                  {conflicts.conflicts.map((conflict, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="text-red-600 p-1 bg-red-50 rounded-md"
-                                    >
-                                      <button
-                                        type="button"
-                                        onClick={e => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          handleConflictClick(
-                                            selectedItem.id,
-                                            selectedItem.quantity
-                                          );
-                                        }}
-                                        className="text-left hover:underline"
-                                      >
-                                        {conflict}
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
+                          return (
+                            <>
+                              <TableRow key={selectedItem.id}>
+                                <TableCell className="font-medium flex-1 grow">
+                                  {item?.name || "Unknown Item"}
+                                </TableCell>
+                                <TableCell>{category?.name || "—"}</TableCell>
+                                <TableCell>{selectedItem.quantity}</TableCell>
+                                <TableCell>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-red-600"
+                                    onClick={() => removeInventoryItem(selectedItem.id)}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                              {/* Warnings Row */}
+                              {conflicts.warnings.length > 0 && (
+                                <TableRow key={`${selectedItem.id}-warnings`}>
+                                  <TableCell
+                                    colSpan={4}
+                                    className="bg-orange-50 text-orange-600 text-xs py-2"
+                                  >
+                                    {conflicts.warnings.map((warning, idx) => (
+                                      <div key={idx} className="py-1">
+                                        {warning}
+                                      </div>
+                                    ))}
+                                  </TableCell>
+                                </TableRow>
                               )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                              {/* Conflicts Row */}
+                              {conflicts.conflicts.length > 0 && (
+                                <TableRow key={`${selectedItem.id}-conflicts`}>
+                                  <TableCell
+                                    colSpan={4}
+                                    className="bg-red-50 text-red-600 text-xs py-2"
+                                  >
+                                    {conflicts.conflicts.map((conflict, idx) => (
+                                      <div key={idx} className="py-1">
+                                        <button
+                                          type="button"
+                                          onClick={e => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleConflictClick(
+                                              selectedItem.id,
+                                              selectedItem.quantity
+                                            );
+                                          }}
+                                          className="text-left hover:underline"
+                                        >
+                                          🚫 {conflict}
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             </div>
           </div>
@@ -3539,7 +3775,7 @@ const AddBookingsPageClient = (props: {
             id="discount"
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
-            <p className="font-bold text-lg">Deposit</p>
+            <p className="font-bold text-lg">Payment</p>
             <div className="mt-5 grid grid-cols-2 gap-4">
               <div className="gap-2 flex flex-col">
                 <Label className="font-normal text-foreground/50">Mode of payment *</Label>
@@ -3737,6 +3973,11 @@ const AddBookingsPageClient = (props: {
                     {hoursCount > 5 && (
                       <p className="text-xs text-black/50">
                         Includes extra hours fee for {extraHours} hour(s)
+                      </p>
+                    )}
+                    {selectedCatering === "1" && cateringCost > 0 && (
+                      <p className="text-xs text-black/50">
+                        Catering: {cateringPax} pax × {formatCurrency(parseFloat(pricePerPax))}
                       </p>
                     )}
                   </div>

@@ -170,9 +170,7 @@ const ViewPaymentDialog = ({ billingId, clientId }: ViewPaymentDialogProps) => {
                 <div className="flex justify-center flex-1">
                   <div className="gap-1 flex flex-col justify-center items-center">
                     <p className="text-sm text-foreground/50">Discount Type</p>
-                    <p className="text-lg font-medium">
-                      {billingSummary?.discountType}
-                    </p>
+                    <p className="text-lg font-medium">{billingSummary?.discountType}</p>
                   </div>
                 </div>
                 <div className="h-full py-4 border-l-1"></div>
@@ -187,6 +185,28 @@ const ViewPaymentDialog = ({ billingId, clientId }: ViewPaymentDialogProps) => {
                     </p>
                   </div>
                 </div>
+                {billingSummary?.catering && billingSummary?.cateringPerPaxAmount && (
+                  <>
+                    <div className="h-full py-4 border-l-1"></div>
+                    <div className="flex justify-center flex-1">
+                      <div className="gap-1 flex flex-col justify-center items-center">
+                        <p className="text-sm text-foreground/50">
+                          Catering (
+                          {Math.round(
+                            billingSummary.catering / billingSummary.cateringPerPaxAmount
+                          )}{" "}
+                          Pax)
+                        </p>
+                        <p className="text-lg font-medium">
+                          ₱
+                          {billingSummary.cateringPerPaxAmount.toLocaleString("en-PH", {
+                            minimumFractionDigits: 2,
+                          })}{" "}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

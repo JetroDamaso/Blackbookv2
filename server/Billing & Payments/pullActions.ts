@@ -179,6 +179,8 @@ export async function getBillingSummary(billingId: number) {
         bookingId: null,
         status: 0,
         payments: [],
+        catering: null,
+        cateringPerPaxAmount: null,
         isDefault: true,
       };
     }
@@ -204,6 +206,8 @@ export async function getBillingSummary(billingId: number) {
       bookingId: billing.booking?.id || null,
       status: billing.status || 0,
       payments: billing.payments || [],
+      catering: billing.catering || null,
+      cateringPerPaxAmount: billing.cateringPerPaxAmount || null,
       isDefault: false,
     };
   } catch (error) {
@@ -224,6 +228,8 @@ export async function getBillingSummary(billingId: number) {
       bookingId: null,
       status: 0,
       payments: [],
+      catering: null,
+      cateringPerPaxAmount: null,
       isDefault: true,
       error: true,
     };

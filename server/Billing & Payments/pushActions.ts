@@ -15,7 +15,9 @@ export async function createBilling(
   yve?: number,
   discountAmount?: number,
   discountId?: number,
-  isCustomDiscount?: boolean
+  isCustomDiscount?: boolean,
+  catering?: number,
+  cateringPerPaxAmount?: number
 ) {
   try {
     const data = await prisma.billing.create({
@@ -34,6 +36,8 @@ export async function createBilling(
         deposit: deposit,
         status: status,
         dateCompleted: dateComplpeted,
+        catering: catering,
+        cateringPerPaxAmount: cateringPerPaxAmount,
       },
     });
     return data;

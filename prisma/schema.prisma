@@ -220,6 +220,8 @@ model Billing {
     discountId         Int? // Reference to predefined discount
     isCustomDiscount   Boolean   @default(false) // Track if it's a custom discount
     balance            Float
+    catering           Float?
+    cateringPerPaxAmount Float?
     modeOfPayment      String
     yve                Float     @default(0)
     deposit            Float     @default(0)

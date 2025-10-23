@@ -45,6 +45,7 @@ const CheckScheduleDialog = (props: {
   const onNoPavilionAlert = props.onNoPavilionAlert;
 
   const [selectedPavilionId, setSelectedPavilionId] = useState<string>("");
+  const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
   const router = useRouter();
 
   // Check for booking conflicts
@@ -52,26 +53,37 @@ const CheckScheduleDialog = (props: {
     return dateRange ? selectedDates : selectedDay ? [selectedDay] : [];
   }, [dateRange, selectedDates, selectedDay]);
 
-  const hasConflict = useMemo(() => {
-    if (!selectedPavilionId || (!selectedDay && !dateRange)) return false;
+  const conflictingBookings = useMemo(() => {
+    if (!selectedPavilionId || (!selectedDay && !dateRange)) return [];
 
     const pavilionId = parseInt(selectedPavilionId);
+    const conflicts: Array<{
+      bookingId: number;
+      eventName: string;
+      startAt: Date;
+      endAt: Date | null;
+      daysDifference: number;
+      pavilionId: number;
+    }> = [];
 
     // Check each selected date for conflicts (1 day before or after)
-    return selectedDatesList.some(date => {
+    selectedDatesList.forEach(date => {
       const selectedDate = new Date(date.year, date.month, date.day);
 
-      return bookings.some(booking => {
+      bookings.forEach(booking => {
         // Check if booking is for the same pavilion
         const bookingPavilionId = booking.pavilionId;
-        if (bookingPavilionId !== pavilionId) return false;
+        if (bookingPavilionId !== pavilionId) return;
 
-        // Get booking date
-        const bookingDate = booking.startAt ?? booking.foodTastingAt ?? booking.endAt;
-        if (!bookingDate) return false;
+        // Get booking start date
+        const bookingStartDate = booking.startAt;
+        if (!bookingStartDate) return;
 
-        const bookingDateTime = new Date(bookingDate);
-        if (isNaN(bookingDateTime.getTime())) return false;
+        const bookingStartDateTime = new Date(bookingStartDate);
+        if (isNaN(bookingStartDateTime.getTime())) return;
+
+        // Get booking end date
+        const bookingEndDate = booking.endAt ? new Date(booking.endAt) : null;
 
         // Check if booking is within 1 day (before or after)
         const dayBefore = new Date(selectedDate);
@@ -81,9 +93,9 @@ const CheckScheduleDialog = (props: {
         dayAfter.setDate(dayAfter.getDate() + 1);
 
         const bookingDateOnly = new Date(
-          bookingDateTime.getFullYear(),
-          bookingDateTime.getMonth(),
-          bookingDateTime.getDate()
+          bookingStartDateTime.getFullYear(),
+          bookingStartDateTime.getMonth(),
+          bookingStartDateTime.getDate()
         );
         const selectedDateOnly = new Date(
           selectedDate.getFullYear(),
@@ -101,14 +113,36 @@ const CheckScheduleDialog = (props: {
           dayAfter.getDate()
         );
 
-        return (
+        const isConflicting =
           bookingDateOnly.getTime() === dayBeforeOnly.getTime() ||
           bookingDateOnly.getTime() === dayAfterOnly.getTime() ||
-          bookingDateOnly.getTime() === selectedDateOnly.getTime()
-        );
+          bookingDateOnly.getTime() === selectedDateOnly.getTime();
+
+        if (isConflicting) {
+          // Calculate days difference
+          const diffTime = selectedDateOnly.getTime() - bookingDateOnly.getTime();
+          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+          // Check if already added
+          const alreadyAdded = conflicts.some(c => c.bookingId === booking.id);
+          if (!alreadyAdded) {
+            conflicts.push({
+              bookingId: booking.id,
+              eventName: booking.eventName || "Unknown Event",
+              startAt: bookingStartDateTime,
+              endAt: bookingEndDate,
+              daysDifference: diffDays,
+              pavilionId: bookingPavilionId,
+            });
+          }
+        }
       });
     });
+
+    return conflicts;
   }, [selectedPavilionId, selectedDay, dateRange, selectedDatesList, bookings]);
+
+  const hasConflict = conflictingBookings.length > 0;
 
   const handleContinue = () => {
     if (!selectedDay && !dateRange) {
@@ -258,12 +292,20 @@ const CheckScheduleDialog = (props: {
               </Select>
             </div>
             {hasConflict && (
-              <div className="flex gap-2 items-start text-red-500 border-1 rounded-md p-2 border-red-500">
+              <button
+                type="button"
+                onClick={() => setIsConflictDialogOpen(true)}
+                className="flex gap-2 items-start text-red-500 border-1 rounded-md p-2 border-red-500 hover:bg-red-50 transition-colors cursor-pointer w-full text-left"
+              >
                 <CircleAlert />
-                <p className="text-sm">
-                  This pavilion has nearby bookings. Check for conflicts before proceeding.
-                </p>
-              </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">
+                    {conflictingBookings.length} nearby booking
+                    {conflictingBookings.length > 1 ? "s" : ""} found
+                  </p>
+                  <p className="text-xs text-red-400">Click to view details</p>
+                </div>
+              </button>
             )}
           </div>
 
@@ -277,6 +319,153 @@ const CheckScheduleDialog = (props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Conflict Details Dialog */}
+      {isConflictDialogOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 z-[200]"
+            onClick={() => setIsConflictDialogOpen(false)}
+          />
+
+          {/* Dialog Content */}
+          <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
+            <div
+              className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-auto p-6"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold">Booking Conflicts Detected</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    The following bookings are within 1 day of your selected date
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsConflictDialogOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Selected Date Info */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-blue-800 font-medium">Your Selected Date:</p>
+                <p className="text-lg font-semibold text-blue-900">
+                  {dateRange
+                    ? `${new Date(
+                        dateRange.start.year,
+                        dateRange.start.month,
+                        dateRange.start.day
+                      ).toLocaleDateString(undefined, {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      })} - ${new Date(
+                        dateRange.end.year,
+                        dateRange.end.month,
+                        dateRange.end.day
+                      ).toLocaleDateString(undefined, {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      })}`
+                    : selectedDay
+                      ? new Date(
+                          selectedDay.year,
+                          selectedDay.month,
+                          selectedDay.day
+                        ).toLocaleDateString(undefined, {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : "No date selected"}
+                </p>
+                <p className="text-sm text-blue-700 mt-1">
+                  Pavilion:{" "}
+                  {pavilions.find(p => p.id === parseInt(selectedPavilionId))?.name || "Unknown"}
+                </p>
+              </div>
+
+              {/* Conflicting Bookings List */}
+              <div className="space-y-3">
+                <h3 className="font-medium text-gray-700">Nearby Bookings:</h3>
+                {conflictingBookings.map((conflict, index) => (
+                  <div
+                    key={conflict.bookingId}
+                    className="border border-red-200 rounded-lg p-4 bg-red-50"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{conflict.eventName}</p>
+                        <div className="mt-2 space-y-1 text-sm text-gray-600">
+                          <p>
+                            <span className="font-medium">Pavilion:</span>{" "}
+                            {pavilions.find(p => p.id === conflict.pavilionId)?.name || "Unknown"}
+                          </p>
+                          <p>
+                            <span className="font-medium">Booking Date:</span>{" "}
+                            {conflict.startAt.toLocaleDateString(undefined, {
+                              month: "long",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                            {conflict.endAt && (
+                              <>
+                                {" - "}
+                                {conflict.endAt.toLocaleDateString(undefined, {
+                                  month: "long",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
+                              </>
+                            )}
+                          </p>
+                          <p>
+                            <span className="font-medium">Time Difference:</span>{" "}
+                            {conflict.daysDifference === 0 ? (
+                              <span className="text-red-600 font-semibold">Same day</span>
+                            ) : conflict.daysDifference === 1 ? (
+                              <span className="text-orange-600 font-semibold">1 day after</span>
+                            ) : conflict.daysDifference === -1 ? (
+                              <span className="text-orange-600 font-semibold">1 day before</span>
+                            ) : (
+                              <span>
+                                {Math.abs(conflict.daysDifference)} days{" "}
+                                {conflict.daysDifference > 0 ? "after" : "before"}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Footer */}
+              <div className="mt-6 flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setIsConflictDialogOpen(false)}>
+                  Close
+                </Button>
+                <Button
+                  className="bg-primary hover:bg-red-700"
+                  onClick={() => {
+                    setIsConflictDialogOpen(false);
+                    handleContinue();
+                  }}
+                >
+                  Continue Anyway
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
