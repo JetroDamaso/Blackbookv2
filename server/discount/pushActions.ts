@@ -25,13 +25,16 @@ export async function createDiscount(data: {
   }
 }
 
-export async function updateDiscount(id: number, data: {
-  name?: string;
-  percent?: number;
-  amount?: number;
-  description?: string;
-  isActive?: boolean;
-}) {
+export async function updateDiscount(
+  id: number,
+  data: {
+    name?: string;
+    percent?: number;
+    amount?: number;
+    description?: string;
+    isActive?: boolean;
+  }
+) {
   try {
     const discount = await prisma.discount.update({
       where: { id },

@@ -1,6 +1,6 @@
-import { ArrowRightIcon } from "lucide-react"
+import { ArrowRightIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 
 export default function Component() {
   return (
@@ -12,5 +12,5 @@ export default function Component() {
         aria-hidden="true"
       />
     </Button>
-  )
+  );
 }

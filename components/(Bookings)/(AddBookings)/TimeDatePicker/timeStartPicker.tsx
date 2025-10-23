@@ -11,24 +11,15 @@ export default function TimeStartPickerCreateBookingComponent({
   startTimeOnChange,
   initialDateTime,
 }: {
-  startTimeOnChange?: (
-    value: { hour: number; minute: number; second?: number } | null
-  ) => void;
+  startTimeOnChange?: (value: { hour: number; minute: number; second?: number } | null) => void;
   initialDateTime?: Date | string | null;
 }) {
   let defaultTimeValue: Time | undefined = undefined;
   if (initialDateTime) {
     try {
-      const d =
-        typeof initialDateTime === "string"
-          ? new Date(initialDateTime)
-          : initialDateTime;
+      const d = typeof initialDateTime === "string" ? new Date(initialDateTime) : initialDateTime;
       if (!isNaN(d.getTime())) {
-        defaultTimeValue = new Time(
-          d.getHours(),
-          d.getMinutes(),
-          d.getSeconds()
-        );
+        defaultTimeValue = new Time(d.getHours(), d.getMinutes(), d.getSeconds());
       }
     } catch {
       // ignore parse errors
@@ -37,12 +28,7 @@ export default function TimeStartPickerCreateBookingComponent({
   const handleTimeChange = (value: unknown) => {
     let obj: { hour: number; minute: number; second?: number } | null = null;
 
-    if (
-      value &&
-      typeof value === "object" &&
-      "hour" in value &&
-      "minute" in value
-    ) {
+    if (value && typeof value === "object" && "hour" in value && "minute" in value) {
       const v = value as { hour: number; minute: number; second?: number };
       obj = { hour: v.hour, minute: v.minute, second: v.second ?? 0 };
     } else if (typeof value === "string") {

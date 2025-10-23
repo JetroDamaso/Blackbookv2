@@ -2,10 +2,7 @@ import React, { useState } from "react";
 import { Button } from "../ui/button";
 import { Notebook, X, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  getBillingSummary,
-  getPaymentsByBilling,
-} from "@/server/Billing & Payments/pullActions";
+import { getBillingSummary, getPaymentsByBilling } from "@/server/Billing & Payments/pullActions";
 import { DataTable } from "./table/data-table";
 import { columns } from "./table/columns";
 
@@ -17,13 +14,11 @@ type ViewPaymentDialogProps = {
 const ViewPaymentDialog = ({ billingId, clientId }: ViewPaymentDialogProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const { data: billingSummary, isPending: isBillingSummaryPending } = useQuery(
-    {
-      queryKey: ["billingSummary", billingId],
-      queryFn: () => getBillingSummary(billingId),
-      enabled: isOpen, // Only fetch when dialog is open
-    }
-  );
+  const { data: billingSummary, isPending: isBillingSummaryPending } = useQuery({
+    queryKey: ["billingSummary", billingId],
+    queryFn: () => getBillingSummary(billingId),
+    enabled: isOpen, // Only fetch when dialog is open
+  });
 
   const { data: payments, isPending: isPaymentsPending } = useQuery({
     queryKey: ["paymentsByBilling", billingId],
@@ -68,9 +63,7 @@ const ViewPaymentDialog = ({ billingId, clientId }: ViewPaymentDialogProps) => {
             <div className="flex-1 overflow-auto p-6 min-h-0">
               <div className="flex flex-col text-foreground">
                 {isBillingSummaryPending ? (
-                  <div className="text-center py-4">
-                    Loading billing summary...
-                  </div>
+                  <div className="text-center py-4">Loading billing summary...</div>
                 ) : billingSummary ? (
                   <>
                     {billingSummary.isDefault && (
@@ -97,9 +90,7 @@ const ViewPaymentDialog = ({ billingId, clientId }: ViewPaymentDialogProps) => {
                       </div>
                       <div className="h-full py-4 border-l-1"></div>
                       <div className="gap-1 flex flex-col">
-                        <p className="text-sm text-foreground/50">
-                          Amount Paid
-                        </p>
+                        <p className="text-sm text-foreground/50">Amount Paid</p>
                         <p
                           className={`text-2xl font-medium ${billingSummary.totalPaid === billingSummary.totalBilling ? "text-green-500" : "text-red-500"}`}
                         >
@@ -146,9 +137,7 @@ const ViewPaymentDialog = ({ billingId, clientId }: ViewPaymentDialogProps) => {
                       }}
                     />
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No payments found
-                    </div>
+                    <div className="text-center py-8 text-muted-foreground">No payments found</div>
                   )}
                 </div>
               </div>
@@ -156,9 +145,7 @@ const ViewPaymentDialog = ({ billingId, clientId }: ViewPaymentDialogProps) => {
               <div className="flex gap-8 items-center mt-2 justify-between px-8 border-1 rounded-md py-4">
                 <div className="flex justify-center flex-1">
                   <div className="gap-1 flex flex-col justify-center items-center">
-                    <p className="text-sm text-foreground/50">
-                      Original Amount
-                    </p>
+                    <p className="text-sm text-foreground/50">Original Amount</p>
                     <p className="text-lg font-medium">
                       ₱
                       {billingSummary?.originalPrice.toLocaleString("en-PH", {
@@ -170,9 +157,7 @@ const ViewPaymentDialog = ({ billingId, clientId }: ViewPaymentDialogProps) => {
                 <div className="h-full py-4 border-l-1"></div>
                 <div className="flex justify-center flex-1">
                   <div className="gap-1 flex flex-col justify-center items-center">
-                    <p className="text-sm text-foreground/50">
-                      Discount Amount
-                    </p>
+                    <p className="text-sm text-foreground/50">Discount Amount</p>
                     <p className="text-lg font-medium">
                       ₱
                       {billingSummary?.totalBilling.toLocaleString("en-PH", {
@@ -187,8 +172,6 @@ const ViewPaymentDialog = ({ billingId, clientId }: ViewPaymentDialogProps) => {
                     <p className="text-sm text-foreground/50">Discount Type</p>
                     <p className="text-lg font-medium">
                       {billingSummary?.discountType}
-                      {(billingSummary?.discountPercentage || 0) > 0 &&
-                        ` (${billingSummary?.discountPercentage}%)`}
                     </p>
                   </div>
                 </div>

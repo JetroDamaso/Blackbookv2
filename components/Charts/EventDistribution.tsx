@@ -57,15 +57,9 @@ const chartConfig = {
 export function ChartPieSimple() {
   return (
     <div>
-      <ChartContainer
-        config={chartConfig}
-        className="mx-auto aspect-square max-h-[200px] -my-2"
-      >
+      <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-[200px] -my-2">
         <PieChart>
-          <ChartTooltip
-            cursor={false}
-            content={<ChartTooltipContent hideLabel />}
-          />
+          <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
           <Pie data={chartData} dataKey="visitors" nameKey="browser" />
         </PieChart>
       </ChartContainer>

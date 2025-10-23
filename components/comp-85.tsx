@@ -1,6 +1,6 @@
-import { ArrowLeftIcon } from "lucide-react"
+import { ArrowLeftIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 
 export default function Component() {
   return (
@@ -12,5 +12,5 @@ export default function Component() {
       />
       Button
     </Button>
-  )
+  );
 }

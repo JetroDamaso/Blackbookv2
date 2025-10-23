@@ -27,13 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import {
-  ChevronFirstIcon,
-  ChevronLastIcon,
-  CirclePlus,
-  SearchIcon,
-  Trash,
-} from "lucide-react";
+import { ChevronFirstIcon, ChevronLastIcon, CirclePlus, SearchIcon, Trash } from "lucide-react";
 import React, { useState } from "react";
 import {
   InputGroup,
@@ -78,8 +72,7 @@ export function DataTable<TData, TValue>({
   const [municipality, setMunicipality] = useState();
   const [barangay, setBarangay] = useState();
 
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
 
   const table = useReactTable({
     data,
@@ -109,16 +102,14 @@ export function DataTable<TData, TValue>({
           <DropdownMenuContent align="end">
             {table
               .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
+              .filter(column => column.getCanHide())
+              .map(column => {
                 return (
                   <DropdownMenuCheckboxItem
                     key={column.id}
                     className="capitalize"
                     checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
+                    onCheckedChange={value => column.toggleVisibility(!!value)}
                   >
                     {column.id}
                   </DropdownMenuCheckboxItem>
@@ -150,17 +141,14 @@ export function DataTable<TData, TValue>({
       <div className="overflow-hidden rounded-md border h-fit bg-white">
         <Table>
           <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
+            {table.getHeaderGroups().map(headerGroup => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
+                {headerGroup.headers.map(header => {
                   return (
                     <TableHead key={header.id}>
                       {header.isPlaceholder
                         ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                        : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   );
                 })}
@@ -169,7 +157,7 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
+              table.getRowModel().rows.map(row => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
@@ -182,22 +170,16 @@ export function DataTable<TData, TValue>({
                     }
                   }}
                 >
-                  {row.getVisibleCells().map((cell) => (
+                  {row.getVisibleCells().map(cell => (
                     <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
+                <TableCell colSpan={columns.length} className="h-24 text-center">
                   No results.
                 </TableCell>
               </TableRow>
@@ -207,9 +189,8 @@ export function DataTable<TData, TValue>({
         <div className="flex items-center justify-between py-4 px-4">
           {/* Page info */}
           <div className="text-sm text-muted-foreground">
-            Page {table.getState().pagination.pageIndex + 1} of{" "}
-            {table.getPageCount()} ({table.getFilteredRowModel().rows.length}{" "}
-            total entries)
+            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()} (
+            {table.getFilteredRowModel().rows.length} total entries)
           </div>
           {/* Pagination controls */}
           <div className="flex items-center space-x-2">

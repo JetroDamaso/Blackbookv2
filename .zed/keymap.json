@@ -1,0 +1,23 @@
+[
+  {
+    "context": "Editor",
+    "bindings": {
+      "alt-w": "editor::WrapWithAbbreviation",
+      "shift-alt-w": "emmet::WrapWithAbbreviation",
+      "ctrl-shift-p": "command_palette::Toggle",
+      "shift-alt-f": "editor::Format"
+    }
+  },
+  {
+    "context": "Editor && mode == 'full'",
+    "bindings": {
+      "alt-w": "emmet::wrap_with_abbreviation"
+    }
+  },
+  {
+    "context": "Editor && (mode == 'full' || mode == 'auto_height')",
+    "bindings": {
+      "shift-alt-o": "editor::OrganizeImports"
+    }
+  }
+]

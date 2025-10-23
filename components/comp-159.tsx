@@ -1,10 +1,10 @@
-import { useId } from "react"
+import { useId } from "react";
 
-import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export default function Component() {
-  const id = useId()
+  const id = useId();
   return (
     <RadioGroup className="gap-2" defaultValue="1">
       {/* Radio card #1 */}
@@ -22,10 +22,7 @@ export default function Component() {
               (Sublabel)
             </span>
           </Label>
-          <p
-            id={`${id}-1-description`}
-            className="text-muted-foreground text-xs"
-          >
+          <p id={`${id}-1-description`} className="text-muted-foreground text-xs">
             You can use this card with a label and a description.
           </p>
         </div>
@@ -45,14 +42,11 @@ export default function Component() {
               (Sublabel)
             </span>
           </Label>
-          <p
-            id={`${id}-2-description`}
-            className="text-muted-foreground text-xs"
-          >
+          <p id={`${id}-2-description`} className="text-muted-foreground text-xs">
             You can use this card with a label and a description.
           </p>
         </div>
       </div>
     </RadioGroup>
-  )
+  );
 }

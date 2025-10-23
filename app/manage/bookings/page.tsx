@@ -1,56 +1,30 @@
 "use client";
-import { useState } from "react";
+import BookingDialogComponent from "@/components/(Calendar)/BookingDialog";
+import { ChartPieSimple } from "@/components/Charts/EventDistribution";
+import { ChartBarDefault } from "@/components/Charts/TotalBookingsChart";
+import { Button } from "@/components/ui/button";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { getAllBookingsPaginated } from "@/server/Booking/pullActions";
 import { useQuery } from "@tanstack/react-query";
+import { Book, Dot, HandCoins, Notebook } from "lucide-react";
+import { useState } from "react";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
-import { getAllBookings } from "@/server/Booking/pullActions";
-import { Input } from "@/components/ui/input";
-import {
-  InputGroup,
-  InputGroupInput,
-  InputGroupAddon,
-  InputGroupButton,
-} from "@/components/ui/input-group";
-import {
-  Book,
-  Dot,
-  HandCoins,
-  Notebook,
-  SearchIcon,
-  Table,
-} from "lucide-react";
-import BookingDialogComponent from "@/components/(Calendar)/BookingDialog";
-import { AppSidebar } from "@/components/app-sidebar";
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { Separator } from "radix-ui";
-import { Breadcrumb } from "react-aria-components";
-import { ChartBarDefault } from "@/components/Charts/TotalBookingsChart";
-import { ChartPieSimple } from "@/components/Charts/EventDistribution";
-import { Button } from "@/components/ui/button";
 
 export default function ManageBookings() {
-  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(
-    null
-  );
+  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const { isPending, error, data } = useQuery({
-    queryKey: ["allBookings"],
-    queryFn: () => getAllBookings(),
+    queryKey: ["allBookings", currentPage],
+    queryFn: () => getAllBookingsPaginated(currentPage, pageSize),
   });
 
   const handleRowClick = (bookingId: number) => {
     setSelectedBookingId(bookingId);
     setIsDialogOpen(true);
-  };
-
-  const handleDialogClose = () => {
-    setIsDialogOpen(false);
-    setSelectedBookingId(null);
   };
 
   if (isPending) {
@@ -64,9 +38,7 @@ export default function ManageBookings() {
   if (error) {
     return (
       <div className="container mx-auto py-10">
-        <div className="text-center text-red-500">
-          Error loading bookings: {error.message}
-        </div>
+        <div className="text-center text-red-500">Error loading bookings: {error.message}</div>
       </div>
     );
   }
@@ -87,7 +59,7 @@ export default function ManageBookings() {
         <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
           <div className="flex flex-col">
             <p className="text-md">Total Bookings</p>
-            <p className="text-4xl font-semibold">{data?.length || 0}</p>
+            <p className="text-4xl font-semibold">{data?.pagination.totalCount || 0}</p>
             <p className="text-xs">
               Average <span className="text-primary">20/month</span>
             </p>
@@ -108,7 +80,7 @@ export default function ManageBookings() {
           <div className="flex flex-col">
             <p className="text-md">October Bookings</p>
             <p className="text-4xl font-semibold">
-              {data?.filter((booking) => {
+              {data?.data.filter(booking => {
                 const bookingDate = new Date(booking.startAt || new Date());
                 return bookingDate.getMonth() === 9; // October is month 9
               }).length || 0}
@@ -168,18 +140,15 @@ export default function ManageBookings() {
           <HandCoins className="size-9 text-green-600" />
           <p className="text-sm select-none">Payment View</p>
         </div>
-
-        {/* <div className="flex flex-col rounded-md p-4 bg-white border-1 items-center gap-2 justify-center cursor-pointer">
-              <Table className="size-9 grow" />
-              <p className="text-sm select-none">Table View</p>
-            </div> */}
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
         <DataTable
           columns={columns}
-          data={data || []}
+          data={data?.data || []}
           onRowClick={handleRowClick}
+          pagination={data?.pagination}
+          onPageChange={setCurrentPage}
         />
         {selectedBookingId && (
           <BookingDialogComponent

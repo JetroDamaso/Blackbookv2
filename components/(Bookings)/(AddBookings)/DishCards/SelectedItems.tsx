@@ -20,11 +20,7 @@ type SelectedItemsProps = {
   onRemoveDish: (dishId: number) => void;
   dishCategories: DishCategory[];
 };
-const SelectedItems = ({
-  selectedDishes,
-  onRemoveDish,
-  dishCategories,
-}: SelectedItemsProps) => {
+const SelectedItems = ({ selectedDishes, onRemoveDish, dishCategories }: SelectedItemsProps) => {
   // Small helper: choose which icon to render for a dish.
   type SelectedItemsProps = {
     selectedDishes: Dish[];
@@ -100,9 +96,7 @@ const SelectedItems = ({
       <p>Selected:</p>
       <div className="w-full">
         {selectedDishes.length === 0 ? (
-          <p className="text-muted-foreground px-4 py-3 text-sm">
-            No dishes selected
-          </p>
+          <p className="text-muted-foreground px-4 py-3 text-sm">No dishes selected</p>
         ) : (
           selectedDishes.map((dish: SelectedDish, idx: number) => (
             <div
@@ -141,9 +135,7 @@ const SelectedItems = ({
                     <p className="text-sm font-medium">{dish.name}</p>
                     <div className="flex gap-2 max-md:flex-wrap">
                       {dish.quantity > 1 && (
-                        <span className="text-xs text-muted-foreground">
-                          Qty: {dish.quantity}
-                        </span>
+                        <span className="text-xs text-muted-foreground">Qty: {dish.quantity}</span>
                       )}
                     </div>
                   </div>

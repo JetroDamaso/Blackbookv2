@@ -1,18 +1,20 @@
-import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger,
   DialogOverlay,
   DialogPortal,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Button } from "../ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -20,30 +22,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "../ui/label";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Textarea } from "@/components/ui/textarea";
 import { getModeOfPayments } from "@/server/Billing & Payments/pullActions";
-import {
-  createPayment,
-  createBilling,
-} from "@/server/Billing & Payments/pushActions";
+import { createBilling, createPayment } from "@/server/Billing & Payments/pushActions";
 import { createBooking } from "@/server/Booking/pushActions";
 import { createClient } from "@/server/clients/pushActions";
 import { createMenuWithDishes } from "@/server/Menu/pushActions";
-import { Input } from "../ui/input";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
-  InputGroupTextarea,
-} from "@/components/ui/input-group";
-import { FileUpload } from "../(Manage)/FileUpload";
-import { CalendarIcon, CalendarPlus, HandCoins } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Calendar } from "../ui/calendar";
+import { CalendarIcon, CalendarPlus } from "lucide-react";
+import React, { useState } from "react";
 import { toast } from "sonner";
+import { Button } from "../ui/button";
+import { Calendar } from "../ui/calendar";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 
 type BookingData = {
   // Client data
@@ -110,11 +104,9 @@ const CreateBookingAddPayment = ({
 
     return {
       // Client data from form if available, otherwise from bookingData
-      firstName:
-        formData?.get("firstName")?.toString() || bookingData.firstName,
+      firstName: formData?.get("firstName")?.toString() || bookingData.firstName,
       lastName: formData?.get("lastName")?.toString() || bookingData.lastName,
-      phoneNumber:
-        formData?.get("phoneNumber")?.toString() || bookingData.phoneNumber,
+      phoneNumber: formData?.get("phoneNumber")?.toString() || bookingData.phoneNumber,
       email: formData?.get("email")?.toString() || bookingData.email,
       region: bookingData.region,
       province: bookingData.province,
@@ -122,8 +114,7 @@ const CreateBookingAddPayment = ({
       barangay: bookingData.barangay,
 
       // Booking data from form if available, otherwise from bookingData
-      eventName:
-        formData?.get("eventName")?.toString() || bookingData.eventName,
+      eventName: formData?.get("eventName")?.toString() || bookingData.eventName,
       pavilionId: String(bookingData.pavilionId),
       numPax: formData?.get("numPax")?.toString() || bookingData.numPax,
       eventType: Number(formData?.get("eventType")) || bookingData.eventType,
@@ -195,12 +186,8 @@ const CreateBookingAddPayment = ({
       const bookingId = Number(booking?.id);
 
       // Step 3: Create menu if catering is selected
-      if (
-        completeData.catering === 1 &&
-        completeData.selectedDishes &&
-        bookingId
-      ) {
-        const dishIds = completeData.selectedDishes.flatMap((dish) =>
+      if (completeData.catering === 1 && completeData.selectedDishes && bookingId) {
+        const dishIds = completeData.selectedDishes.flatMap(dish =>
           Array(dish.quantity).fill(dish.id)
         );
         await createMenuWithDishes(bookingId, dishIds);
@@ -284,12 +271,8 @@ const CreateBookingAddPayment = ({
       const bookingId = Number(booking?.id);
 
       // Step 3: Create menu if catering is selected
-      if (
-        completeData.catering === 1 &&
-        completeData.selectedDishes &&
-        bookingId
-      ) {
-        const dishIds = completeData.selectedDishes.flatMap((dish) =>
+      if (completeData.catering === 1 && completeData.selectedDishes && bookingId) {
+        const dishIds = completeData.selectedDishes.flatMap(dish =>
           Array(dish.quantity).fill(dish.id)
         );
         await createMenuWithDishes(bookingId, dishIds);
@@ -341,12 +324,9 @@ const CreateBookingAddPayment = ({
       toast.error(
         `Payment amount (₱${numericAmount.toLocaleString("en-PH", {
           minimumFractionDigits: 2,
-        })}) cannot exceed the total amount (₱${totalAmount.toLocaleString(
-          "en-PH",
-          {
-            minimumFractionDigits: 2,
-          }
-        )})`
+        })}) cannot exceed the total amount (₱${totalAmount.toLocaleString("en-PH", {
+          minimumFractionDigits: 2,
+        })})`
       );
       return;
     }
@@ -385,14 +365,10 @@ const CreateBookingAddPayment = ({
         <DialogContent className="z-[200]">
           <form onSubmit={handleSubmitWithPayment}>
             <DialogHeader>
-              <DialogTitle className="mb-2">
-                Create Booking with Payment
-              </DialogTitle>
+              <DialogTitle className="mb-2">Create Booking with Payment</DialogTitle>
               <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg p-4 mb-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">
-                    Total Booking Amount:
-                  </span>
+                  <span className="text-sm font-medium text-gray-700">Total Booking Amount:</span>
                   <span className="text-xl font-bold text-green-600">
                     ₱
                     {totalAmount.toLocaleString("en-PH", {
@@ -404,15 +380,12 @@ const CreateBookingAddPayment = ({
               <DialogDescription className="grid grid-cols-2 gap-4">
                 <div className="gap-2 flex flex-col">
                   <Label className="font-normal">Mode of payment *</Label>
-                  <Select
-                    value={modeOfPayment}
-                    onValueChange={setModeOfPayment}
-                  >
+                  <Select value={modeOfPayment} onValueChange={setModeOfPayment}>
                     <SelectTrigger>
                       <SelectValue placeholder="Mode of payment" />
                     </SelectTrigger>
                     <SelectContent className="z-[201]">
-                      {mopData?.map((mop) => (
+                      {mopData?.map(mop => (
                         <SelectItem key={mop.id} value={mop.id.toString()}>
                           {mop.name}
                         </SelectItem>
@@ -429,7 +402,7 @@ const CreateBookingAddPayment = ({
                     <InputGroupInput
                       placeholder="0.00"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={e => setAmount(e.target.value)}
                       step="0.01"
                       min="0"
                       className={
@@ -437,7 +410,7 @@ const CreateBookingAddPayment = ({
                           ? "border-red-500 focus:border-red-500"
                           : ""
                       }
-                      onKeyDown={(e) => {
+                      onKeyDown={e => {
                         if (
                           [8, 9, 27, 13, 46].indexOf(e.keyCode) !== -1 ||
                           // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
@@ -478,7 +451,7 @@ const CreateBookingAddPayment = ({
                   <Input
                     placeholder="Official Receipt Number"
                     value={orNumber}
-                    onChange={(e) => setOrNumber(e.target.value)}
+                    onChange={e => setOrNumber(e.target.value)}
                   />
                 </div>
 
@@ -499,9 +472,7 @@ const CreateBookingAddPayment = ({
                       <Calendar
                         mode="single"
                         selected={date}
-                        onSelect={(selectedDate) =>
-                          setDate(selectedDate || new Date())
-                        }
+                        onSelect={selectedDate => setDate(selectedDate || new Date())}
                         required
                       />
                     </PopoverContent>
@@ -512,7 +483,7 @@ const CreateBookingAddPayment = ({
                   <Label className="font-normal">Payment Notes</Label>
                   <Textarea
                     value={paymentNotes}
-                    onChange={(e) => setPaymentNotes(e.target.value)}
+                    onChange={e => setPaymentNotes(e.target.value)}
                     placeholder="Optional notes about this payment..."
                   />
                 </div>
@@ -536,9 +507,7 @@ const CreateBookingAddPayment = ({
                   Boolean(amount && parseFloat(amount) > totalAmount)
                 }
               >
-                {createBookingWithPaymentMutation.isPending
-                  ? "Creating..."
-                  : "Create Booking"}
+                {createBookingWithPaymentMutation.isPending ? "Creating..." : "Create Booking"}
               </Button>
             </DialogFooter>
           </form>

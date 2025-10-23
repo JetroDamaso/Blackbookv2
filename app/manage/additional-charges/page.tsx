@@ -6,11 +6,7 @@ import { DataTable } from "./data-table";
 import { getAllAdditionalCharges } from "@/server/additionalcharge/pullActions";
 import { DollarSign } from "lucide-react";
 import { AppSidebar } from "@/components/app-sidebar";
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 
 export default function ManageAdditionalCharges() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -49,8 +45,7 @@ export default function ManageAdditionalCharges() {
     );
   }
 
-  const totalAmount =
-    data?.reduce((sum, charge) => sum + charge.amount, 0) || 0;
+  const totalAmount = data?.reduce((sum, charge) => sum + charge.amount, 0) || 0;
 
   return (
     <div>
@@ -92,11 +87,7 @@ export default function ManageAdditionalCharges() {
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
-        <DataTable
-          columns={columns}
-          data={data || []}
-          onRowClick={handleRowClick}
-        />
+        <DataTable columns={columns} data={data || []} onRowClick={handleRowClick} />
       </div>
     </div>
   );

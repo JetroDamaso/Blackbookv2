@@ -36,7 +36,7 @@ const SearchService = ({
         <CommandInput
           className="[--ring:var(--color-red-500)] in-[.dark]:[--ring:var(--color-red-500)]"
           value={typedText}
-          onValueChange={(v) => {
+          onValueChange={v => {
             setTypedText(v);
             onTypeChange?.(v);
           }}
@@ -46,12 +46,12 @@ const SearchService = ({
         {open && (
           <CommandList className="absolute z-10 mt-10 w-full max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-lg">
             <CommandEmpty>No results found.</CommandEmpty>
-            {services.map((service) => (
+            {services.map(service => (
               <CommandGroup key={service.id}>
                 <CommandItem
                   value={service.name ?? String(service.id)}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onSelect={(val) => {
+                  onMouseDown={e => e.preventDefault()}
+                  onSelect={val => {
                     setTypedText(val);
                     setSelectedServices?.(val);
                     onPick?.(val);

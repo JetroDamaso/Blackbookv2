@@ -7,9 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 // Define the mode of payment type
 type ModeOfPaymentWithRelations = Awaited<
-  ReturnType<
-    typeof import("@/server/modeofpayment/pullActions").getAllModeOfPayments
-  >
+  ReturnType<typeof import("@/server/modeofpayment/pullActions").getAllModeOfPayments>
 >[number];
 
 export const columns: ColumnDef<ModeOfPaymentWithRelations>[] = [
@@ -18,18 +16,17 @@ export const columns: ColumnDef<ModeOfPaymentWithRelations>[] = [
     header: ({ table }) => (
       <Checkbox
         checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
+          table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")
         }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
       />
     ),
     cell: ({ row }) => (
-      <div onClick={(e) => e.stopPropagation()}>
+      <div onClick={e => e.stopPropagation()}>
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onCheckedChange={value => row.toggleSelected(!!value)}
           aria-label="Select row"
         />
       </div>

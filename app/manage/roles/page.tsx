@@ -24,9 +24,7 @@ export default function ManageRoles() {
   if (error) {
     return (
       <div className="container mx-auto py-10">
-        <div className="text-center text-red-500">
-          Error loading roles: {error.message}
-        </div>
+        <div className="text-center text-red-500">Error loading roles: {error.message}</div>
       </div>
     );
   }

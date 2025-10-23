@@ -31,28 +31,23 @@ export default function ManageDiscounts() {
   if (error) {
     return (
       <div className="container mx-auto py-10">
-        <div className="text-center text-red-500">
-          Error loading discounts: {error.message}
-        </div>
+        <div className="text-center text-red-500">Error loading discounts: {error.message}</div>
       </div>
     );
   }
 
   // Calculate average percentage for percentage-based discounts only
-  const percentageDiscounts =
-    data?.filter((discount) => discount.percent !== null) || [];
+  const percentageDiscounts = data?.filter(discount => discount.percent !== null) || [];
   const averageDiscount = percentageDiscounts.length
     ? (
-        percentageDiscounts.reduce(
-          (sum, discount) => sum + (discount.percent || 0),
-          0
-        ) / percentageDiscounts.length
+        percentageDiscounts.reduce((sum, discount) => sum + (discount.percent || 0), 0) /
+        percentageDiscounts.length
       ).toFixed(1)
     : "0";
 
   // Find maximum percentage discount
   const maxDiscount = percentageDiscounts.length
-    ? Math.max(...percentageDiscounts.map((d) => d.percent || 0))
+    ? Math.max(...percentageDiscounts.map(d => d.percent || 0))
     : 0;
 
   return (
@@ -87,20 +82,14 @@ export default function ManageDiscounts() {
         <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
           <div className="flex flex-col">
             <p className="text-md">Max % Discount</p>
-            <p className="text-4xl font-semibold text-green-600">
-              {maxDiscount}%
-            </p>
+            <p className="text-4xl font-semibold text-green-600">{maxDiscount}%</p>
             <p className="text-xs">Highest percentage</p>
           </div>
         </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
-        <DataTable
-          columns={columns}
-          data={data || []}
-          onRowClick={handleRowClick}
-        />
+        <DataTable columns={columns} data={data || []} onRowClick={handleRowClick} />
       </div>
     </>
   );

@@ -1,14 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import {
-  Calendar,
-  Users,
-  Package,
-  FileText,
-  Settings,
-  BarChart3,
-} from "lucide-react";
+import { Calendar, Users, Package, FileText, Settings, BarChart3 } from "lucide-react";
 
 const ManageMainPage = () => {
   return (
@@ -28,9 +21,7 @@ const ManageMainPage = () => {
                 <Calendar className="h-8 w-8 text-primary" />
                 <div>
                   <h2 className="text-lg font-semibold">Bookings</h2>
-                  <p className="text-sm text-muted-foreground">
-                    View and manage all bookings
-                  </p>
+                  <p className="text-sm text-muted-foreground">View and manage all bookings</p>
                 </div>
               </div>
             </div>
@@ -42,9 +33,7 @@ const ManageMainPage = () => {
                 <Users className="h-8 w-8 text-primary" />
                 <div>
                   <h2 className="text-lg font-semibold">Clients</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Manage client information
-                  </p>
+                  <p className="text-sm text-muted-foreground">Manage client information</p>
                 </div>
               </div>
             </div>
@@ -56,9 +45,7 @@ const ManageMainPage = () => {
                 <Package className="h-8 w-8 text-primary" />
                 <div>
                   <h2 className="text-lg font-semibold">Inventory</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Track and manage inventory
-                  </p>
+                  <p className="text-sm text-muted-foreground">Track and manage inventory</p>
                 </div>
               </div>
             </div>
@@ -70,9 +57,7 @@ const ManageMainPage = () => {
                 <BarChart3 className="h-8 w-8 text-primary" />
                 <div>
                   <h2 className="text-lg font-semibold">Reports</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Generate and view reports
-                  </p>
+                  <p className="text-sm text-muted-foreground">Generate and view reports</p>
                 </div>
               </div>
             </div>
@@ -84,9 +69,7 @@ const ManageMainPage = () => {
                 <Settings className="h-8 w-8 text-primary" />
                 <div>
                   <h2 className="text-lg font-semibold">Settings</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Configure application settings
-                  </p>
+                  <p className="text-sm text-muted-foreground">Configure application settings</p>
                 </div>
               </div>
             </div>

@@ -32,7 +32,7 @@ export async function getDishesByMenuId(menuId: number) {
       where: { menuId },
       include: { dish: { include: { category: true } } },
     });
-    return rows.map((r) => ({
+    return rows.map(r => ({
       id: r.dish?.id ?? 0,
       name: r.dish?.name ?? "",
       categoryName: r.dish?.category?.name,

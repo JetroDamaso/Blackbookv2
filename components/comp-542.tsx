@@ -141,15 +141,11 @@ export default function Component() {
   };
 
   const handleEventUpdate = (updatedEvent: CalendarEvent) => {
-    setEvents(
-      events.map((event) =>
-        event.id === updatedEvent.id ? updatedEvent : event
-      )
-    );
+    setEvents(events.map(event => (event.id === updatedEvent.id ? updatedEvent : event)));
   };
 
   const handleEventDelete = (eventId: string) => {
-    setEvents(events.filter((event) => event.id !== eventId));
+    setEvents(events.filter(event => event.id !== eventId));
   };
 
   return (

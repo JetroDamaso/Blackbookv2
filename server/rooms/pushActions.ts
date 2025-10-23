@@ -2,10 +2,7 @@
 
 import { prisma } from "@/server/db";
 
-export async function createRoom(data: {
-  name: string;
-  capacity: number;
-}) {
+export async function createRoom(data: { name: string; capacity: number }) {
   try {
     const room = await prisma.rooms.create({
       data: {

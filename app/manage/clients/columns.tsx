@@ -17,18 +17,17 @@ export const columns: ColumnDef<ClientWithRelations>[] = [
     header: ({ table }) => (
       <Checkbox
         checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
+          table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")
         }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
       />
     ),
     cell: ({ row }) => (
-      <div onClick={(e) => e.stopPropagation()}>
+      <div onClick={e => e.stopPropagation()}>
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onCheckedChange={value => row.toggleSelected(!!value)}
           aria-label="Select row"
         />
       </div>
@@ -38,7 +37,7 @@ export const columns: ColumnDef<ClientWithRelations>[] = [
   },
   {
     id: "fullName",
-    accessorFn: (row) => `${row.firstName} ${row.lastName}`,
+    accessorFn: row => `${row.firstName} ${row.lastName}`,
     header: ({ column }) => {
       return (
         <Button
@@ -94,7 +93,7 @@ export const columns: ColumnDef<ClientWithRelations>[] = [
   },
   {
     id: "address",
-    accessorFn: (row) => `${row.municipality}, ${row.province}`,
+    accessorFn: row => `${row.municipality}, ${row.province}`,
     header: ({ column }) => {
       return (
         <Button
@@ -119,7 +118,7 @@ export const columns: ColumnDef<ClientWithRelations>[] = [
   },
   {
     id: "totalBookings",
-    accessorFn: (row) => row.bookings?.length ?? 0,
+    accessorFn: row => row.bookings?.length ?? 0,
     header: ({ column }) => {
       return (
         <Button
@@ -142,8 +141,7 @@ export const columns: ColumnDef<ClientWithRelations>[] = [
   },
   {
     id: "activeBookings",
-    accessorFn: (row) =>
-      row.bookings?.filter((booking) => booking.status === 1).length ?? 0,
+    accessorFn: row => row.bookings?.filter(booking => booking.status === 1).length ?? 0,
     header: ({ column }) => {
       return (
         <Button
@@ -157,13 +155,10 @@ export const columns: ColumnDef<ClientWithRelations>[] = [
     },
     cell: ({ row }) => {
       const activeBookings =
-        row.original.bookings?.filter((booking) => booking.status === 1)
-          .length ?? 0;
+        row.original.bookings?.filter(booking => booking.status === 1).length ?? 0;
       return (
         <div className="text-center">
-          <Badge variant={activeBookings > 0 ? "default" : "secondary"}>
-            {activeBookings}
-          </Badge>
+          <Badge variant={activeBookings > 0 ? "default" : "secondary"}>{activeBookings}</Badge>
         </div>
       );
     },

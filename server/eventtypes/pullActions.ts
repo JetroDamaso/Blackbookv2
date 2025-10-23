@@ -13,7 +13,7 @@ export async function getAllEventTypes() {
         },
       },
       orderBy: {
-        name: 'asc',
+        name: "asc",
       },
     });
     return data;

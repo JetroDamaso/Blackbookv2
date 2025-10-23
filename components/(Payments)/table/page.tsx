@@ -11,29 +11,16 @@ import {
   InputGroupAddon,
   InputGroupButton,
 } from "@/components/ui/input-group";
-import {
-  Dot,
-  HandCoins,
-  Notebook,
-  SearchIcon,
-  Users,
-  UserSquareIcon,
-} from "lucide-react";
+import { Dot, HandCoins, Notebook, SearchIcon, Users, UserSquareIcon } from "lucide-react";
 import { AppSidebar } from "@/components/app-sidebar";
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "radix-ui";
 import { Breadcrumb } from "react-aria-components";
 import { ChartPieSimple } from "@/components/Charts/EventDistribution";
 import { ChartBarDefault } from "@/components/Charts/TotalBookingsChart";
 
 export default function ManagePayments() {
-  const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(
-    null
-  );
+  const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const { isPending, error, data } = useQuery({
@@ -62,18 +49,10 @@ export default function ManagePayments() {
   if (error) {
     return (
       <div className="container mx-auto py-10">
-        <div className="text-center text-red-500">
-          Error loading payments: {error.message}
-        </div>
+        <div className="text-center text-red-500">Error loading payments: {error.message}</div>
       </div>
     );
   }
 
-  return (
-    <DataTable
-      columns={columns}
-      data={data || []}
-      onRowClick={handleRowClick}
-    />
-  );
+  return <DataTable columns={columns} data={data || []} onRowClick={handleRowClick} />;
 }

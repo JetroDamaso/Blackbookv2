@@ -24,19 +24,14 @@ export default function ManageRooms() {
   if (error) {
     return (
       <div className="container mx-auto py-10">
-        <div className="text-center text-red-500">
-          Error loading rooms: {error.message}
-        </div>
+        <div className="text-center text-red-500">Error loading rooms: {error.message}</div>
       </div>
     );
   }
 
-  const totalCapacity =
-    data?.reduce((sum, room) => sum + room.capacity, 0) || 0;
+  const totalCapacity = data?.reduce((sum, room) => sum + room.capacity, 0) || 0;
 
-  const averageCapacity = data?.length
-    ? Math.round(totalCapacity / data.length)
-    : 0;
+  const averageCapacity = data?.length ? Math.round(totalCapacity / data.length) : 0;
 
   return (
     <>

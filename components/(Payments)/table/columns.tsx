@@ -9,9 +9,7 @@ import { format } from "date-fns";
 
 // Define the payment type with relations
 type PaymentWithRelations = Awaited<
-  ReturnType<
-    typeof import("@/server/Billing & Payments/pullActions").getAllPayments
-  >
+  ReturnType<typeof import("@/server/Billing & Payments/pullActions").getAllPayments>
 >[number];
 
 export const columns: ColumnDef<PaymentWithRelations>[] = [
@@ -20,18 +18,17 @@ export const columns: ColumnDef<PaymentWithRelations>[] = [
     header: ({ table }) => (
       <Checkbox
         checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
+          table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")
         }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
       />
     ),
     cell: ({ row }) => (
-      <div onClick={(e) => e.stopPropagation()}>
+      <div onClick={e => e.stopPropagation()}>
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onCheckedChange={value => row.toggleSelected(!!value)}
           aria-label="Select row"
         />
       </div>

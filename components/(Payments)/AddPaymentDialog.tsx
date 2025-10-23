@@ -1,18 +1,20 @@
-import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger,
   DialogOverlay,
   DialogPortal,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Button } from "../ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -20,27 +22,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "../ui/label";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  getModeOfPayments,
-  getBillingSummary,
-} from "@/server/Billing & Payments/pullActions";
+import { Textarea } from "@/components/ui/textarea";
+import { getBillingSummary, getModeOfPayments } from "@/server/Billing & Payments/pullActions";
 import { createPayment } from "@/server/Billing & Payments/pushActions";
-import { Input } from "../ui/input";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
-  InputGroupTextarea,
-} from "@/components/ui/input-group";
-import { FileUpload } from "../(Manage)/FileUpload";
-import { CalendarIcon, HandCoins } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Calendar } from "../ui/calendar";
+import { CalendarIcon, HandCoins } from "lucide-react";
+import React, { useState } from "react";
 import { toast } from "sonner";
+import { Button } from "../ui/button";
+import { Calendar } from "../ui/calendar";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 
 type AddPaymentDialogProps = {
   billingId: number;
@@ -183,15 +177,12 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
               <DialogDescription className="grid grid-cols-2 gap-4">
                 <div className="gap-2 flex flex-col">
                   <Label className="font-normal">Mode of payment *</Label>
-                  <Select
-                    value={modeOfPayment}
-                    onValueChange={setModeOfPayment}
-                  >
+                  <Select value={modeOfPayment} onValueChange={setModeOfPayment}>
                     <SelectTrigger>
                       <SelectValue placeholder="Mode of payment" />
                     </SelectTrigger>
                     <SelectContent className="z-[201]">
-                      {mopData?.map((mop) => (
+                      {mopData?.map(mop => (
                         <SelectItem key={mop.id} value={mop.id.toString()}>
                           {mop.name}
                         </SelectItem>
@@ -208,17 +199,15 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                     <InputGroupInput
                       placeholder="0.00"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={e => setAmount(e.target.value)}
                       step="0.01"
                       min="0"
                       className={
-                        billingSummary &&
-                        amount &&
-                        parseFloat(amount) > billingSummary.balance
+                        billingSummary && amount && parseFloat(amount) > billingSummary.balance
                           ? "border-red-500 focus:border-red-500"
                           : ""
                       }
-                      onKeyDown={(e) => {
+                      onKeyDown={e => {
                         if (
                           [8, 9, 27, 13, 46].indexOf(e.keyCode) !== -1 ||
                           // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
@@ -244,16 +233,14 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                       <InputGroupText>PHP</InputGroupText>
                     </InputGroupAddon>
                   </InputGroup>
-                  {billingSummary &&
-                    amount &&
-                    parseFloat(amount) > billingSummary.balance && (
-                      <p className="text-xs text-red-500 mt-1">
-                        Amount exceeds remaining balance of ₱
-                        {billingSummary.balance.toLocaleString("en-PH", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </p>
-                    )}
+                  {billingSummary && amount && parseFloat(amount) > billingSummary.balance && (
+                    <p className="text-xs text-red-500 mt-1">
+                      Amount exceeds remaining balance of ₱
+                      {billingSummary.balance.toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}
+                    </p>
+                  )}
                 </div>
 
                 <div className="gap-2 flex flex-col">
@@ -261,7 +248,7 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                   <Input
                     placeholder="Official Receipt Number"
                     value={orNumber}
-                    onChange={(e) => setOrNumber(e.target.value)}
+                    onChange={e => setOrNumber(e.target.value)}
                   />
                 </div>
 
@@ -282,9 +269,7 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                       <Calendar
                         mode="single"
                         selected={date}
-                        onSelect={(selectedDate) =>
-                          setDate(selectedDate || new Date())
-                        }
+                        onSelect={selectedDate => setDate(selectedDate || new Date())}
                         required
                       />
                     </PopoverContent>
@@ -309,7 +294,7 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                   <Label className="font-normal">Notes</Label>
                   <Textarea
                     value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    onChange={e => setNotes(e.target.value)}
                     placeholder="Optional notes about this payment..."
                   />
                 </div>
@@ -323,11 +308,7 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                 type="submit"
                 disabled={
                   createPaymentMutation.isPending ||
-                  Boolean(
-                    billingSummary &&
-                      amount &&
-                      parseFloat(amount) > billingSummary.balance
-                  )
+                  Boolean(billingSummary && amount && parseFloat(amount) > billingSummary.balance)
                 }
               >
                 {createPaymentMutation.isPending ? "Adding..." : "Add Payment"}

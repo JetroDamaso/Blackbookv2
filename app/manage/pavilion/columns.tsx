@@ -1,16 +1,14 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, Users } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 
 // Define the pavilion type with relations
 type PavilionWithRelations = Awaited<
-  ReturnType<
-    typeof import("@/server/Pavilions/Actions/pullActions").getAllPavilions
-  >
+  ReturnType<typeof import("@/server/Pavilions/Actions/pullActions").getAllPavilions>
 >[number];
 
 export const columns: ColumnDef<PavilionWithRelations>[] = [
@@ -19,18 +17,17 @@ export const columns: ColumnDef<PavilionWithRelations>[] = [
     header: ({ table }) => (
       <Checkbox
         checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
+          table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")
         }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
       />
     ),
     cell: ({ row }) => (
-      <div onClick={(e) => e.stopPropagation()}>
+      <div onClick={e => e.stopPropagation()}>
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onCheckedChange={value => row.toggleSelected(!!value)}
           aria-label="Select row"
         />
       </div>
@@ -129,10 +126,7 @@ export const columns: ColumnDef<PavilionWithRelations>[] = [
     cell: ({ row }) => {
       const description = row.getValue("description") as string;
       return (
-        <div
-          className="max-w-[200px] truncate text-sm text-muted-foreground"
-          title={description}
-        >
+        <div className="max-w-[200px] truncate text-sm text-muted-foreground" title={description}>
           {description}
         </div>
       );
@@ -140,7 +134,7 @@ export const columns: ColumnDef<PavilionWithRelations>[] = [
   },
   {
     id: "totalBookings",
-    accessorFn: (row) => 0, // Will be calculated from relationship
+    accessorFn: row => 0, // Will be calculated from relationship
     header: ({ column }) => {
       return (
         <Button
@@ -163,7 +157,7 @@ export const columns: ColumnDef<PavilionWithRelations>[] = [
   },
   {
     id: "activeBookings",
-    accessorFn: (row) => 0, // Will be calculated from relationship
+    accessorFn: row => 0, // Will be calculated from relationship
     header: ({ column }) => {
       return (
         <Button
@@ -179,9 +173,7 @@ export const columns: ColumnDef<PavilionWithRelations>[] = [
       const activeBookings = 0; // Will be calculated from relationship
       return (
         <div className="text-center">
-          <Badge variant={activeBookings > 0 ? "default" : "secondary"}>
-            {activeBookings}
-          </Badge>
+          <Badge variant={activeBookings > 0 ? "default" : "secondary"}>{activeBookings}</Badge>
         </div>
       );
     },

@@ -24,13 +24,8 @@ import TimeEndPickerComponent from "../TimeDatePicker/timeEndPicker";
 
 export default function AddClientButton() {
   const id = useId();
-  const {
-    meta,
-    getCardNumberProps,
-    getExpiryDateProps,
-    getCVCProps,
-    getCardImageProps,
-  } = usePaymentInputs();
+  const { meta, getCardNumberProps, getExpiryDateProps, getCVCProps, getCardImageProps } =
+    usePaymentInputs();
 
   return (
     <Dialog>

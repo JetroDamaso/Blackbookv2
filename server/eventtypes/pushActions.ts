@@ -2,9 +2,7 @@
 
 import { prisma } from "@/server/db";
 
-export async function createEventType(data: {
-  name: string;
-}) {
+export async function createEventType(data: { name: string }) {
   try {
     const eventType = await prisma.eventTypes.create({
       data: {

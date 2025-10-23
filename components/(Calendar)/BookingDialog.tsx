@@ -1,4 +1,10 @@
-import React, { useId } from "react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -7,10 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { StartDatePickerForm } from "../(Bookings)/(AddBookings)/TimeDatePicker/startDatePicker";
-import { EndDatePickerForm } from "../(Bookings)/(AddBookings)/TimeDatePicker/endDatePicker";
-import TimeStartPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeStartPicker";
-import TimeEndPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeEndPicker";
 import {
   Table,
   TableBody,
@@ -20,34 +22,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Textarea } from "../ui/textarea";
-import { useQuery } from "@tanstack/react-query";
-import { getBookingsById } from "@/server/Booking/pullActions";
-import { getClientsById } from "@/server/clients/pullActions";
 import {
   getBillingById,
+  getBillingSummary,
   getEventTypeById,
 } from "@/server/Billing & Payments/pullActions";
-import {
-  getMenuByBookingId,
-  getDishesByMenuId,
-} from "@/server/Menu/pullActions";
-import {
-  getServicesByBooking,
-  getServicesCategory,
-} from "@/server/Services/pullActions";
-import { getPavilionsById } from "@/server/Pavilions/Actions/pullActions";
+import { getBookingsById } from "@/server/Booking/pullActions";
+import { getClientsById } from "@/server/clients/pullActions";
+import { getDishesByMenuId, getMenuByBookingId } from "@/server/Menu/pullActions";
 import { getPackagesById } from "@/server/Packages/pullActions";
+import { getPavilionsById } from "@/server/Pavilions/Actions/pullActions";
+import { getServicesByBooking, getServicesCategory } from "@/server/Services/pullActions";
+import { useQuery } from "@tanstack/react-query";
+import { useId } from "react";
+import { EndDatePickerForm } from "../(Bookings)/(AddBookings)/TimeDatePicker/endDatePicker";
+import { StartDatePickerForm } from "../(Bookings)/(AddBookings)/TimeDatePicker/startDatePicker";
+import TimeEndPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeEndPicker";
+import TimeStartPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeStartPicker";
 import AddPaymentDialog from "../(Payments)/AddPaymentDialog";
 import ViewPaymentDialog from "../(Payments)/ViewPaymentDialog";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../ui/input-group";
+import { Textarea } from "../ui/textarea";
 
 // Removed placeholder items; real data queried below
 
@@ -97,13 +92,20 @@ export default function BookingDialogComponent({
 
   const packages = packageData?.[0];
 
-  const { data: billingData, isPending: billingLoading } = useQuery({
+  // Get basic billing data first
+  const { data: billingData } = useQuery({
     queryKey: ["billing", booking?.id],
     queryFn: () => getBillingById(Number(booking?.id)),
-    enabled: !!booking?.id, // ← ✅ correct dependency
+    enabled: !!booking?.id,
   });
 
   const billing = billingData?.[0];
+
+  const { data: billingSummary, isPending: billingLoading } = useQuery({
+    queryKey: ["billingSummary", billing?.id],
+    queryFn: () => getBillingSummary(Number(billing?.id)),
+    enabled: !!billing?.id,
+  });
 
   // (Other services categories not currently used for dishes table)
 
@@ -131,12 +133,7 @@ export default function BookingDialogComponent({
   }
 
   const dishesJoined: DishRow[] = (menuDishes || []).map(
-    (dish: {
-      id: number;
-      name: string;
-      categoryName?: string;
-      quantity: number;
-    }) => ({
+    (dish: { id: number; name: string; categoryName?: string; quantity: number }) => ({
       id: dish.id,
       name: dish.name,
       categoryName: dish.categoryName ?? "—",
@@ -361,11 +358,9 @@ export default function BookingDialogComponent({
                                   </TableCell>
                                 </TableRow>
                               )}
-                              {dishesJoined.map((dish) => (
+                              {dishesJoined.map(dish => (
                                 <TableRow key={dish.id}>
-                                  <TableCell className="font-medium">
-                                    {dish.name}
-                                  </TableCell>
+                                  <TableCell className="font-medium">{dish.name}</TableCell>
                                   <TableCell>{dish.categoryName}</TableCell>
                                   <TableCell>{dish.quantity}</TableCell>
                                 </TableRow>
@@ -391,19 +386,14 @@ export default function BookingDialogComponent({
                   <TableBody>
                     {bookingOtherServices.length === 0 && (
                       <TableRow>
-                        <TableCell
-                          colSpan={2}
-                          className="text-muted-foreground"
-                        >
+                        <TableCell colSpan={2} className="text-muted-foreground">
                           No other services
                         </TableCell>
                       </TableRow>
                     )}
-                    {bookingOtherServices.map((srv) => (
+                    {bookingOtherServices.map(srv => (
                       <TableRow key={srv.id}>
-                        <TableCell className="font-medium">
-                          {srv.name}
-                        </TableCell>
+                        <TableCell className="font-medium">{srv.name}</TableCell>
                         <TableCell>{srv.categoryName}</TableCell>
                       </TableRow>
                     ))}
@@ -452,26 +442,6 @@ export default function BookingDialogComponent({
                   defaultValue={`${clientData?.region}, ${clientData?.province}, ${clientData?.municipality}, ${clientData?.barangay}`}
                 />
               </div>
-              <div className="flex gap-2 w-full">
-                <div className="mt-4 grow">
-                  <Label className="font-normal">Mode of Payment</Label>
-                  <Input
-                    className="mt-2"
-                    placeholder="Mode of Payment"
-                    type="text"
-                    defaultValue={billing?.modeOfPayment}
-                  />
-                </div>
-                <div className="mt-4 grow">
-                  <Label className="font-normal">Discount</Label>
-                  <Input
-                    className="mt-2"
-                    placeholder="Discount"
-                    type="text"
-                    defaultValue={billing?.discountType}
-                  />
-                </div>
-              </div>
 
               <div className="mt-4">
                 <div className="grid grid-cols-2 mt-2 divide-x divide-neutral-200">
@@ -493,42 +463,122 @@ export default function BookingDialogComponent({
                     </div>
                   </div>
                   <div className="w-full px-2">
-                    <p className="text-md font-medium">Totals: </p>
-                    <div className="">
-                      <Label className="font-normal">Original Price</Label>
-                      <Input
-                        className="text-end"
-                        placeholder="Original Price"
-                        type="text"
-                        defaultValue={billing?.originalPrice}
-                      />
+                    <div className="flex justify-between items-center mb-3">
+                      <p className="text-md font-medium">Totals: </p>
+                      <div
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          (billingSummary?.balance || 0) === 0
+                            ? "bg-green-100 text-green-800"
+                            : (billingSummary?.totalPaid || 0) > 0
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {(billingSummary?.balance || 0) === 0
+                          ? "Fully Paid"
+                          : (billingSummary?.totalPaid || 0) > 0
+                            ? "Partially Paid"
+                            : "Unpaid"}
+                      </div>
                     </div>
-                    <div className="">
-                      <Label className="font-normal">Discounted Price</Label>
-                      <Input
-                        className="text-end"
-                        placeholder="Discounted Price"
-                        type="text"
-                        defaultValue={billing?.discountedPrice}
-                      />
-                    </div>
-                    <div className="mt-1">
-                      <Label className="font-normal">Downpayment</Label>
-                      <Input
-                        className="text-end"
-                        placeholder="Downpayment"
-                        type="text"
-                        defaultValue={billing?.deposit}
-                      />
-                    </div>
-                    <div className="mt-1">
-                      <Label className="font-normal">Balance</Label>
-                      <Input
-                        className="text-end"
-                        placeholder="Balance"
-                        type="text"
-                        defaultValue={billing?.balance}
-                      />
+
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-2">
+                        <Label className="font-normal">Amount:</Label>
+                        <InputGroup>
+                          <InputGroupAddon>
+                            <InputGroupText>₱</InputGroupText>
+                          </InputGroupAddon>
+                          <InputGroupInput
+                            className="text-end"
+                            placeholder="0.00"
+                            value={
+                              billingSummary?.originalPrice?.toLocaleString("en-US", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              }) || "0.00"
+                            }
+                            readOnly
+                          />
+                          <InputGroupAddon align="inline-end">
+                            <InputGroupText>PHP</InputGroupText>
+                          </InputGroupAddon>
+                        </InputGroup>
+                      </div>
+
+                      {billingSummary?.discountType && billingSummary?.discountType !== "none" && (
+                        <div className="flex flex-col gap-2">
+                          <Label className="font-normal">
+                            Discount ({billingSummary?.discountType}):
+                          </Label>
+                          <InputGroup>
+                            <InputGroupAddon>
+                              <InputGroupText>₱</InputGroupText>
+                            </InputGroupAddon>
+                            <InputGroupInput
+                              className="text-end"
+                              placeholder="0.00"
+                              value={(
+                                (billingSummary?.originalPrice || 0) -
+                                (billingSummary?.totalBilling || 0)
+                              ).toLocaleString("en-US", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                              readOnly
+                            />
+                            <InputGroupAddon align="inline-end">
+                              <InputGroupText>PHP</InputGroupText>
+                            </InputGroupAddon>
+                          </InputGroup>
+                        </div>
+                      )}
+
+                      <div className="flex flex-col gap-2">
+                        <Label className="font-normal">Total Paid:</Label>
+                        <InputGroup>
+                          <InputGroupAddon>
+                            <InputGroupText>₱</InputGroupText>
+                          </InputGroupAddon>
+                          <InputGroupInput
+                            className="text-end text-green-600"
+                            placeholder="0.00"
+                            value={
+                              billingSummary?.totalPaid?.toLocaleString("en-US", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              }) || "0.00"
+                            }
+                            readOnly
+                          />
+                          <InputGroupAddon align="inline-end">
+                            <InputGroupText>PHP</InputGroupText>
+                          </InputGroupAddon>
+                        </InputGroup>
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <Label className="font-normal">Balance Due:</Label>
+                        <InputGroup>
+                          <InputGroupAddon>
+                            <InputGroupText>₱</InputGroupText>
+                          </InputGroupAddon>
+                          <InputGroupInput
+                            className={`text-end ${(billingSummary?.balance || 0) > 0 ? "text-orange-600" : "text-green-600"}`}
+                            placeholder="0.00"
+                            value={
+                              billingSummary?.balance?.toLocaleString("en-US", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              }) || "0.00"
+                            }
+                            readOnly
+                          />
+                          <InputGroupAddon align="inline-end">
+                            <InputGroupText>PHP</InputGroupText>
+                          </InputGroupAddon>
+                        </InputGroup>
+                      </div>
                     </div>
                   </div>
                 </div>

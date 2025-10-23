@@ -1,10 +1,7 @@
-"use server"
+"use server";
 import { prisma } from "../db";
 
-export async function createNewService(
-  serviceName: string,
-  categoryId: number
-) {
+export async function createNewService(serviceName: string, categoryId: number) {
   try {
     const data = await prisma.otherService.create({
       data: {

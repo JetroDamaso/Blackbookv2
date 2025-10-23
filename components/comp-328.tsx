@@ -1,12 +1,12 @@
-"use client"
+"use client";
 
-import { useId } from "react"
-import { CreditCardIcon, WalletIcon } from "lucide-react"
-import { usePaymentInputs } from "react-payment-inputs"
-import images, { type CardImages } from "react-payment-inputs/images"
+import { useId } from "react";
+import { CreditCardIcon, WalletIcon } from "lucide-react";
+import { usePaymentInputs } from "react-payment-inputs";
+import images, { type CardImages } from "react-payment-inputs/images";
 
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -14,19 +14,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function Component() {
-  const id = useId()
-  const {
-    meta,
-    getCardNumberProps,
-    getExpiryDateProps,
-    getCVCProps,
-    getCardImageProps,
-  } = usePaymentInputs()
+  const id = useId();
+  const { meta, getCardNumberProps, getExpiryDateProps, getCVCProps, getCardImageProps } =
+    usePaymentInputs();
 
   return (
     <Dialog>
@@ -89,20 +84,13 @@ export default function Component() {
               </div>
               <div className="flex-1 space-y-2">
                 <Label htmlFor={`cvc-${id}`}>CVC</Label>
-                <Input
-                  className="[direction:inherit]"
-                  {...getCVCProps()}
-                  id={`cvc-${id}`}
-                />
+                <Input className="[direction:inherit]" {...getCVCProps()} id={`cvc-${id}`} />
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Checkbox id={`primary-${id}`} />
-            <Label
-              htmlFor={`primary-${id}`}
-              className="text-muted-foreground font-normal"
-            >
+            <Label htmlFor={`primary-${id}`} className="text-muted-foreground font-normal">
               Set as default payment method
             </Label>
           </div>
@@ -112,5 +100,5 @@ export default function Component() {
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -3,16 +3,12 @@
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import React from "react";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import React from "react";
 
 export function EndDatePickerForm({
   endDateOnChange,
@@ -28,8 +24,7 @@ export function EndDatePickerForm({
   const [endDate, setEndDate] = React.useState<Date | undefined>(() => {
     if (!initialDate) return undefined;
     try {
-      const d =
-        typeof initialDate === "string" ? new Date(initialDate) : initialDate;
+      const d = typeof initialDate === "string" ? new Date(initialDate) : initialDate;
       return isNaN(d.getTime()) ? undefined : d;
     } catch {
       return undefined;
@@ -43,18 +38,13 @@ export function EndDatePickerForm({
   return (
     <div className="w-full">
       <div className="mb-2">
-        <Label className="text-foreground/50 text-sm font-normal mb-2">
-          End date
-        </Label>
+        <Label className="text-foreground/50 text-sm font-normal mb-2">End date</Label>
       </div>
       <Popover>
         <PopoverTrigger asChild>
           <Button
             variant={"outline"}
-            className={cn(
-              "w-full pl-3 text-left font-normal",
-              !endDate && "text-muted-foreground"
-            )}
+            className={cn("w-full pl-3 text-left font-normal", !endDate && "text-muted-foreground")}
           >
             {endDate ? format(endDate, "PPP") : <span>Pick a date</span>}
             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -65,7 +55,7 @@ export function EndDatePickerForm({
             mode="single"
             selected={endDate}
             onSelect={handleSelect}
-            disabled={(date) => {
+            disabled={date => {
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               if (date < today) return true;

@@ -37,13 +37,11 @@ export default function RegionComboBoxComponent({
   const [barangayValue, setBarangayValue] = React.useState("");
 
   const [provincesValues, setProvincesValues] = React.useState<Array<string>>();
-  const [municipalitiesValues, setmunicipalitiesValues] =
-    React.useState<Array<string>>();
+  const [municipalitiesValues, setmunicipalitiesValues] = React.useState<Array<string>>();
   const [barangayValues, setBarangayValues] = React.useState<Array<string>>();
 
   const [openProvince, setopenProvince] = React.useState<boolean>(false);
-  const [openMunicipality, setopenMunicipality] =
-    React.useState<boolean>(false);
+  const [openMunicipality, setopenMunicipality] = React.useState<boolean>(false);
   const [openBarangay, setopenBarangay] = React.useState<boolean>(false);
 
   const handleClickRegion = (value: string) => {
@@ -54,7 +52,7 @@ export default function RegionComboBoxComponent({
     const allProvinces = regions.find(value);
 
     const mappedProvinces = allProvinces ? allProvinces.provinces : [];
-    setProvincesValues(mappedProvinces.map((province) => province.name));
+    setProvincesValues(mappedProvinces.map(province => province.name));
     regionOnChange(value);
 
     if (mappedProvinces.length > 0) {
@@ -67,13 +65,9 @@ export default function RegionComboBoxComponent({
     setProvinceValue(value);
 
     const allMunicipalities = provinces.find(value);
-    const mappedMunicipalities = allMunicipalities
-      ? allMunicipalities.municipalities
-      : [];
+    const mappedMunicipalities = allMunicipalities ? allMunicipalities.municipalities : [];
 
-    setmunicipalitiesValues(
-      mappedMunicipalities.map((municipality) => municipality.name)
-    );
+    setmunicipalitiesValues(mappedMunicipalities.map(municipality => municipality.name));
     provinceOnChange(value);
     if (mappedMunicipalities.length > 0) {
       setopenMunicipality(true);
@@ -87,7 +81,7 @@ export default function RegionComboBoxComponent({
     const allBarangays = municipalities.find(value);
     const mappedBarangays = allBarangays ? allBarangays.barangays : [];
 
-    setBarangayValues(mappedBarangays.map((barangay) => barangay.name));
+    setBarangayValues(mappedBarangays.map(barangay => barangay.name));
     municipalityOnChange(value);
     if (mappedBarangays.length > 0) {
       setopenBarangay(true);
@@ -102,10 +96,7 @@ export default function RegionComboBoxComponent({
   return (
     <div className="grid grid-cols-2 gap-3">
       <div>
-        <Label
-          htmlFor={"region"}
-          className="mb-3 font-normal text-foreground/50"
-        >
+        <Label htmlFor={"region"} className="mb-3 font-normal text-foreground/50">
           Region
         </Label>
         <div className="mt-2">
@@ -114,7 +105,7 @@ export default function RegionComboBoxComponent({
               <SelectValue placeholder="Select region" />
             </SelectTrigger>
             <SelectContent>
-              {allRegions.map((region) => (
+              {allRegions.map(region => (
                 <SelectItem value={region.name} key={region.name}>
                   {region.name}
                 </SelectItem>
@@ -135,7 +126,7 @@ export default function RegionComboBoxComponent({
                 <SelectValue placeholder="Select province" />
               </SelectTrigger>
               <SelectContent>
-                {provincesValues?.map((region) => (
+                {provincesValues?.map(region => (
                   <SelectItem value={region} key={region}>
                     {region}
                   </SelectItem>
@@ -152,15 +143,12 @@ export default function RegionComboBoxComponent({
             Municipality
           </Label>
           <div className="mt-2">
-            <Select
-              value={municipalityValue}
-              onValueChange={handleClickMunicipality}
-            >
+            <Select value={municipalityValue} onValueChange={handleClickMunicipality}>
               <SelectTrigger id={municipalityID}>
                 <SelectValue placeholder="Select province" />
               </SelectTrigger>
               <SelectContent>
-                {municipalitiesValues?.map((municipalities) => (
+                {municipalitiesValues?.map(municipalities => (
                   <SelectItem value={municipalities} key={municipalities}>
                     {municipalities}
                   </SelectItem>
@@ -173,10 +161,7 @@ export default function RegionComboBoxComponent({
 
       <div hidden={!openBarangay} className="">
         <div className="">
-          <Label
-            htmlFor={"barangay"}
-            className="font-normal text-foreground/50"
-          >
+          <Label htmlFor={"barangay"} className="font-normal text-foreground/50">
             Barangay
           </Label>
           <div className="mt-2">

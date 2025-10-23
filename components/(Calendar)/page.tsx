@@ -1,29 +1,13 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { ContinuousCalendar } from "../ContinuousCalendar";
 import type { Booking } from "@/generated/prisma";
-import BookingDialogComponent from "./BookingDialog";
-import { Calendar } from "../ui/calendar";
+import { getAllPavilions } from "@/server/Pavilions/Actions/pullActions";
+import { useQuery } from "@tanstack/react-query";
+import React, { useEffect, useState } from "react";
+import { ContinuousCalendar } from "../ContinuousCalendar";
 import { ScrollArea } from "../ui/scroll-area";
-import {
-  ArrowRight,
-  Castle,
-  ChefHat,
-  Package,
-  UsersRound,
-  WavesLadder,
-} from "lucide-react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "../ui/accordion";
-import { Textarea } from "../ui/textarea";
+import BookingDialogComponent from "./BookingDialog";
 import NoDateSelectedAlert from "./NoDateSelectedAlert";
 import NoPavilionSelectedAlert from "./NoPavilionSelectedAlert";
-import { useQuery } from "@tanstack/react-query";
-import { getAllPavilions } from "@/server/Pavilions/Actions/pullActions";
 
 const CalendarClient = (props: { getAllBookings: Booking[] }) => {
   const { getAllBookings } = props;
@@ -46,9 +30,9 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
-  const [calendarDateRange, setCalendarDateRange] = useState<
-    { from: Date; to?: Date } | undefined
-  >(undefined);
+  const [calendarDateRange, setCalendarDateRange] = useState<{ from: Date; to?: Date } | undefined>(
+    undefined
+  );
 
   // Alert state for no date selected
   const [showAlert, setShowAlert] = useState(false);
@@ -176,7 +160,7 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
           // Filter and organize upcoming bookings
           const today = new Date();
           const upcomingBookings = getAllBookings
-            .filter((booking) => {
+            .filter(booking => {
               const bookingDate = booking.startAt || booking.foodTastingAt;
               return bookingDate && new Date(bookingDate) >= today;
             })
@@ -191,9 +175,7 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
               <div className="pt-8 pb-1 px-3 text-sm text-neutral-500 border-b-1 flex-shrink-0 flex justify-between items-end">
                 <p>
                   Upcoming bookings{" "}
-                  <span className="text-xs">
-                    ({upcomingBookings.length})
-                  </span>{" "}
+                  <span className="text-xs">({upcomingBookings.length})</span>{" "}
                 </p>
                 <p className="text-xs text-primary hover:text-primary/80 cursor-pointer select-none">
                   View all
@@ -206,9 +188,7 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
                     // Group by month and year
                     const groupedBookings = upcomingBookings.reduce(
                       (acc, booking) => {
-                        const bookingDate = new Date(
-                          booking.startAt || booking.foodTastingAt || 0
-                        );
+                        const bookingDate = new Date(booking.startAt || booking.foodTastingAt || 0);
                         const monthYear = `${bookingDate.toLocaleString("default", { month: "long" })} ${bookingDate.getFullYear()}`;
 
                         if (!acc[monthYear]) {
@@ -223,109 +203,88 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
                     if (Object.keys(groupedBookings).length === 0) {
                       return (
                         <div className="flex justify-between">
-                          <p className="text-xs text-neutral-400 py-4">
-                            No upcoming bookings
-                          </p>
+                          <p className="text-xs text-neutral-400 py-4">No upcoming bookings</p>
                         </div>
                       );
                     }
 
-                    return Object.entries(groupedBookings).map(
-                      ([monthYear, bookings]) => (
-                        <div key={monthYear} className="space-y-2">
-                          <h4 className="text-xs font-medium text-neutral-600 sticky top-0 bg-white py-1">
-                            {monthYear}
-                          </h4>
-                          <ul className="space-y-2">
-                            {bookings.map((booking) => {
-                              const bookingDate = new Date(
-                                booking.startAt || booking.foodTastingAt || 0
-                              );
-                              const pavilion = pavilions?.find(
-                                (p) => p.id === booking.pavilionId
-                              );
+                    return Object.entries(groupedBookings).map(([monthYear, bookings]) => (
+                      <div key={monthYear} className="space-y-2">
+                        <h4 className="text-xs font-medium text-neutral-600 sticky top-0 bg-white py-1">
+                          {monthYear}
+                        </h4>
+                        <ul className="space-y-2">
+                          {bookings.map(booking => {
+                            const bookingDate = new Date(
+                              booking.startAt || booking.foodTastingAt || 0
+                            );
+                            const pavilion = pavilions?.find(p => p.id === booking.pavilionId);
 
-                              // Get pavilion color - handle different color formats
-                              let pavilionColor = pavilion?.color || "#ef4444";
+                            // Get pavilion color - handle different color formats
+                            let pavilionColor = pavilion?.color || "#ef4444";
 
-                              // Handle Tailwind color names and convert to hex
-                              const colorMap: Record<string, string> = {
-                                // Standard colors
-                                red: "#ef4444",
-                                green: "#22c55e",
-                                pink: "#ec4899",
-                                blue: "#3b82f6",
-                                yellow: "#eab308",
-                                purple: "#a855f7",
-                                orange: "#f97316",
-                                indigo: "#6366f1",
-                                cyan: "#06b6d4",
-                                teal: "#14b8a6",
-                                // Tailwind variants
-                                "red-500": "#ef4444",
-                                "green-500": "#22c55e",
-                                "pink-500": "#ec4899",
-                                "blue-500": "#3b82f6",
-                                // Pavilion specific mappings
-                                "palacio de victoria": "#ef4444", // red
-                                "grand pavilion": "#22c55e", // green
-                                "mini pavilion": "#ec4899", // pink
-                              };
+                            // Handle Tailwind color names and convert to hex
+                            const colorMap: Record<string, string> = {
+                              // Standard colors
+                              red: "#ef4444",
+                              green: "#22c55e",
+                              pink: "#ec4899",
+                              blue: "#3b82f6",
+                              yellow: "#eab308",
+                              purple: "#a855f7",
+                              orange: "#f97316",
+                              indigo: "#6366f1",
+                              cyan: "#06b6d4",
+                              teal: "#14b8a6",
+                              // Tailwind variants
+                              "red-500": "#ef4444",
+                              "green-500": "#22c55e",
+                              "pink-500": "#ec4899",
+                              "blue-500": "#3b82f6",
+                              // Pavilion specific mappings
+                              "palacio de victoria": "#ef4444", // red
+                              "grand pavilion": "#22c55e", // green
+                              "mini pavilion": "#ec4899", // pink
+                            };
 
-                              // Check if it's a Tailwind color name or pavilion name
-                              if (
-                                pavilionColor &&
-                                colorMap[pavilionColor.toLowerCase()]
-                              ) {
-                                pavilionColor =
-                                  colorMap[pavilionColor.toLowerCase()];
-                              } else if (
-                                pavilion?.name &&
-                                colorMap[pavilion.name.toLowerCase()]
-                              ) {
-                                // Fallback: check by pavilion name if color mapping fails
-                                pavilionColor =
-                                  colorMap[pavilion.name.toLowerCase()];
-                              }
+                            // Check if it's a Tailwind color name or pavilion name
+                            if (pavilionColor && colorMap[pavilionColor.toLowerCase()]) {
+                              pavilionColor = colorMap[pavilionColor.toLowerCase()];
+                            } else if (pavilion?.name && colorMap[pavilion.name.toLowerCase()]) {
+                              // Fallback: check by pavilion name if color mapping fails
+                              pavilionColor = colorMap[pavilion.name.toLowerCase()];
+                            }
 
-                              // Validate hex color format
-                              const isValidHex = /^#([0-9A-F]{3}){1,2}$/i.test(
-                                pavilionColor
-                              );
-                              const finalColor = isValidHex
-                                ? pavilionColor
-                                : "#ef4444";
+                            // Validate hex color format
+                            const isValidHex = /^#([0-9A-F]{3}){1,2}$/i.test(pavilionColor);
+                            const finalColor = isValidHex ? pavilionColor : "#ef4444";
 
-                              // Debug: Log pavilion colors (remove this later)
-                              console.log(
-                                `Booking: ${booking.eventName}, Pavilion: ${pavilion?.name}, Original Color: ${pavilion?.color}, Final Color: ${finalColor}`
-                              );
+                            // Debug: Log pavilion colors (remove this later)
+                            console.log(
+                              `Booking: ${booking.eventName}, Pavilion: ${pavilion?.name}, Original Color: ${pavilion?.color}, Final Color: ${finalColor}`
+                            );
 
-                              return (
-                                <li
-                                  key={booking.id}
-                                  className="flex rounded-l-md items-center"
-                                >
-                                  <div
-                                    className="w-4 h-4 rounded-sm aspect-square"
-                                    style={{ backgroundColor: finalColor }}
-                                  />
-                                  <p className="pr-1 rounded-l-md h-fit px-1 py-1 whitespace-nowrap font-medium select-none text-xs">
-                                    {bookingDate.toLocaleDateString("en-US", {
-                                      month: "short",
-                                      day: "numeric",
-                                    })}
-                                  </p>
-                                  <p className="p-1 truncate select-none text-xs">
-                                    {booking.eventName || "Untitled Event"}
-                                  </p>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </div>
-                      )
-                    );
+                            return (
+                              <li key={booking.id} className="flex rounded-l-md items-center">
+                                <div
+                                  className="w-4 h-4 rounded-sm aspect-square"
+                                  style={{ backgroundColor: finalColor }}
+                                />
+                                <p className="pr-1 rounded-l-md h-fit px-1 py-1 whitespace-nowrap font-medium select-none text-xs">
+                                  {bookingDate.toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </p>
+                                <p className="p-1 truncate select-none text-xs">
+                                  {booking.eventName || "Untitled Event"}
+                                </p>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ));
                   })()}
                 </div>
               </ScrollArea>

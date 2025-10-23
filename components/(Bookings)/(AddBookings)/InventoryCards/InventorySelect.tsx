@@ -31,24 +31,15 @@ type InventorySelectProps = {
 
 function InventoryIcon({ categoryId }: { categoryId: number }) {
   const categoryID = categoryId || "";
-  if (categoryID == 1)
-    return <Beef size={16} className="shrink-0 max-md:mt-0.5" />;
-  if (categoryID == 2)
-    return <Ham size={16} className="shrink-0 max-md:mt-0.5" />;
-  if (categoryID == 3)
-    return <Drumstick size={16} className="shrink-0 max-md:mt-0.5" />;
-  if (categoryID == 4)
-    return <Fish size={16} className="shrink-0 max-md:mt-0.5" />;
-  if (categoryID == 5)
-    return <Carrot size={16} className="shrink-0 max-md:mt-0.5" />;
-  if (categoryID == 6)
-    return <CookingPot size={16} className="shrink-0 max-md:mt-0.5" />;
-  if (categoryID == 7)
-    return <IceCream size={16} className="shrink-0 max-md:mt-0.5" />;
-  if (categoryID == 8)
-    return <GlassWater size={16} className="shrink-0 max-md:mt-0.5" />;
-  if (categoryID == 9)
-    return <Ellipsis size={16} className="shrink-0 max-md:mt-0.5" />;
+  if (categoryID == 1) return <Beef size={16} className="shrink-0 max-md:mt-0.5" />;
+  if (categoryID == 2) return <Ham size={16} className="shrink-0 max-md:mt-0.5" />;
+  if (categoryID == 3) return <Drumstick size={16} className="shrink-0 max-md:mt-0.5" />;
+  if (categoryID == 4) return <Fish size={16} className="shrink-0 max-md:mt-0.5" />;
+  if (categoryID == 5) return <Carrot size={16} className="shrink-0 max-md:mt-0.5" />;
+  if (categoryID == 6) return <CookingPot size={16} className="shrink-0 max-md:mt-0.5" />;
+  if (categoryID == 7) return <IceCream size={16} className="shrink-0 max-md:mt-0.5" />;
+  if (categoryID == 8) return <GlassWater size={16} className="shrink-0 max-md:mt-0.5" />;
+  if (categoryID == 9) return <Ellipsis size={16} className="shrink-0 max-md:mt-0.5" />;
   return null;
 }
 
@@ -98,10 +89,7 @@ function ItemDialog({
         </AlertDialogHeader>
         <AlertDialogFooter className="px-3 pb-3">
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-red-500 hover:bg-red-600 text-white"
-            onClick={handleAdd}
-          >
+          <AlertDialogAction className="bg-red-500 hover:bg-red-600 text-white" onClick={handleAdd}>
             Add
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -110,13 +98,10 @@ function ItemDialog({
   );
 }
 
-export default function InventorySelectComponent({
-  items,
-  onAddItem,
-}: InventorySelectProps) {
+export default function InventorySelectComponent({ items, onAddItem }: InventorySelectProps) {
   return (
     <div className="grid grid-cols-3 gap-2 p-2">
-      {items.map((item) => (
+      {items.map(item => (
         <ItemDialog key={item.id} item={item} onAddItem={onAddItem} />
       ))}
     </div>

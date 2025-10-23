@@ -19,6 +19,7 @@ pnpm dev
 bun dev
 
 ```
+
 ✅ What they get
 
 All your source code (app/, components/, server/, etc.)
@@ -34,7 +35,6 @@ node_modules/ (they install themselves).
 Your local dev.db (they generate their own via migrations).
 
 Any sensitive .env secrets (they set up their own).
-
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 

@@ -11,13 +11,7 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Label } from "../ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Pavilion, Booking } from "@/generated/prisma";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -64,17 +58,16 @@ const CheckScheduleDialog = (props: {
     const pavilionId = parseInt(selectedPavilionId);
 
     // Check each selected date for conflicts (1 day before or after)
-    return selectedDatesList.some((date) => {
+    return selectedDatesList.some(date => {
       const selectedDate = new Date(date.year, date.month, date.day);
 
-      return bookings.some((booking) => {
+      return bookings.some(booking => {
         // Check if booking is for the same pavilion
         const bookingPavilionId = booking.pavilionId;
         if (bookingPavilionId !== pavilionId) return false;
 
         // Get booking date
-        const bookingDate =
-          booking.startAt ?? booking.foodTastingAt ?? booking.endAt;
+        const bookingDate = booking.startAt ?? booking.foodTastingAt ?? booking.endAt;
         if (!bookingDate) return false;
 
         const bookingDateTime = new Date(bookingDate);
@@ -164,11 +157,7 @@ const CheckScheduleDialog = (props: {
       <Dialog>
         <DialogTrigger asChild>
           <Button className="max-[479px]:aspect-square max-[479px]:p-0! shadow-sm">
-            <Plus
-              className="opacity-60 sm:-ms-1"
-              size={16}
-              aria-hidden="true"
-            />
+            <Plus className="opacity-60 sm:-ms-1" size={16} aria-hidden="true" />
             <span className="max-[479px]:sr-only flex gap-2 items-center">
               Add Booking
               {/* if date is present, show. Else, hide */}
@@ -209,18 +198,14 @@ const CheckScheduleDialog = (props: {
         <DialogContent className="[&>button]:hidden">
           <DialogHeader className="text-center">
             <DialogTitle>Add Booking</DialogTitle>
-            <DialogDescription>
-              You are about to create an event on this date.
-            </DialogDescription>
+            <DialogDescription>You are about to create an event on this date.</DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
               <CalendarIcon className="h-full items-start" />
               <div>
-                <p className="text-xs text-neutral-500">
-                  {dateRange ? "Date Range" : "Date"}
-                </p>
+                <p className="text-xs text-neutral-500">{dateRange ? "Date Range" : "Date"}</p>
                 <p className="text-sm font-medium">
                   {dateRange
                     ? `${new Date(
@@ -253,25 +238,18 @@ const CheckScheduleDialog = (props: {
                       : "No day selected"}
                 </p>
                 {selectedDates.length > 1 && (
-                  <p className="text-xs text-neutral-400">
-                    {selectedDates.length} days selected
-                  </p>
+                  <p className="text-xs text-neutral-400">{selectedDates.length} days selected</p>
                 )}
               </div>
             </div>
             <div className="*:not-first:mt-1">
-              <Label className="font-normal text-xs text-neutral-500">
-                Select pavilion
-              </Label>
-              <Select
-                value={selectedPavilionId}
-                onValueChange={setSelectedPavilionId}
-              >
+              <Label className="font-normal text-xs text-neutral-500">Select pavilion</Label>
+              <Select value={selectedPavilionId} onValueChange={setSelectedPavilionId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select pavilion" />
                 </SelectTrigger>
                 <SelectContent>
-                  {pavilions.map((pav) => (
+                  {pavilions.map(pav => (
                     <SelectItem key={pav.id} value={String(pav.id)}>
                       {pav.name}
                     </SelectItem>
@@ -283,8 +261,7 @@ const CheckScheduleDialog = (props: {
               <div className="flex gap-2 items-start text-red-500 border-1 rounded-md p-2 border-red-500">
                 <CircleAlert />
                 <p className="text-sm">
-                  This pavilion has nearby bookings. Check for conflicts before
-                  proceeding.
+                  This pavilion has nearby bookings. Check for conflicts before proceeding.
                 </p>
               </div>
             )}

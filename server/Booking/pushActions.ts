@@ -27,7 +27,12 @@ export async function createBooking(
 
     // Handle pavilionID - convert to number only if it's a valid string number
     let pavilionIdNumber: number | null = null;
-    if (pavilionID && pavilionID !== "" && pavilionID !== "undefined" && !isNaN(Number(pavilionID))) {
+    if (
+      pavilionID &&
+      pavilionID !== "" &&
+      pavilionID !== "undefined" &&
+      !isNaN(Number(pavilionID))
+    ) {
       pavilionIdNumber = Number(pavilionID);
     }
 
@@ -61,7 +66,7 @@ export async function createBooking(
         otherServices:
           serviceIds && serviceIds.length > 0
             ? {
-                connect: serviceIds.filter(id => id && !isNaN(id)).map((id) => ({ id })),
+                connect: serviceIds.filter(id => id && !isNaN(id)).map(id => ({ id })),
               }
             : undefined,
       },

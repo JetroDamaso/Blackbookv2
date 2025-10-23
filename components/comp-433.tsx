@@ -1,13 +1,8 @@
-import { BoxIcon, HouseIcon, PanelsTopLeftIcon } from "lucide-react"
+import { BoxIcon, HouseIcon, PanelsTopLeftIcon } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Component() {
   return (
@@ -15,19 +10,11 @@ export default function Component() {
       <ScrollArea>
         <TabsList className="mb-3">
           <TabsTrigger value="tab-1">
-            <HouseIcon
-              className="-ms-0.5 me-1.5 opacity-60"
-              size={16}
-              aria-hidden="true"
-            />
+            <HouseIcon className="-ms-0.5 me-1.5 opacity-60" size={16} aria-hidden="true" />
             Overview
           </TabsTrigger>
           <TabsTrigger value="tab-2" className="group">
-            <PanelsTopLeftIcon
-              className="-ms-0.5 me-1.5 opacity-60"
-              size={16}
-              aria-hidden="true"
-            />
+            <PanelsTopLeftIcon className="-ms-0.5 me-1.5 opacity-60" size={16} aria-hidden="true" />
             Projects
             <Badge
               className="bg-primary/15 ms-1.5 min-w-5 px-1 transition-opacity group-data-[state=inactive]:opacity-50"
@@ -37,11 +24,7 @@ export default function Component() {
             </Badge>
           </TabsTrigger>
           <TabsTrigger value="tab-3" className="group">
-            <BoxIcon
-              className="-ms-0.5 me-1.5 opacity-60"
-              size={16}
-              aria-hidden="true"
-            />
+            <BoxIcon className="-ms-0.5 me-1.5 opacity-60" size={16} aria-hidden="true" />
             Packages
             <Badge className="ms-1.5 transition-opacity group-data-[state=inactive]:opacity-50">
               New
@@ -51,20 +34,14 @@ export default function Component() {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
       <TabsContent value="tab-1">
-        <p className="text-muted-foreground p-4 pt-1 text-center text-xs">
-          Content for Tab 1
-        </p>
+        <p className="text-muted-foreground p-4 pt-1 text-center text-xs">Content for Tab 1</p>
       </TabsContent>
       <TabsContent value="tab-2">
-        <p className="text-muted-foreground p-4 pt-1 text-center text-xs">
-          Content for Tab 2
-        </p>
+        <p className="text-muted-foreground p-4 pt-1 text-center text-xs">Content for Tab 2</p>
       </TabsContent>
       <TabsContent value="tab-3">
-        <p className="text-muted-foreground p-4 pt-1 text-center text-xs">
-          Content for Tab 3
-        </p>
+        <p className="text-muted-foreground p-4 pt-1 text-center text-xs">Content for Tab 3</p>
       </TabsContent>
     </Tabs>
-  )
+  );
 }

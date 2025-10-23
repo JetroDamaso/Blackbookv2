@@ -1,0 +1,195 @@
+{
+  "formatter": "prettier",
+  "format_on_save": "on",
+  "code_actions_on_format": {
+    "source.fixAll.eslint": true,
+    "source.organizeImports": true,
+    "source.removeUnusedImports": true,
+    "source.addMissingImports": true
+  },
+  "enable_language_server": true,
+  "autosave": {
+    "after_delay": {
+      "milliseconds": 1000
+    }
+  },
+  "emmet": true,
+  "theme": {
+    "mode": "system",
+    "light": "Ayu Light",
+    "dark": "Vesper"
+  },
+  "ui_font_size": 16,
+  "buffer_font_family": "Fira Code",
+  "buffer_font_size": 12,
+  "buffer_font_features": {
+    "liga": true,
+    "calt": true
+  },
+  "project_panel": {
+    "indent_size": 10,
+    "default_width": 240,
+    "auto_fold_dirs": false,
+    "auto_reveal_entries": true,
+    "file_icons": true,
+    "folder_icons": true,
+    "git_status": false,
+    "show_diagnostics": false
+  },
+  "terminal": {
+    "font_size": 12,
+    "line_height": {
+      "custom": 1.5
+    }
+  },
+  "outline_panel": {
+    "git_status": false
+  },
+  "preview_tabs": {
+    "enabled": false
+  },
+  "tab_bar": {
+    "show": true
+  },
+  "tabs": {
+    "git_status": false
+  },
+  "gutter": {
+    "line_numbers": true
+  },
+  "minimap": {
+    "enabled": true,
+    "autohide": "mouseover"
+  },
+  "hover_popover_delay": 1500,
+  "hover_popover_enabled": true,
+  "selection_highlight": false,
+  "ensure_final_newline_on_save": true,
+  "remove_trailing_whitespace_on_save": true,
+  "indent_guides": {
+    "enabled": true,
+    "coloring": "indent_aware"
+  },
+  "soft_wrap": "none",
+  "vim_mode": false,
+  "inlay_hints": {
+    "enabled": false
+  },
+  "show_wrap_guides": false,
+  "cursor_blink": false,
+  "show_whitespaces": "none",
+  "relative_line_numbers": false,
+  "multi_cursor_modifier": "cmd_or_ctrl",
+  "lsp": {
+    "eslint": {
+      "settings": {
+        "codeActionOnSave": {
+          "mode": "all",
+          "rules": ["!debugger", "!no-only-tests/*"]
+        },
+        "format": false,
+        "nodePath": "",
+        "quiet": false,
+        "onIgnoredFiles": "off"
+      }
+    },
+    "typescript-language-server": {
+      "settings": {
+        "typescript": {
+          "preferences": {
+            "importModuleSpecifier": "relative",
+            "includePackageJsonAutoImports": "auto",
+            "organizeImports": {
+              "removeUnused": true,
+              "addMissingImports": true
+            }
+          },
+          "suggest": {
+            "autoImports": true,
+            "includeAutomaticOptionalChainCompletions": true
+          },
+          "format": {
+            "enable": true
+          },
+          "codeActions": {
+            "source": {
+              "organizeImports": {
+                "enable": true
+              },
+              "removeUnused": {
+                "enable": true
+              },
+              "addMissingImports": {
+                "enable": true
+              }
+            }
+          }
+        },
+        "javascript": {
+          "preferences": {
+            "importModuleSpecifier": "relative",
+            "includePackageJsonAutoImports": "auto"
+          },
+          "suggest": {
+            "autoImports": true
+          },
+          "format": {
+            "enable": true
+          }
+        }
+      }
+    }
+  },
+  "languages": {
+    "JavaScript": {
+      "formatter": "prettier",
+      "format_on_save": "on",
+      "code_actions_on_format": {
+        "source.fixAll.eslint": true,
+        "source.organizeImports": true,
+        "source.removeUnusedImports": true,
+        "source.addMissingImports": true
+      }
+    },
+    "TypeScript": {
+      "formatter": "prettier",
+      "format_on_save": "on",
+      "code_actions_on_format": {
+        "source.fixAll.eslint": true,
+        "source.organizeImports": true,
+        "source.removeUnusedImports": true,
+        "source.addMissingImports": true
+      }
+    },
+    "TSX": {
+      "formatter": "prettier",
+      "format_on_save": "on",
+      "code_actions_on_format": {
+        "source.fixAll.eslint": true,
+        "source.organizeImports": true,
+        "source.removeUnusedImports": true,
+        "source.addMissingImports": true
+      }
+    },
+    "JSON": {
+      "formatter": "prettier",
+      "format_on_save": "on"
+    },
+    "HTML": {
+      "formatter": "prettier",
+      "format_on_save": "on"
+    },
+    "CSS": {
+      "formatter": "prettier",
+      "format_on_save": "on"
+    }
+  },
+  "prettier": {
+    "printWidth": 100,
+    "tabWidth": 2,
+    "useTabs": false,
+    "semi": true,
+    "singleQuote": false,
+    "trailingComma": "es5"
+  }
+}

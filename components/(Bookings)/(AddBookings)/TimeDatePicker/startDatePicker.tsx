@@ -6,11 +6,7 @@ import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import React from "react";
 import { Label } from "@/components/ui/label";
 
@@ -26,8 +22,7 @@ export function StartDatePickerForm({
   const [startDate, setStartDate] = React.useState<Date | undefined>(() => {
     if (!initialDate) return undefined;
     try {
-      const d =
-        typeof initialDate === "string" ? new Date(initialDate) : initialDate;
+      const d = typeof initialDate === "string" ? new Date(initialDate) : initialDate;
       return isNaN(d.getTime()) ? undefined : d;
     } catch {
       return undefined;
@@ -42,9 +37,7 @@ export function StartDatePickerForm({
   return (
     <div className="w-full">
       <div className="mb-2">
-        <Label className="text-foreground/50 text-sm font-normal mb-2">
-          Start date
-        </Label>
+        <Label className="text-foreground/50 text-sm font-normal mb-2">Start date</Label>
       </div>
       <Popover>
         <PopoverTrigger asChild>
@@ -64,7 +57,7 @@ export function StartDatePickerForm({
             mode="single"
             selected={startDate}
             onSelect={handleSelect}
-            disabled={(date) => {
+            disabled={date => {
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               if (date < today) return true;

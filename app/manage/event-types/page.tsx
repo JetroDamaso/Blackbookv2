@@ -24,9 +24,7 @@ export default function ManageEventTypes() {
   if (error) {
     return (
       <div className="container mx-auto py-10">
-        <div className="text-center text-red-500">
-          Error loading event types: {error.message}
-        </div>
+        <div className="text-center text-red-500">Error loading event types: {error.message}</div>
       </div>
     );
   }

@@ -44,9 +44,7 @@ export default function SelectOpenComponent() {
             <div className="grid grid-cols-3 w-full px-3">
               <div className=" col-span-2 flex flex-col justify-start items-start">
                 <AlertDialogTitle>Gold Utensils</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Gold plated spoon & fork
-                </AlertDialogDescription>
+                <AlertDialogDescription>Gold plated spoon & fork</AlertDialogDescription>
               </div>
               <div className="h-full">
                 <div className="flex rounded-md shadow-xs h-full">

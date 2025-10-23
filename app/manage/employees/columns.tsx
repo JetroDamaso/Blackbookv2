@@ -18,18 +18,17 @@ export const columns: ColumnDef<EmployeeWithRelations>[] = [
     header: ({ table }) => (
       <Checkbox
         checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
+          table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")
         }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
       />
     ),
     cell: ({ row }) => (
-      <div onClick={(e) => e.stopPropagation()}>
+      <div onClick={e => e.stopPropagation()}>
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onCheckedChange={value => row.toggleSelected(!!value)}
           aria-label="Select row"
         />
       </div>
@@ -56,7 +55,7 @@ export const columns: ColumnDef<EmployeeWithRelations>[] = [
   },
   {
     id: "fullName",
-    accessorFn: (row) => `${row.firstName} ${row.lastName}`,
+    accessorFn: row => `${row.firstName} ${row.lastName}`,
     header: ({ column }) => {
       return (
         <Button
@@ -78,7 +77,7 @@ export const columns: ColumnDef<EmployeeWithRelations>[] = [
   },
   {
     id: "role",
-    accessorFn: (row) => row.role?.name || "No Role",
+    accessorFn: row => row.role?.name || "No Role",
     header: ({ column }) => {
       return (
         <Button

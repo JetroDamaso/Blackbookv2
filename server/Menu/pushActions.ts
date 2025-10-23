@@ -1,10 +1,7 @@
 "use server";
 import { prisma } from "../db";
 
-export async function createMenuWithDishes(
-  bookingId: number,
-  dishIds: number[]
-) {
+export async function createMenuWithDishes(bookingId: number, dishIds: number[]) {
   try {
     const counts = dishIds.reduce<Record<number, number>>((acc, id) => {
       acc[id] = (acc[id] || 0) + 1;
@@ -36,11 +33,7 @@ export async function createMenuWithDishes(
   }
 }
 
-export async function addOrIncrementDish(
-  menuId: number,
-  dishId: number,
-  increment: number = 1
-) {
+export async function addOrIncrementDish(menuId: number, dishId: number, increment: number = 1) {
   try {
     const existing = await prisma.menuDish.findUnique({
       where: { menuId_dishId: { menuId, dishId } },

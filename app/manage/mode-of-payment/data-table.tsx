@@ -27,13 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import {
-  ChevronFirstIcon,
-  ChevronLastIcon,
-  CirclePlus,
-  SearchIcon,
-  Trash,
-} from "lucide-react";
+import { ChevronFirstIcon, ChevronLastIcon, CirclePlus, SearchIcon, Trash } from "lucide-react";
 import React, { useState } from "react";
 import {
   InputGroup,
@@ -68,8 +62,7 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelection, setRowSelection] = React.useState({});
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [formData, setFormData] = React.useState({
     name: "",
@@ -87,7 +80,7 @@ export function DataTable<TData, TValue>({
         name: "",
       });
     },
-    onError: (error) => {
+    onError: error => {
       toast.error("Failed to create payment method: " + error.message);
     },
   });
@@ -129,16 +122,14 @@ export function DataTable<TData, TValue>({
           <DropdownMenuContent align="end">
             {table
               .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
+              .filter(column => column.getCanHide())
+              .map(column => {
                 return (
                   <DropdownMenuCheckboxItem
                     key={column.id}
                     className="capitalize"
                     checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
+                    onCheckedChange={value => column.toggleVisibility(!!value)}
                   >
                     {column.id}
                   </DropdownMenuCheckboxItem>
@@ -178,8 +169,8 @@ export function DataTable<TData, TValue>({
                       id="name"
                       placeholder="Cash, Credit Card, Bank Transfer, etc."
                       value={formData.name}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
+                      onChange={e =>
+                        setFormData(prev => ({
                           ...prev,
                           name: e.target.value,
                         }))
@@ -187,11 +178,7 @@ export function DataTable<TData, TValue>({
                     />
                   </div>
                 </div>
-                <Button
-                  onClick={handleSubmit}
-                  className="mt-4 w-full"
-                  disabled={isPending}
-                >
+                <Button onClick={handleSubmit} className="mt-4 w-full" disabled={isPending}>
                   {isPending ? "Adding..." : "Add Payment Method"}
                 </Button>
               </DialogDescription>
@@ -202,17 +189,14 @@ export function DataTable<TData, TValue>({
       <div className="overflow-hidden rounded-md border h-fit bg-white">
         <Table>
           <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
+            {table.getHeaderGroups().map(headerGroup => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
+                {headerGroup.headers.map(header => {
                   return (
                     <TableHead key={header.id}>
                       {header.isPlaceholder
                         ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                        : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   );
                 })}
@@ -221,7 +205,7 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
+              table.getRowModel().rows.map(row => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
@@ -233,22 +217,16 @@ export function DataTable<TData, TValue>({
                   }}
                   className="cursor-pointer hover:bg-muted/50"
                 >
-                  {row.getVisibleCells().map((cell) => (
+                  {row.getVisibleCells().map(cell => (
                     <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
+                <TableCell colSpan={columns.length} className="h-24 text-center">
                   No results.
                 </TableCell>
               </TableRow>

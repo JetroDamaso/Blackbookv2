@@ -51,7 +51,7 @@ export function NavMain({
   return (
     <SidebarGroup>
       <SidebarMenu>
-        {items.map((item) => {
+        {items.map(item => {
           const isActive = isItemActive(item.url);
 
           return (

@@ -2,9 +2,7 @@
 
 import { prisma } from "@/server/db";
 
-export async function createModeOfPayment(data: {
-  name: string;
-}) {
+export async function createModeOfPayment(data: { name: string }) {
   try {
     const modeOfPayment = await prisma.modeOfPayment.create({
       data: {

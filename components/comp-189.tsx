@@ -1,10 +1,10 @@
-import { useId } from "react"
+import { useId } from "react";
 
-import { Label } from "@/components/ui/label"
-import { SelectNative } from "@/components/ui/select-native"
+import { Label } from "@/components/ui/label";
+import { SelectNative } from "@/components/ui/select-native";
 
 export default function Component() {
-  const id = useId()
+  const id = useId();
   return (
     <div className="*:not-first:mt-2">
       <Label htmlFor={id}>Simple select (native)</Label>
@@ -15,5 +15,5 @@ export default function Component() {
         <option value="4">Gatsby</option>
       </SelectNative>
     </div>
-  )
+  );
 }

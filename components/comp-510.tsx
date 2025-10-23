@@ -1,39 +1,39 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { format } from "date-fns"
-import { DayButtonProps } from "react-day-picker"
+import { useEffect, useState } from "react";
+import { format } from "date-fns";
+import { DayButtonProps } from "react-day-picker";
 
-import { cn } from "@/lib/utils"
-import { Calendar } from "@/components/ui/calendar"
+import { cn } from "@/lib/utils";
+import { Calendar } from "@/components/ui/calendar";
 
-const GOOD_PRICE_THRESHOLD = 100
+const GOOD_PRICE_THRESHOLD = 100;
 
 export default function Component() {
-  const today = new Date()
-  const [date, setDate] = useState<Date | undefined>(today)
+  const today = new Date();
+  const [date, setDate] = useState<Date | undefined>(today);
 
   // Mock price data
-  const [mockPriceData, setMockPriceData] = useState<Record<string, number>>({})
+  const [mockPriceData, setMockPriceData] = useState<Record<string, number>>({});
   useEffect(() => {
     const generateMockPriceData = () => {
-      const data: Record<string, number> = {}
+      const data: Record<string, number> = {};
 
       for (let i = 0; i < 180; i++) {
-        const date = new Date(today)
-        date.setDate(today.getDate() + i)
-        const dateKey = format(date, "yyyy-MM-dd")
-        const randomPrice = Math.floor(Math.random() * (200 - 80 + 1)) + 80
-        data[dateKey] = randomPrice
+        const date = new Date(today);
+        date.setDate(today.getDate() + i);
+        const dateKey = format(date, "yyyy-MM-dd");
+        const randomPrice = Math.floor(Math.random() * (200 - 80 + 1)) + 80;
+        data[dateKey] = randomPrice;
       }
-      return data
-    }
-    setMockPriceData(generateMockPriceData())
-  }, [])
+      return data;
+    };
+    setMockPriceData(generateMockPriceData());
+  }, []);
 
   const isDateDisabled = (date: Date) => {
-    return !mockPriceData[format(date, "yyyy-MM-dd")]
-  }
+    return !mockPriceData[format(date, "yyyy-MM-dd")];
+  };
 
   return (
     <div>
@@ -54,9 +54,7 @@ export default function Component() {
           today: "*:after:hidden",
         }}
         components={{
-          DayButton: (props: DayButtonProps) => (
-            <DayButton {...props} prices={mockPriceData} />
-          ),
+          DayButton: (props: DayButtonProps) => <DayButton {...props} prices={mockPriceData} />,
         }}
         disabled={isDateDisabled}
       />
@@ -76,13 +74,13 @@ export default function Component() {
         </a>
       </p>
     </div>
-  )
+  );
 }
 
 function DayButton(props: DayButtonProps & { prices: Record<string, number> }) {
-  const { day, modifiers, prices, ...buttonProps } = props
-  const price = prices[format(day.date, "yyyy-MM-dd")]
-  const isGoodPrice = price < GOOD_PRICE_THRESHOLD
+  const { day, modifiers, prices, ...buttonProps } = props;
+  const price = prices[format(day.date, "yyyy-MM-dd")];
+  const isGoodPrice = price < GOOD_PRICE_THRESHOLD;
 
   return (
     <button {...buttonProps}>
@@ -102,5 +100,5 @@ function DayButton(props: DayButtonProps & { prices: Record<string, number> }) {
         )}
       </span>
     </button>
-  )
+  );
 }

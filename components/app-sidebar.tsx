@@ -1,36 +1,14 @@
 "use client";
 
-import * as React from "react";
-import { usePathname } from "next/navigation";
 import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
+import * as React from "react";
 
-import { SearchForm } from "@/components/search-form";
-import { VersionSwitcher } from "@/components/version-switcher";
-import {
-  Book,
-  Users,
-  CalendarIcon,
-  Castle,
-  Hotel,
-  Wine,
-  UserCheck,
-  Shield,
-  DollarSign,
-  Percent,
-  CreditCard,
-  Notebook,
-  Settings2,
-  LayoutDashboard,
-  Building2,
-  UserCog,
-  Wallet,
-  BarChart2,
-  Calendar,
-  Cake,
-} from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -38,8 +16,31 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
 } from "@/components/ui/sidebar";
+import {
+  BarChart2,
+  Book,
+  Building2,
+  Cake,
+  Calendar,
+  Castle,
+  CreditCard,
+  DollarSign,
+  Hotel,
+  LayoutDashboard,
+  LogOut,
+  Notebook,
+  Package,
+  Percent,
+  Settings2,
+  Shield,
+  UserCheck,
+  UserCog,
+  Users,
+  Wallet,
+  Wine,
+} from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 
 // This is sample data.
 const data = {
@@ -81,6 +82,11 @@ const data = {
           title: "Pavilion",
           url: "/manage/pavilion",
           icon: Castle,
+        },
+        {
+          title: "Packages",
+          url: "/manage/packages",
+          icon: Package,
         },
         {
           title: "Rooms",
@@ -170,12 +176,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         {/* We create a SidebarGroup for each parent. */}
-        {data.navMain.map((item) => (
+        {data.navMain.map(item => (
           <SidebarGroup key={item.title}>
             <SidebarGroupLabel>{item.title}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {item.items.map((item) => {
+                {item.items.map(item => {
                   const isActive = pathname === item.url;
                   return (
                     <SidebarMenuItem key={item.title}>
@@ -193,6 +199,71 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroup>
         ))}
       </SidebarContent>
+      <SidebarUserInfo />
     </Sidebar>
+  );
+}
+
+function SidebarUserInfo() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await signOut({
+        redirect: false,
+      });
+      router.push("/login");
+      router.refresh();
+    } catch (error) {
+      console.error("Logout error:", error);
+      setIsLoggingOut(false);
+    }
+  };
+
+  if (status === "loading") {
+    return (
+      <SidebarFooter>
+        <div className="flex items-center space-x-2 p-2">
+          <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse"></div>
+          <div className="flex-1">
+            <div className="h-3 bg-gray-200 rounded animate-pulse mb-1"></div>
+            <div className="h-2 bg-gray-200 rounded animate-pulse w-2/3"></div>
+          </div>
+        </div>
+      </SidebarFooter>
+    );
+  }
+
+  if (status === "unauthenticated" || !session?.user) {
+    return null;
+  }
+
+  const { user } = session;
+
+  return (
+    <SidebarFooter>
+      <Separator className="mb-2" />
+      <div className="px-2 flex justify-between">
+        <div className="flex items-center space-x-3 mb-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">{user.name}</p>
+            <p className="text-xs font-normal text-foreground truncate">{user.role}</p>
+          </div>
+        </div>
+
+        <div>
+          <SidebarMenuButton
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className=" justify-start text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors disabled:opacity-50"
+          >
+            <LogOut className={`h-4 w-4 mr-2 ${isLoggingOut ? "animate-spin" : ""}`} />
+          </SidebarMenuButton>
+        </div>
+      </div>
+    </SidebarFooter>
   );
 }

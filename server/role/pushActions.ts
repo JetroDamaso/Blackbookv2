@@ -2,9 +2,7 @@
 
 import { prisma } from "@/server/db";
 
-export async function createRole(data: {
-  name: string;
-}) {
+export async function createRole(data: { name: string }) {
   try {
     const role = await prisma.role.create({
       data: {

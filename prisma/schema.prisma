@@ -30,7 +30,7 @@ model Role {
 }
 
 model Employee {
-    id               Int          @id @default(autoincrement())
+    id               String       @id @default(uuid())
     firstName        String
     lastName         String
     password         String
@@ -49,6 +49,7 @@ model Pavilion {
     description       String
     color             String?
     bookings          Booking[]
+    isActive          Boolean           @default(true)
     inventoryStatuses InventoryStatus[]
     Package           Package[]
 }
@@ -231,7 +232,7 @@ model Billing {
 model HistoryLog {
     id         Int       @id @default(autoincrement())
     bookingId  Int?
-    employeeId Int?
+    employeeId String?
     createdAt  DateTime  @default(now())
     employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
     booking    Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)

@@ -1,22 +1,25 @@
 "use client";
+import { ChartPieSimple } from "@/components/Charts/EventDistribution";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { getAllPavilionsPaginated } from "@/server/Pavilions/Actions/pullActions";
 import { useQuery } from "@tanstack/react-query";
+import { Castle, Dot, Notebook } from "lucide-react";
+import { useState } from "react";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
-import { getAllPavilions } from "@/server/Pavilions/Actions/pullActions";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Castle, Dot, Notebook, Users, Building } from "lucide-react";
-import { ChartPieSimple } from "@/components/Charts/EventDistribution";
-import { Button } from "@/components/ui/button";
+import { AddPavilionDialog } from "./add-pavilion-dialog";
 
 export default function ManagePavilion() {
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
   const { isPending, error, data } = useQuery({
-    queryKey: ["allPavilions"],
-    queryFn: () => getAllPavilions(),
+    queryKey: ["allPavilions", currentPage],
+    queryFn: () => getAllPavilionsPaginated(currentPage, pageSize),
   });
 
   const handleRowClick = (pavilionId: number) => {
-    console.log("Clicked pavilion:", pavilionId);
-    // TODO: Add pavilion dialog or detail view
+    // Optionally open a detail dialog or do something with the row
   };
 
   if (isPending) {
@@ -30,9 +33,7 @@ export default function ManagePavilion() {
   if (error) {
     return (
       <div className="container mx-auto py-10">
-        <div className="text-center text-red-500">
-          Error loading pavilions: {error.message}
-        </div>
+        <div className="text-center text-red-500">Error loading pavilions: {error.message}</div>
       </div>
     );
   }
@@ -45,7 +46,7 @@ export default function ManagePavilion() {
           <p className="font-semibold text-lg flex items-center gap-2 grow">
             <Castle size={18} /> <span>Pavilions</span>
           </p>
-          <Button variant={"outline"}>Edit Widgets</Button>
+
         </div>
       </header>
 
@@ -53,7 +54,7 @@ export default function ManagePavilion() {
         <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
           <div className="flex flex-col">
             <p className="text-md">Total Pavilions</p>
-            <p className="text-4xl font-semibold">{data?.length || 0}</p>
+            <p className="text-4xl font-semibold">{data?.pagination?.totalCount || 0}</p>
             <p className="text-xs">
               Available <span className="text-primary">venues</span>
             </p>
@@ -103,8 +104,10 @@ export default function ManagePavilion() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
         <DataTable
           columns={columns}
-          data={data || []}
+          data={data?.data || []}
           onRowClick={handleRowClick}
+          pagination={data?.pagination}
+          onPageChange={setCurrentPage}
         />
       </div>
     </>

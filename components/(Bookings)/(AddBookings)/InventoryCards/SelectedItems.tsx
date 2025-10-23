@@ -26,24 +26,15 @@ export default function InventorySelectedItems({
 }: InventorySelectedItemsProps) {
   const InventoryIcon = ({ categoryId }: { categoryId: number }) => {
     const categoryID = categoryId || "";
-    if (categoryID == 1)
-      return <Beef size={16} className="shrink-0 max-md:mt-0.5" />;
-    if (categoryID == 2)
-      return <Ham size={16} className="shrink-0 max-md:mt-0.5" />;
-    if (categoryID == 3)
-      return <Drumstick size={16} className="shrink-0 max-md:mt-0.5" />;
-    if (categoryID == 4)
-      return <Fish size={16} className="shrink-0 max-md:mt-0.5" />;
-    if (categoryID == 5)
-      return <Carrot size={16} className="shrink-0 max-md:mt-0.5" />;
-    if (categoryID == 6)
-      return <CookingPot size={16} className="shrink-0 max-md:mt-0.5" />;
-    if (categoryID == 7)
-      return <IceCream size={16} className="shrink-0 max-md:mt-0.5" />;
-    if (categoryID == 8)
-      return <GlassWater size={16} className="shrink-0 max-md:mt-0.5" />;
-    if (categoryID == 9)
-      return <Ellipsis size={16} className="shrink-0 max-md:mt-0.5" />;
+    if (categoryID == 1) return <Beef size={16} className="shrink-0 max-md:mt-0.5" />;
+    if (categoryID == 2) return <Ham size={16} className="shrink-0 max-md:mt-0.5" />;
+    if (categoryID == 3) return <Drumstick size={16} className="shrink-0 max-md:mt-0.5" />;
+    if (categoryID == 4) return <Fish size={16} className="shrink-0 max-md:mt-0.5" />;
+    if (categoryID == 5) return <Carrot size={16} className="shrink-0 max-md:mt-0.5" />;
+    if (categoryID == 6) return <CookingPot size={16} className="shrink-0 max-md:mt-0.5" />;
+    if (categoryID == 7) return <IceCream size={16} className="shrink-0 max-md:mt-0.5" />;
+    if (categoryID == 8) return <GlassWater size={16} className="shrink-0 max-md:mt-0.5" />;
+    if (categoryID == 9) return <Ellipsis size={16} className="shrink-0 max-md:mt-0.5" />;
     return null;
   };
   return (
@@ -51,11 +42,9 @@ export default function InventorySelectedItems({
       <p>Selected Inventory:</p>
       <div className="w-full">
         {selectedItems.length === 0 ? (
-          <p className="text-muted-foreground px-4 py-3 text-sm">
-            No inventory selected
-          </p>
+          <p className="text-muted-foreground px-4 py-3 text-sm">No inventory selected</p>
         ) : (
-          selectedItems.map((item) => (
+          selectedItems.map(item => (
             <div
               key={item.id}
               className={`
@@ -69,9 +58,7 @@ export default function InventorySelectedItems({
                     <p className="text-sm font-medium">{item.name}</p>
                     <div className="flex gap-2 max-md:flex-wrap">
                       {item.quantity > 1 && (
-                        <span className="text-xs text-muted-foreground">
-                          Qty: {item.quantity}
-                        </span>
+                        <span className="text-xs text-muted-foreground">Qty: {item.quantity}</span>
                       )}
                     </div>
                   </div>

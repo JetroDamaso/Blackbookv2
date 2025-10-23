@@ -17,18 +17,17 @@ export const columns: ColumnDef<BookingWithRelations>[] = [
     header: ({ table }) => (
       <Checkbox
         checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
+          table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")
         }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
       />
     ),
     cell: ({ row }) => (
-      <div onClick={(e) => e.stopPropagation()}>
+      <div onClick={e => e.stopPropagation()}>
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onCheckedChange={value => row.toggleSelected(!!value)}
           aria-label="Select row"
         />
       </div>
@@ -68,9 +67,7 @@ export const columns: ColumnDef<BookingWithRelations>[] = [
     },
     cell: ({ row }) => {
       const client = row.original.client;
-      return client
-        ? `${client.firstName} ${client.lastName}`
-        : "No client assigned";
+      return client ? `${client.firstName} ${client.lastName}` : "No client assigned";
     },
   },
   {
@@ -114,11 +111,7 @@ export const columns: ColumnDef<BookingWithRelations>[] = [
             : status === 3
               ? "Cancelled"
               : "Pending";
-      return (
-        <Badge variant={status === 1 ? "default" : "secondary"}>
-          {statusText}
-        </Badge>
-      );
+      return <Badge variant={status === 1 ? "default" : "secondary"}>{statusText}</Badge>;
     },
   },
   {
@@ -176,7 +169,7 @@ export const columns: ColumnDef<BookingWithRelations>[] = [
   },
   {
     id: "balance",
-    accessorFn: (row) => row.billing?.balance ?? 0,
+    accessorFn: row => row.billing?.balance ?? 0,
     header: ({ column }) => {
       return (
         <Button

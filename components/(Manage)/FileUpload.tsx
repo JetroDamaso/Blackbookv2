@@ -1,16 +1,7 @@
 import { ChangeEvent, useRef, useState } from "react";
 import { Input } from "react-aria-components";
 import { Label } from "../ui/label";
-import {
-  File,
-  FileAudio,
-  FileIcon,
-  FileImage,
-  FileText,
-  FileVideo,
-  Plus,
-  X,
-} from "lucide-react";
+import { File, FileAudio, FileIcon, FileImage, FileText, FileVideo, Plus, X } from "lucide-react";
 import { Progress } from "../ui/progress";
 import { ScrollArea } from "../ui/scroll-area";
 
@@ -32,7 +23,7 @@ export function FileUpload() {
       return;
     }
 
-    const newFiles = Array.from(e.target.files).map((file) => ({
+    const newFiles = Array.from(e.target.files).map(file => ({
       file,
       progress: 0,
       uploaded: false,
@@ -47,18 +38,14 @@ export function FileUpload() {
   }
 
   function removeFile(id: string) {
-    setFiles((prevFiles) => prevFiles.filter((file) => file.id !== id));
+    setFiles(prevFiles => prevFiles.filter(file => file.id !== id));
   }
 
   return (
     <div className="flex flex-col gap-4">
       <h2>Documents</h2>
       <div>
-        <FileInput
-          inputRef={inputRef}
-          disabled={uploading}
-          onFileSelect={handleFileSelect}
-        />
+        <FileInput inputRef={inputRef} disabled={uploading} onFileSelect={handleFileSelect} />
       </div>
       <FileList files={files} onRemove={removeFile} uploading={uploading} />
     </div>
@@ -111,13 +98,8 @@ function FileList({ files, onRemove, uploading }: FileListProps) {
       <h3 className="font-semibold">Files:</h3>
       <ScrollArea className="h-[200px]">
         <div className="space-y-2">
-          {files.map((file) => (
-            <FileItem
-              key={file.id}
-              file={file}
-              onRemove={onRemove}
-              uploading={uploading}
-            />
+          {files.map(file => (
+            <FileItem key={file.id} file={file} onRemove={onRemove} uploading={uploading} />
           ))}
         </div>
       </ScrollArea>

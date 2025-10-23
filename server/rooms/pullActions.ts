@@ -19,7 +19,7 @@ export async function getAllRooms() {
         },
       },
       orderBy: {
-        name: 'asc',
+        name: "asc",
       },
     });
     return data;

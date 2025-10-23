@@ -1,10 +1,11 @@
 "use client";
-import React, { useId, useState, useEffect } from "react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 import {
-  ArrowRightIcon,
-  BadgePlus,
-  BadgePercent,
   Beef,
+  CalendarIcon,
   CalendarPlus,
   Carrot,
   Check,
@@ -21,9 +22,19 @@ import {
   Pen,
   Truck,
   Users,
-  X,
 } from "lucide-react";
+import React, { useEffect, useId, useState } from "react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -47,9 +58,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import RegionComboBoxComponent from "./ComboBox/RegionComboBox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import DishSelectComponent from "./DishCards/DishSelect";
 import type {
   Discount,
   Dish,
@@ -63,28 +72,33 @@ import type {
   Package,
   Pavilion,
 } from "@/generated/prisma";
+import RegionComboBoxComponent from "./ComboBox/RegionComboBox";
+import DishSelectComponent from "./DishCards/DishSelect";
 import SelectedItems from "./DishCards/SelectedItems";
 import TimeEndPickerCreateBookingComponent from "./TimeDatePicker/timeEndPicker";
 import TimeStartPickerCreateBookingComponent from "./TimeDatePicker/timeStartPicker";
 // removed unused psgc helpers
-import { Button } from "@/components/ui/button";
-import { StartDatePickerForm } from "./TimeDatePicker/startDatePicker";
-import { EndDatePickerForm } from "./TimeDatePicker/endDatePicker";
-import { useMutation } from "@tanstack/react-query";
-import { createClient } from "@/server/clients/pushActions";
-import { createBooking } from "@/server/Booking/pushActions";
 import { Textarea } from "@/components/ui/textarea";
+import { createBooking } from "@/server/Booking/pushActions";
+import { createClient } from "@/server/clients/pushActions";
+import { useMutation } from "@tanstack/react-query";
+import { EndDatePickerForm } from "./TimeDatePicker/endDatePicker";
+import { StartDatePickerForm } from "./TimeDatePicker/startDatePicker";
 // import MultipleSelector from "@/components/ui/multiselect";
 import { createNewService } from "@/server/Services/pushActions";
 // Removed unused Command imports and Autocomplete
 import SearchService from "@/components/searchService";
-import { createBilling } from "@/server/Billing & Payments/pushActions";
+import { Button } from "@/components/ui/button";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
 import { getDiscountById } from "@/server/Billing & Payments/pullActions";
+import { createBilling, createPayment } from "@/server/Billing & Payments/pushActions";
 import { createMenuWithDishes } from "@/server/Menu/pushActions";
-import { getAllDiscounts } from "@/server/discount/pullActions";
 import { createDiscount } from "@/server/discount/pushActions";
-import AddPaymentDialog from "@/components/(Payments)/AddPaymentDialog";
-import CreateBookingAddPayment from "@/components/(Payments)/BookingAddPayment";
 // Removed server-side imports from client component
 
 type SelectedDish = Dish & { quantity: number };
@@ -158,29 +172,20 @@ const AddBookingsPageClient = (props: {
   const [province, setProvince] = useState<string>("");
   const [municipality, setMunicipality] = useState<string>("");
   const [barangay, setBarangay] = useState<string>("");
-  const [selectedServiceIdsByCategory, setSelectedServiceIdsByCategory] =
-    useState<Record<number, number[]>>({});
-  const [typedServiceByCategory, setTypedServiceByCategory] = useState<
-    Record<number, string>
+  const [selectedServiceIdsByCategory, setSelectedServiceIdsByCategory] = useState<
+    Record<number, number[]>
   >({});
+  const [typedServiceByCategory, setTypedServiceByCategory] = useState<Record<number, string>>({});
   // Discount selection state
-  const [selectedDiscountId, setSelectedDiscountId] = useState<number | null>(
-    null
-  );
+  const [selectedDiscountId, setSelectedDiscountId] = useState<number | null>(null);
   const [discountName, setDiscountName] = useState("");
   // New enhanced discount state
-  const [discountType, setDiscountType] = useState<
-    "predefined" | "custom" | "none"
-  >("none");
+  const [discountType, setDiscountType] = useState<"predefined" | "custom" | "none">("none");
   const [customDiscountName, setCustomDiscountName] = useState("");
-  const [customDiscountType, setCustomDiscountType] = useState<
-    "percent" | "amount"
-  >("percent");
+  const [customDiscountType, setCustomDiscountType] = useState<"percent" | "amount">("percent");
   const [customDiscountValue, setCustomDiscountValue] = useState<number>(0);
-  const [customDiscountDescription, setCustomDiscountDescription] =
-    useState("");
-  const [isCustomDiscountDialogOpen, setIsCustomDiscountDialogOpen] =
-    useState(false);
+  const [customDiscountDescription, setCustomDiscountDescription] = useState("");
+  const [isCustomDiscountDialogOpen, setIsCustomDiscountDialogOpen] = useState(false);
   const [isLoadingCustomDiscount, setIsLoadingCustomDiscount] = useState(false);
 
   // Removed unused pavilion/hour pricing interim states (reintroduce if needed)
@@ -188,9 +193,7 @@ const AddBookingsPageClient = (props: {
   const [selectedPavilionId, setSelectedPavilionId] = useState<number | null>(
     preSelectedPavilionId ? parseInt(preSelectedPavilionId, 10) : null
   );
-  const [selectedPackageId, setSelectedPackageId] = useState<number | null>(
-    null
-  );
+  const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
   // Removed unused bookingTotalPrice state
   const [downPayment, setDownPayment] = useState<number>(0);
 
@@ -200,6 +203,21 @@ const AddBookingsPageClient = (props: {
   const [endDate, setEndDate] = useState<Date | null>(
     preSelectedEndDate ? new Date(preSelectedEndDate) : null
   );
+  const [paymentDate, setPaymentDate] = useState<Date | undefined>(undefined);
+
+  // Payment form state variables
+  const [paymentModeOfPayment, setPaymentModeOfPayment] = useState<string>("");
+  const [paymentAmount, setPaymentAmount] = useState<string>("");
+  const [paymentORNumber, setPaymentORNumber] = useState<string>("");
+  const [paymentNotes, setPaymentNotes] = useState<string>("");
+
+  // Dialog state for payment confirmation
+  const [showPaymentConfirmDialog, setShowPaymentConfirmDialog] = useState<boolean>(false);
+
+  // Helper function to check if payment is filled
+  const isPaymentFilled = () => {
+    return paymentModeOfPayment && paymentAmount && parseFloat(paymentAmount) > 0;
+  };
   const [startTime, setStartTime] = useState<{
     hour: number;
     minute: number;
@@ -216,23 +234,15 @@ const AddBookingsPageClient = (props: {
     if (selectedPavilionId == null) return new Set<string>();
     const set = new Set<string>();
     bookingsRef.current
-      .filter((b) => b.pavilionId === selectedPavilionId)
-      .forEach((b) => {
+      .filter(b => b.pavilionId === selectedPavilionId)
+      .forEach(b => {
         const start = new Date(b.startAt);
         const end = new Date(b.endAt);
-        let cursor = new Date(
-          start.getFullYear(),
-          start.getMonth(),
-          start.getDate()
-        );
+        let cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
         const last = new Date(end.getFullYear(), end.getMonth(), end.getDate());
         while (cursor <= last) {
           set.add(cursor.toISOString().slice(0, 10));
-          cursor = new Date(
-            cursor.getFullYear(),
-            cursor.getMonth(),
-            cursor.getDate() + 1
-          );
+          cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
         }
       });
     return set;
@@ -338,7 +348,6 @@ const AddBookingsPageClient = (props: {
       modeOfPayment: string;
       status: number;
       deposit: number;
-      yve?: number;
       discountAmount?: number;
       discountId?: number;
       isCustomDiscount?: boolean;
@@ -353,11 +362,33 @@ const AddBookingsPageClient = (props: {
         data.modeOfPayment,
         data.status,
         data.deposit,
-        undefined, // dateCompleted
-        data.yve,
+        undefined,
+        undefined,
         data.discountAmount,
         data.discountId,
         data.isCustomDiscount
+      ),
+  });
+
+  const createPaymentMutation = useMutation({
+    mutationKey: ["create-payment"],
+    mutationFn: (data: {
+      billingId: number;
+      clientId: number;
+      amount: number;
+      status: string;
+      date?: Date;
+      notes?: string;
+      orNumber?: string;
+    }) =>
+      createPayment(
+        data.billingId,
+        data.clientId,
+        data.amount,
+        data.status,
+        data.date,
+        data.notes,
+        data.orNumber
       ),
   });
 
@@ -427,13 +458,11 @@ const AddBookingsPageClient = (props: {
 
   // Add dish: increment quantity if exists, else add with quantity 1
   const addDish = (dish: Dish) => {
-    setSelectedDishes((prev) => {
-      const idx = prev.findIndex((d) => d.id === dish.id);
+    setSelectedDishes(prev => {
+      const idx = prev.findIndex(d => d.id === dish.id);
       if (idx !== -1) {
         // Already exists, increment quantity
-        return prev.map((d, i) =>
-          i === idx ? { ...d, quantity: d.quantity + 1 } : d
-        );
+        return prev.map((d, i) => (i === idx ? { ...d, quantity: d.quantity + 1 } : d));
       } else {
         // New dish, add with quantity 1
         return [...prev, { ...dish, quantity: 1 }];
@@ -445,10 +474,10 @@ const AddBookingsPageClient = (props: {
   // Removed unused InventoryIcon component
 
   const removeDish = (dishId: number) => {
-    setSelectedDishes((prev) =>
+    setSelectedDishes(prev =>
       prev
-        .map((d) => (d.id === dishId ? { ...d, quantity: d.quantity - 1 } : d))
-        .filter((d) => d.quantity > 0)
+        .map(d => (d.id === dishId ? { ...d, quantity: d.quantity - 1 } : d))
+        .filter(d => d.quantity > 0)
     );
   };
 
@@ -473,9 +502,7 @@ const AddBookingsPageClient = (props: {
         const rec = data?.[0];
         if (active) {
           setDiscountName(rec?.name || "");
-          setDiscountPercentage(
-            typeof rec?.percent === "number" ? rec.percent : 0
-          );
+          setDiscountPercentage(typeof rec?.percent === "number" ? rec.percent : 0);
         }
       } catch (e) {
         console.error("Failed loading discount", e);
@@ -496,12 +523,45 @@ const AddBookingsPageClient = (props: {
   const handleSubmitDraft = async (e: React.FormEvent<HTMLFormElement>) => {
     console.log("u clicked me");
     e.preventDefault();
+
+    // Validate required fields
+    if (!selectedPavilionId) {
+      alert("Please select a pavilion before creating the booking.");
+      return;
+    }
+
+    if (!startAt || !endAt) {
+      alert("Please select both start and end date/time for the booking.");
+      return;
+    }
+
+    // Additional validation for form fields
+    const formData = new FormData(e.currentTarget);
+    const eventName = formData.get("eventName");
+    const firstName = formData.get("firstName");
+    const lastName = formData.get("lastName");
+
+    if (!eventName || !firstName || !lastName) {
+      alert("Please fill in all required fields (Event Name, Client Name).");
+      return;
+    }
+
+    // Check if payment is filled
+    if (!isPaymentFilled()) {
+      // Show confirmation dialog
+      setShowPaymentConfirmDialog(true);
+      return;
+    }
+
+    // Proceed with booking creation including payment
+    await createBookingWithPayment(e);
+  };
+
+  const createBookingWithPayment = async (e: React.FormEvent<HTMLFormElement>) => {
     const formData = new FormData(e.currentTarget);
     const eventName = formData.get("eventName");
     const numberOfPax = formData.get("numPax");
     const eventType = formData.get("eventType");
-    const pavilion = formData.get("pavilion");
-    const packageId = formData.get("package");
     const firstName = formData.get("firstName");
     const lastName = formData.get("lastName");
     const phoneNumber = formData.get("phoneNumber");
@@ -512,9 +572,7 @@ const AddBookingsPageClient = (props: {
     const notes = formData.get("notes");
 
     const selectedModeOfPaymentId = Number(modeOfPayment);
-    const selectedModeOfPayment = modeOfPayments.find(
-      (m) => m.id === selectedModeOfPaymentId
-    );
+    const selectedModeOfPayment = modeOfPayments.find(m => m.id === selectedModeOfPaymentId);
 
     const discountIdNum = Number(discount);
     if (!isNaN(discountIdNum) && discountIdNum > 0) {
@@ -527,9 +585,7 @@ const AddBookingsPageClient = (props: {
       ...selectedServiceIdsByCategory,
     };
     for (const cat of servicesCategory) {
-      const values = formData
-        .getAll(`services[${cat.id}][]`)
-        .map((v) => Number(v));
+      const values = formData.getAll(`services[${cat.id}][]`).map(v => Number(v));
       if (values.length) {
         mergedServiceIdsByCategory[cat.id] = Array.from(
           new Set([...(mergedServiceIdsByCategory[cat.id] ?? []), ...values])
@@ -541,16 +597,11 @@ const AddBookingsPageClient = (props: {
       const typed = typedServiceByCategory[cat.id]?.trim();
       if (typed) {
         const existing = allServices.find(
-          (s) =>
-            s.categoryId === cat.id &&
-            (s.name?.toLowerCase() ?? "") === typed.toLowerCase()
+          s => s.categoryId === cat.id && (s.name?.toLowerCase() ?? "") === typed.toLowerCase()
         );
         if (existing) {
           mergedServiceIdsByCategory[cat.id] = Array.from(
-            new Set([
-              ...(mergedServiceIdsByCategory[cat.id] ?? []),
-              existing.id,
-            ])
+            new Set([...(mergedServiceIdsByCategory[cat.id] ?? []), existing.id])
           );
         } else {
           try {
@@ -560,10 +611,7 @@ const AddBookingsPageClient = (props: {
             });
             if (created?.id) {
               mergedServiceIdsByCategory[cat.id] = Array.from(
-                new Set([
-                  ...(mergedServiceIdsByCategory[cat.id] ?? []),
-                  created.id,
-                ])
+                new Set([...(mergedServiceIdsByCategory[cat.id] ?? []), created.id])
               );
             }
           } catch (err) {
@@ -593,21 +641,20 @@ const AddBookingsPageClient = (props: {
     const serviceIdsFlat = Object.values(mergedServiceIdsByCategory).flat();
 
     // Validate dates
-    const validStartAt =
-      startAt && !isNaN(startAt.getTime()) ? startAt : new Date();
+    const validStartAt = startAt && !isNaN(startAt.getTime()) ? startAt : new Date();
     const validEndAt = endAt && !isNaN(endAt.getTime()) ? endAt : new Date();
 
     const booking = await createBookingMutation.mutateAsync({
       eventName: String(eventName ?? ""),
       clientID: clientID,
-      pavilionID: String(pavilion ?? ""),
+      pavilionID: String(selectedPavilionId),
       pax: String(numberOfPax ?? ""),
       eventType: Number(eventType ?? 0),
       notes: String(notes ?? ""),
       startAt: validStartAt,
       endAt: validEndAt,
       serviceIds: serviceIdsFlat.length ? serviceIdsFlat : undefined,
-      packageId: packageId ? Number(packageId) : undefined,
+      packageId: selectedPackageId || undefined,
       catering: selectedCatering ? Number(selectedCatering) : undefined,
     });
 
@@ -616,9 +663,7 @@ const AddBookingsPageClient = (props: {
     // If in-house catering selected (value "1"), create a menu with selected dishes & their quantities
     if (selectedCatering === "1" && bookingId) {
       try {
-        const dishIds = selectedDishes.flatMap((d) =>
-          Array(d.quantity).fill(d.id)
-        );
+        const dishIds = selectedDishes.flatMap(d => Array(d.quantity).fill(d.id));
         if (dishIds.length) {
           await createMenuWithDishes(bookingId, dishIds);
         }
@@ -627,46 +672,64 @@ const AddBookingsPageClient = (props: {
       }
     }
 
+    // Calculate original price for discount calculations
+    const selectedPackage = selectedPackageId
+      ? packages.find(p => p.id === selectedPackageId)
+      : null;
+    const basePackagePrice = selectedPackage?.price ?? 0;
+    const hoursCount =
+      startAt && endAt ? Math.round((endAt.getTime() - startAt.getTime()) / (60 * 60 * 1000)) : 0;
+    const extraHours = Math.max(0, hoursCount - 5);
+    const extraHoursFee = extraHours * 2000;
+    const originalPrice = basePackagePrice + extraHoursFee;
+
     // Handle discount creation and calculation
     let finalDiscountId = selectedDiscountId;
-    let finalDiscountType = discountName;
-    let finalDiscountPercentage = discountPercentage;
-    let finalDiscountAmount = discountAmount;
+    let finalDiscountType = "";
+    let finalDiscountPercentage = 0;
+    let finalDiscountAmount = 0;
     let finalIsCustomDiscount = false;
 
-    // If custom discount is selected, create it first
-    if (
-      discountType === "custom" &&
-      customDiscountName &&
-      customDiscountValue > 0
-    ) {
+    // Calculate discount based on current state
+    if (discountType === "predefined" && selectedDiscountId) {
+      const selectedDiscount = discounts.find(d => d.id === selectedDiscountId);
+      if (selectedDiscount) {
+        finalDiscountType = selectedDiscount.name || "";
+        if (selectedDiscount.percent) {
+          finalDiscountPercentage = selectedDiscount.percent;
+          finalDiscountAmount = originalPrice * (selectedDiscount.percent / 100);
+        } else if (selectedDiscount.amount) {
+          finalDiscountAmount = Math.min(selectedDiscount.amount, originalPrice);
+          finalDiscountPercentage =
+            originalPrice > 0 ? (finalDiscountAmount / originalPrice) * 100 : 0;
+        }
+      }
+    } else if (discountType === "custom" && customDiscountValue > 0) {
+      finalDiscountType = customDiscountName;
+      if (customDiscountType === "percent") {
+        finalDiscountPercentage = customDiscountValue;
+        finalDiscountAmount = originalPrice * (customDiscountValue / 100);
+      } else {
+        finalDiscountAmount = Math.min(customDiscountValue, originalPrice);
+        finalDiscountPercentage =
+          originalPrice > 0 ? (finalDiscountAmount / originalPrice) * 100 : 0;
+      }
+    }
+
+    // If custom discount is selected, create it first in the database
+    if (discountType === "custom" && customDiscountName && customDiscountValue > 0) {
       try {
         const customDiscount = await createDiscount({
           name: customDiscountName,
-          percent:
-            customDiscountType === "percent" ? customDiscountValue : undefined,
-          amount:
-            customDiscountType === "amount" ? customDiscountValue : undefined,
+          percent: customDiscountType === "percent" ? customDiscountValue : undefined,
+          amount: customDiscountType === "amount" ? customDiscountValue : undefined,
           description: customDiscountDescription || undefined,
           isActive: true,
         });
 
         if (customDiscount?.id) {
           finalDiscountId = customDiscount.id;
-          finalDiscountType = customDiscountName;
           finalIsCustomDiscount = true;
-
-          // Recalculate discount amount based on the created discount
-          if (customDiscountType === "percent") {
-            finalDiscountPercentage = customDiscountValue;
-            finalDiscountAmount = originalPrice * (customDiscountValue / 100);
-          } else {
-            finalDiscountAmount = customDiscountValue;
-            finalDiscountPercentage =
-              originalPrice > 0
-                ? (customDiscountValue / originalPrice) * 100
-                : 0;
-          }
         }
       } catch (err) {
         console.error("Failed to create custom discount", err);
@@ -678,22 +741,77 @@ const AddBookingsPageClient = (props: {
       }
     }
 
-    await createBillingMutation.mutateAsync({
+    // Calculate final discounted price
+    const finalDiscountedPrice = Math.max(0, originalPrice - finalDiscountAmount);
+
+    // Debug logging for discount calculation
+    console.log("Discount Debug Info:", {
+      discountType,
+      selectedDiscountId,
+      customDiscountName,
+      customDiscountValue,
+      customDiscountType,
+      originalPrice,
+      finalDiscountType,
+      finalDiscountPercentage,
+      finalDiscountAmount,
+      finalDiscountedPrice,
+      finalDiscountId,
+      finalIsCustomDiscount,
+    });
+
+    const billing = await createBillingMutation.mutateAsync({
       bookingId: Number(bookingId ?? 0),
       originalPrice: Number(originalPrice || 0),
-      discountedPrice: discountedPrice,
+      discountedPrice: finalDiscountedPrice,
       discountType: finalDiscountType,
       discountPercentage: Number(finalDiscountPercentage),
-      balance: Number(finalBalance),
-      modeOfPayment: selectedModeOfPayment?.name ?? "",
-      deposit: Number(downpayment),
+      balance: Number(finalDiscountedPrice - (isPaymentFilled() ? parseFloat(paymentAmount) : 0)),
+      modeOfPayment: isPaymentFilled()
+        ? (modeOfPayments.find(m => m.id.toString() === paymentModeOfPayment)?.name ?? "")
+        : (selectedModeOfPayment?.name ?? ""),
+      deposit: isPaymentFilled() ? parseFloat(paymentAmount) : Number(downpayment || 0),
       status: 1,
       discountAmount: finalDiscountAmount,
       discountId: finalDiscountId || undefined,
       isCustomDiscount: finalIsCustomDiscount,
     });
 
+    const billingId = Number(billing?.id);
+
+    // If payment is filled, create payment record
+    if (isPaymentFilled() && billingId) {
+      try {
+        await createPaymentMutation.mutateAsync({
+          billingId: billingId,
+          clientId: clientID,
+          amount: parseFloat(paymentAmount),
+          status: "completed",
+          date: paymentDate || new Date(),
+          notes: paymentNotes || undefined,
+          orNumber: paymentORNumber || undefined,
+        });
+
+        console.log("Payment created successfully:", {
+          billingId: billingId,
+          clientId: clientID,
+          amount: parseFloat(paymentAmount),
+          orNumber: paymentORNumber,
+          date: paymentDate,
+          notes: paymentNotes,
+        });
+      } catch (err) {
+        console.error("Failed to create payment", err);
+        alert(
+          "Booking created successfully, but payment creation failed. You can add payment details later."
+        );
+      }
+    }
+
     console.log({
+      bookingCreated: true,
+      bookingId: Number(bookingId),
+      billingId: billingId,
       firstName,
       lastName,
       phoneNumber,
@@ -701,16 +819,66 @@ const AddBookingsPageClient = (props: {
       eventName,
       numberOfPax,
       eventType,
-      pavilion,
-      modeOfPayment,
-      modeOfPaymentName: selectedModeOfPayment?.name ?? "",
-      downpayment,
-      discount,
-      discountPercentage,
+      pavilionId: selectedPavilionId,
+      packageId: selectedPackageId,
+      deposit: isPaymentFilled() ? parseFloat(paymentAmount) : 0,
+      balance: finalDiscountedPrice - (isPaymentFilled() ? parseFloat(paymentAmount) : 0),
+      paymentCreated: isPaymentFilled(),
+      discountApplied: finalDiscountAmount > 0,
+      discountType: finalDiscountType,
+      discountAmount: finalDiscountAmount,
       startAt,
       endAt,
       selectedServiceIdsByCategory: mergedServiceIdsByCategory,
+      paymentInfo: isPaymentFilled()
+        ? {
+            modeOfPayment: paymentModeOfPayment,
+            amount: paymentAmount,
+            orNumber: paymentORNumber,
+            date: paymentDate,
+            notes: paymentNotes,
+          }
+        : null,
     });
+  };
+
+  const handleCreateBookingWithoutPayment = async () => {
+    setShowPaymentConfirmDialog(false);
+
+    // Validate required fields again
+    if (!selectedPavilionId) {
+      alert("Please select a pavilion before creating the booking.");
+      return;
+    }
+
+    if (!startAt || !endAt) {
+      alert("Please select both start and end date/time for the booking.");
+      return;
+    }
+
+    // Additional validation for form fields
+    const formElement = document.getElementById("booking-form") as HTMLFormElement;
+    if (formElement) {
+      const formData = new FormData(formElement);
+      const eventName = formData.get("eventName");
+      const firstName = formData.get("firstName");
+      const lastName = formData.get("lastName");
+
+      if (!eventName || !firstName || !lastName) {
+        alert("Please fill in all required fields (Event Name, Client Name).");
+        return;
+      }
+    }
+
+    // Create a form event manually to reuse the same logic
+    const bookingForm = document.getElementById("booking-form") as HTMLFormElement;
+    if (bookingForm) {
+      const formEvent = {
+        preventDefault: () => {},
+        currentTarget: bookingForm,
+      } as React.FormEvent<HTMLFormElement>;
+      await createBookingWithPayment(formEvent);
+    }
   };
 
   const handlePavilionSelect = (e: string) => {
@@ -721,11 +889,9 @@ const AddBookingsPageClient = (props: {
 
   const [numPax, setNumPax] = useState<string>("");
 
-  const getMonthName = (d: Date) =>
-    d.toLocaleString("en-US", { month: "long" });
+  const getMonthName = (d: Date) => d.toLocaleString("en-US", { month: "long" });
 
-  const getDayName = (d: Date) =>
-    d.toLocaleString("en-US", { weekday: "long" });
+  const getDayName = (d: Date) => d.toLocaleString("en-US", { weekday: "long" });
 
   const finalStartDay = startAt ? `${getDayName(startAt)},` : "";
   const finalStartDate = startAt
@@ -733,9 +899,7 @@ const AddBookingsPageClient = (props: {
     : "";
   const finalStartTime = startAt
     ? `${startAt.getHours() % 12 || 12}:${
-        startAt.getMinutes() < 10
-          ? `0${startAt.getMinutes()}`
-          : startAt.getMinutes()
+        startAt.getMinutes() < 10 ? `0${startAt.getMinutes()}` : startAt.getMinutes()
       } ${startAt.getHours() >= 12 ? "PM" : "AM"}`
     : "";
 
@@ -759,35 +923,26 @@ const AddBookingsPageClient = (props: {
     return Math.round((end.getTime() - start.getTime()) / msInHour);
   };
 
-  const totalDays =
-    startAt && endAt && endAt > startAt
-      ? getDaysDifference(startAt, endAt)
-      : "";
-  const totalHours =
-    startAt && endAt && endAt > startAt
-      ? getHoursDifference(startAt, endAt)
-      : "";
+  const totalDays = startAt && endAt && endAt > startAt ? getDaysDifference(startAt, endAt) : "";
+  const totalHours = startAt && endAt && endAt > startAt ? getHoursDifference(startAt, endAt) : "";
 
   const selectedPavilion =
-    selectedPavilionId !== null
-      ? (pavilions.find((p) => p.id === selectedPavilionId) ?? null)
-      : null;
+    selectedPavilionId !== null ? (pavilions.find(p => p.id === selectedPavilionId) ?? null) : null;
 
   const filteredPackages = selectedPavilionId
-    ? packages.filter((p) => p.pavilionId === selectedPavilionId)
+    ? packages.filter(p => p.pavilionId === selectedPavilionId)
     : [];
 
   const selectedPackage = selectedPackageId
-    ? (filteredPackages.find((p) => p.id === selectedPackageId) ?? null)
+    ? (filteredPackages.find(p => p.id === selectedPackageId) ?? null)
     : null;
   const selectedPackageItems = (selectedPackage?.description ?? "")
     .split(".")
-    .map((s) => s.trim())
+    .map(s => s.trim())
     .filter(Boolean);
 
   // Pricing calculations
-  const formatCurrency = (n: number) =>
-    `₱ ${Math.max(0, Math.round(n)).toLocaleString()}`;
+  const formatCurrency = (n: number) => `₱ ${Math.max(0, Math.round(n)).toLocaleString()}`;
   const basePackagePrice = selectedPackage?.price ?? 0;
   const hoursCount = typeof totalHours === "number" ? totalHours : 0;
   const extraHours = Math.max(0, hoursCount - 5);
@@ -797,7 +952,7 @@ const AddBookingsPageClient = (props: {
   // Calculate discount amount based on type
   let discountAmount = 0;
   if (discountType === "predefined" && selectedDiscountId) {
-    const selectedDiscount = discounts.find((d) => d.id === selectedDiscountId);
+    const selectedDiscount = discounts.find(d => d.id === selectedDiscountId);
     if (selectedDiscount) {
       if (selectedDiscount.percent) {
         discountAmount = originalPrice * (selectedDiscount.percent / 100);
@@ -814,7 +969,8 @@ const AddBookingsPageClient = (props: {
   }
 
   const discountedPrice = Math.max(0, originalPrice - discountAmount);
-  const finalBalance = Math.max(0, discountedPrice - downPayment);
+  const currentDeposit = isPaymentFilled() ? parseFloat(paymentAmount) : 0;
+  const finalBalance = Math.max(0, discountedPrice - currentDeposit);
 
   if (!isVisible) return null;
   return (
@@ -860,183 +1016,69 @@ const AddBookingsPageClient = (props: {
             <div className="">
               <div>
                 <p className="font-bold text-lg mb-2">Pavilion</p>
-                <Dialog>
-                  <DialogTrigger className="w-full">
-                    <div className="flex border-1 p-6 rounded-lg justify-between items-center group">
-                      <div className="flex items-center gap-4">
-                        {selectedPavilion && (
-                          <div
-                            className="w-6 h-6 rounded-full border-2 border-white shadow-md"
-                            style={{
-                              backgroundColor: (() => {
-                                const sanitized = selectedPavilion.color
-                                  ?.toLowerCase()
-                                  .replace(/[^a-z0-9-]/g, "")
-                                  .split(/-+/)[0];
-                                let color: string = "#ef4444"; // fallback red-500
-                                if (selectedPavilion.color) {
-                                  const trimmed = selectedPavilion.color.trim();
-                                  if (
-                                    /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(
-                                      trimmed
-                                    )
-                                  ) {
-                                    color = trimmed;
-                                  } else if (
-                                    sanitized &&
-                                    COLOR_TOKEN_TO_HEX[sanitized]
-                                  ) {
-                                    color = COLOR_TOKEN_TO_HEX[sanitized];
-                                  }
-                                }
-                                return color;
-                              })(),
-                            }}
-                          />
-                        )}
-                        <div className="flex flex-col justify-start items-start ">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-lg">
-                              {selectedPavilion
-                                ? selectedPavilion.name
-                                : "Select a pavilion"}
-                            </p>
-                            {selectedPavilion && (
-                              <Badge variant="secondary" className="text-xs">
-                                <Users size={12} className="mr-1 opacity-60" />
-                                {selectedPavilion.maxPax} pax
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm font-normal text-foreground/50">
-                            {selectedPavilion
-                              ? selectedPavilion.description ||
-                                "No description available"
-                              : "Choose a pavilion to see details"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                        <Pen size={18} />
-                      </div>
-                    </div>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden">
-                    <DialogHeader>
-                      <DialogTitle className="text-xl font-semibold">
-                        Choose Your Pavilion
-                      </DialogTitle>
-                    </DialogHeader>
-                    <ScrollArea className="max-h-[60vh] pr-4">
-                      <div className="mt-6">
-                        <RadioGroup
-                          name="pavilion"
-                          value={
-                            selectedPavilionId
-                              ? String(selectedPavilionId)
-                              : undefined
-                          }
-                          onValueChange={(val) => {
-                            setSelectedPavilionId(Number(val));
-                            setSelectedPackageId(null);
-                            const pav = pavilions.find(
-                              (p) => String(p.id) === val
-                            );
-                            handlePavilionSelect(pav ? pav.name : val);
-                          }}
-                          className="grid grid-cols-1 gap-2"
-                        >
-                          {pavilions.map((pavilion) => {
-                            const sanitized = pavilion.color
+                <div className="flex border-1 p-4 rounded-md justify-between items-center group">
+                  <div className="flex items-center gap-4">
+                    {selectedPavilion && (
+                      <div
+                        className="w-1 h-8 rounded-md"
+                        style={{
+                          backgroundColor: (() => {
+                            const sanitized = selectedPavilion.color
                               ?.toLowerCase()
                               .replace(/[^a-z0-9-]/g, "")
                               .split(/-+/)[0];
-                            // Determine color: prefer valid hex, else map token, fallback red-500.
-                            let pavilionColor: string = "#ef4444"; // fallback red-500
-                            if (pavilion.color) {
-                              const trimmed = pavilion.color.trim();
-                              if (
-                                /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)
-                              ) {
-                                pavilionColor = trimmed;
-                              } else if (
-                                sanitized &&
-                                COLOR_TOKEN_TO_HEX[sanitized]
-                              ) {
-                                pavilionColor = COLOR_TOKEN_TO_HEX[sanitized];
+                            let color: string = "#ef4444"; // fallback red-500
+                            if (selectedPavilion.color) {
+                              const trimmed = selectedPavilion.color.trim();
+                              if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) {
+                                color = trimmed;
+                              } else if (sanitized && COLOR_TOKEN_TO_HEX[sanitized]) {
+                                color = COLOR_TOKEN_TO_HEX[sanitized];
                               }
                             }
-
-                            return (
-                              <div
-                                key={pavilion.id}
-                                className="relative flex items-start gap-3 rounded-lg border p-4 shadow-sm outline-none transition-all duration-200 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5"
-                              >
-                                <RadioGroupItem
-                                  value={`${pavilion.id}`}
-                                  id={`pavilion-${pavilion.id}`}
-                                  className="order-1 mt-1 after:absolute after:inset-0"
-                                />
-
-                                <div className="flex items-start gap-3 flex-1">
-                                  {/* Content */}
-                                  <div className="flex-1 space-y-2">
-                                    <div className="flex items-start justify-between">
-                                      <Label
-                                        htmlFor={`pavilion-${pavilion.id}`}
-                                        className="text-base font-medium cursor-pointer transition-colors"
-                                      >
-                                        {pavilion.name}
-                                      </Label>
-                                      <div className="flex items-center gap-2">
-                                        <Badge
-                                          variant="secondary"
-                                          className="text-xs"
-                                        >
-                                          <Users size={12} className="mr-1" />
-                                          {pavilion.maxPax} guests
-                                        </Badge>
-                                      </div>
-                                    </div>
-
-                                    <p className="text-sm text-muted-foreground">
-                                      {pavilion.description}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </RadioGroup>
+                            return color;
+                          })(),
+                        }}
+                      />
+                    )}
+                    <div className="flex flex-col justify-start items-start ">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-md">
+                          {selectedPavilion ? selectedPavilion.name : "Select a pavilion"}
+                        </p>
+                        {selectedPavilion && (
+                          <Badge variant="secondary" className="text-xs">
+                            <Users size={12} className="mr-1 opacity-60" />
+                            {selectedPavilion.maxPax} pax
+                          </Badge>
+                        )}
                       </div>
-                    </ScrollArea>
-                  </DialogContent>
-                </Dialog>
+                      <p className="text-xs font-normal text-foreground/50">
+                        {selectedPavilion
+                          ? selectedPavilion.description || "No description available"
+                          : "Choose a pavilion to see details"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="">
                 <div className="mt-5">
                   <Dialog>
                     <DialogTrigger className="w-full">
-                      {/* <p className="border-dashed border-2 px-4 py-8 rounded-md bg-muted/50 justify-center text-foreground/50 flex">
-                        select a package
-                      </p> */}
-
                       <div className=" flex border-1 p-4 rounded-md justify-between  items-center">
                         <div className="flex flex-col justify-start items-start">
-                          <p className="flex font-medium gap-2 items-center text-lg">
-                            {selectedPackage
-                              ? selectedPackage.name
-                              : "Select a package"}
+                          <p className="flex font-medium gap-2 items-center text-md">
+                            {selectedPackage ? selectedPackage.name : "Select a package"}
                             {selectedPackage && (
                               <span className="text-xs font-normal">
                                 (₱{selectedPackage.price.toLocaleString()})
                               </span>
                             )}
                           </p>
-                          <p className="text-sm font-normal text-foreground/50">
+                          <p className="text-xs font-normal text-foreground/50">
                             {selectedPackage
-                              ? selectedPackage.description ||
-                                "No description available"
+                              ? selectedPackage.description || "No description available"
                               : "Choose a package to see details"}
                           </p>
                         </div>
@@ -1046,32 +1088,28 @@ const AddBookingsPageClient = (props: {
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Are you absolutely sure?</DialogTitle>
+                        <DialogTitle>Select a Package</DialogTitle>
                         <DialogDescription className="mt-4">
                           <div>
                             <RadioGroup
                               name="package"
                               className="flex flex-col"
-                              onValueChange={(val) =>
-                                setSelectedPackageId(Number(val))
-                              }
+                              onValueChange={val => setSelectedPackageId(Number(val))}
                             >
                               {selectedPavilionId === null && (
                                 <div className="col-span-4 text-sm text-muted-foreground">
                                   Select a pavilion to see its packages.
                                 </div>
                               )}
-                              {selectedPavilionId !== null &&
-                                filteredPackages.length === 0 && (
-                                  <div className="col-span-4 text-sm text-muted-foreground">
-                                    No packages available for the selected
-                                    pavilion.
-                                  </div>
-                                )}
-                              {filteredPackages.map((pack) => {
+                              {selectedPavilionId !== null && filteredPackages.length === 0 && (
+                                <div className="col-span-4 text-sm text-muted-foreground">
+                                  No packages available for the selected pavilion.
+                                </div>
+                              )}
+                              {filteredPackages.map(pack => {
                                 const items = (pack.description ?? "")
                                   .split(".")
-                                  .map((s) => s.trim())
+                                  .map(s => s.trim())
                                   .filter(Boolean);
                                 return (
                                   <div
@@ -1085,10 +1123,7 @@ const AddBookingsPageClient = (props: {
                                       className="order-1 after:absolute after:inset-0"
                                     />
                                     <div className="grid grow gap-2">
-                                      <Label
-                                        className="flex items-center"
-                                        htmlFor={`${pack.id}`}
-                                      >
+                                      <Label className="flex items-center" htmlFor={`${pack.id}`}>
                                         {pack.name}
                                         <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal">
                                           {`(₱${pack.price.toLocaleString()})`}
@@ -1135,25 +1170,32 @@ const AddBookingsPageClient = (props: {
                     />
                   </div>
                   <div className="flex-grow w-full">
-                    <EndDatePickerForm
-                      endDateOnChange={setEndDate}
-                      initialDate={endDate}
-                      disabledDates={bookedDaySet}
-                      minDate={startDate}
-                    />
+                    {!preSelectedEndDate && (
+                      <EndDatePickerForm
+                        endDateOnChange={setEndDate}
+                        initialDate={startDate}
+                        disabledDates={bookedDaySet}
+                        minDate={startDate}
+                      />
+                    )}
+
+                    {preSelectedEndDate && (
+                      <EndDatePickerForm
+                        endDateOnChange={setEndDate}
+                        initialDate={endDate}
+                        disabledDates={bookedDaySet}
+                        minDate={startDate}
+                      />
+                    )}
                   </div>
                 </div>
                 <div className="mt-4">
                   <div className="grid grid-cols-2 gap-4 w-full ">
                     <div className="flex-grow">
-                      <TimeStartPickerCreateBookingComponent
-                        startTimeOnChange={setStartTime}
-                      />
+                      <TimeStartPickerCreateBookingComponent startTimeOnChange={setStartTime} />
                     </div>
                     <div className="flex-grow">
-                      <TimeEndPickerCreateBookingComponent
-                        endTimeOnChange={setEndTime}
-                      />
+                      <TimeEndPickerCreateBookingComponent endTimeOnChange={setEndTime} />
                     </div>
                   </div>
                 </div>
@@ -1169,39 +1211,29 @@ const AddBookingsPageClient = (props: {
             <p className="font-bold text-lg">Event Details</p>
             <div className="flex">
               <div className="mt-2 *:not-first:mt-2 flex-1">
-                <Label className="text-foreground/50 font-normal">
-                  Event Name
-                </Label>
-                <Input
-                  name="eventName"
-                  placeholder="Chris' Birthday Party"
-                  type="text"
-                />
+                <Label className="text-foreground/50 font-normal">Event Name</Label>
+                <Input name="eventName" placeholder="Chris' Birthday Party" type="text" />
               </div>
               <div className="mt-2 *:not-first:mt-2 flex-1 ml-4">
-                <Label className="text-foreground/50 font-normal">
-                  No. of pax
-                </Label>
+                <Label className="text-foreground/50 font-normal">No. of pax</Label>
                 <Input
                   name="numPax"
                   placeholder="200"
                   type="text"
                   value={numPax}
-                  onChange={(e) => setNumPax(e.currentTarget.value)}
+                  onChange={e => setNumPax(e.currentTarget.value)}
                 />
               </div>
             </div>
             <div className="mt-4 *:not-first:mt-2">
-              <Label className="text-foreground/50 font-normal">
-                Event type
-              </Label>
+              <Label className="text-foreground/50 font-normal">Event type</Label>
 
               <Select name="eventType">
                 <SelectTrigger>
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {eventTypes.map((eventType) => (
+                  {eventTypes.map(eventType => (
                     <SelectItem value={`${eventType.id}`} key={eventType.id}>
                       {eventType.name}
                     </SelectItem>
@@ -1238,28 +1270,21 @@ const AddBookingsPageClient = (props: {
                         className="order-1 after:absolute after:inset-0"
                       />
                       <div className="flex flex-col grow gap-2 justify-start items-baseline">
-                        <Label
-                          htmlFor={`${id}-1`}
-                          className="flex items-center"
-                        >
+                        <Label htmlFor={`${id}-1`} className="flex items-center">
                           <Users className="mr-1" size={20} />
                           {"Susing and Rufins Catering"}
                           <span className="text-muted-foreground text-xs leading-[inherit] font-normal"></span>
                         </Label>
-                        <div
-                          id={`${id}-1-description`}
-                          className="text-muted-foreground text-xs"
-                        >
+                        <div id={`${id}-1-description`} className="text-muted-foreground text-xs">
                           <ul className="list-disc list-inside space-y-1 mb-2">
                             <li>Use the in-house catering.</li>
-                            <li>
-                              Menu, staff, and setup are handled internally.
-                            </li>
+                            <li>Menu, staff, and setup are handled internally.</li>
                           </ul>
                         </div>
                       </div>
                     </div>
                     {/* Radio card #2 */}
+
                     <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
                       <RadioGroupItem
                         value="2"
@@ -1268,24 +1293,15 @@ const AddBookingsPageClient = (props: {
                         className="order-1 after:absolute after:inset-0"
                       />
                       <div className="flex flex-col grow gap-2 justify-start items-baseline">
-                        <Label
-                          htmlFor={`${id}-2`}
-                          className="flex items-center"
-                        >
+                        <Label htmlFor={`${id}-2`} className="flex items-center">
                           <Truck className="mr-1" size={20} />
                           {"3rd Party Catering"}
                           <span className=" ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
                         </Label>
-                        <div
-                          id={`${id}-2-description`}
-                          className="text-muted-foreground text-xs"
-                        >
+                        <div id={`${id}-2-description`} className="text-muted-foreground text-xs">
                           <ul className="list-disc list-inside space-y-1 mb-2">
                             <li>Client brings an external caterer.</li>
-                            <li>
-                              All food, equipment, and utensils are provided by
-                              the caterer.
-                            </li>
+                            <li>All food, equipment, and utensils are provided by the caterer.</li>
                           </ul>
                         </div>
                       </div>
@@ -1299,23 +1315,16 @@ const AddBookingsPageClient = (props: {
                         className="order-1 after:absolute after:inset-0"
                       />
                       <div className="flex flex-col grow gap-2">
-                        <Label
-                          htmlFor={`${id}-2`}
-                          className="flex items-center"
-                        >
+                        <Label htmlFor={`${id}-2`} className="flex items-center">
                           <Layers className="mr-1" size={20} />
                           {"Hybrid Service"}
                           <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
                         </Label>
-                        <div
-                          id={`${id}-2-description`}
-                          className="text-muted-foreground text-xs"
-                        >
+                        <div id={`${id}-2-description`} className="text-muted-foreground text-xs">
                           <ul className="list-disc list-inside space-y-1 mb-2">
                             <li>Client provides an external caterer.</li>
                             <li>
-                              Susing and Rufins staff handle serving, table
-                              setup, and cleanup.
+                              Susing and Rufins staff handle serving, table setup, and cleanup.
                             </li>
                           </ul>
                         </div>
@@ -1330,23 +1339,15 @@ const AddBookingsPageClient = (props: {
                         className="order-1 after:absolute after:inset-0"
                       />
                       <div className="flex flex-col grow gap-2">
-                        <Label
-                          htmlFor={`${id}-4`}
-                          className="flex items-center"
-                        >
+                        <Label htmlFor={`${id}-4`} className="flex items-center">
                           <MinusCircle className="mr-1" size={20} />
                           {"None"}
                           <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
                         </Label>
-                        <div
-                          id={`${id}-4-description`}
-                          className="text-muted-foreground text-xs"
-                        >
+                        <div id={`${id}-4-description`} className="text-muted-foreground text-xs">
                           <ul className="list-disc list-inside space-y-1 mb-2">
                             <li>No catering service included.</li>
-                            <li>
-                              No food or beverage arrangements are needed.
-                            </li>
+                            <li>No food or beverage arrangements are needed.</li>
                           </ul>
                         </div>
                       </div>
@@ -1364,9 +1365,7 @@ const AddBookingsPageClient = (props: {
               className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
             >
               <p className="font-bold text-lg">Dishes</p>
-              <p className="text-sm text-zinc-500">
-                Select dishes for the booking
-              </p>
+              <p className="text-sm text-zinc-500">Select dishes for the booking</p>
               <div className="">
                 <div className="mt-5">
                   <div>
@@ -1386,13 +1385,10 @@ const AddBookingsPageClient = (props: {
                                 className="w-full"
                                 key={`allCategory`}
                               >
-                                <List
-                                  size={16}
-                                  className="shrink-0 max-md:mt-0.5"
-                                />
+                                <List size={16} className="shrink-0 max-md:mt-0.5" />
                                 <p>All</p>
                               </TabsTrigger>
-                              {dishCategories.map((category) => (
+                              {dishCategories.map(category => (
                                 <TabsTrigger
                                   value={`${category.id}`}
                                   className="w-full"
@@ -1404,27 +1400,18 @@ const AddBookingsPageClient = (props: {
                               ))}
                             </TabsList>
                             <div className="grow rounded-md border text-start">
-                              <TabsContent
-                                key={`allCategory`}
-                                value={`allCategory`}
-                              >
+                              <TabsContent key={`allCategory`} value={`allCategory`}>
                                 {/* DISH ITEM */}
                                 <ScrollArea className="h-[325px] w-full">
-                                  <DishSelectComponent
-                                    dishes={allDishes}
-                                    onAddDish={addDish}
-                                  />
+                                  <DishSelectComponent dishes={allDishes} onAddDish={addDish} />
                                 </ScrollArea>
                               </TabsContent>
-                              {dishCategories.map((category) => {
+                              {dishCategories.map(category => {
                                 const dishesForCategory = allDishes.filter(
-                                  (d) => d.categoryId === category.id
+                                  d => d.categoryId === category.id
                                 );
                                 return (
-                                  <TabsContent
-                                    key={category.id}
-                                    value={`${category.id}`}
-                                  >
+                                  <TabsContent key={category.id} value={`${category.id}`}>
                                     {/* DISH ITEM */}
                                     <ScrollArea className="h-[325px] w-full">
                                       <DishSelectComponent
@@ -1569,66 +1556,54 @@ const AddBookingsPageClient = (props: {
             id="services"
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
-            <p className="font-bold text-lg">Other Services</p>
+            <p className="font-bold text-lg">3rd Party Services</p>
             <div className="">
               <div className="mt-2">
                 <div className="flex items-center [--primary:var(--color-red-500)] [--ring:var(--color-red-500)] in-[.dark]:[--primary:var(--color-red-500)] in-[.dark]:[--ring:var(--color-red-500)]">
                   <div className="grid grid-cols-3 gap-3 w-full">
-                    {servicesCategory.map((category) => (
+                    {servicesCategory.map(category => (
                       <div className=" mt-1" key={category.id}>
-                        <Label className="font-normal text-foreground/50">
-                          {category.name}
-                        </Label>
+                        <Label className="font-normal text-foreground/50">{category.name}</Label>
                         <div className="mt-2">
                           <SearchService
-                            services={allServices.filter(
-                              (s) => s.categoryId === category.id
-                            )}
+                            services={allServices.filter(s => s.categoryId === category.id)}
                             value={typedServiceByCategory[category.id] ?? ""}
-                            onTypeChange={(v) =>
-                              setTypedServiceByCategory((prev) => ({
+                            onTypeChange={v =>
+                              setTypedServiceByCategory(prev => ({
                                 ...prev,
                                 [category.id]: v,
                               }))
                             }
-                            onPick={async (val) => {
+                            onPick={async val => {
                               const existing = allServices.find(
-                                (s) =>
-                                  (s.name?.toLowerCase() ?? "") ===
-                                    val.toLowerCase() &&
+                                s =>
+                                  (s.name?.toLowerCase() ?? "") === val.toLowerCase() &&
                                   s.categoryId === category.id
                               );
                               if (existing) {
-                                setSelectedServiceIdsByCategory((prev) => ({
+                                setSelectedServiceIdsByCategory(prev => ({
                                   ...prev,
                                   [category.id]: Array.from(
-                                    new Set([
-                                      ...(prev[category.id] ?? []),
-                                      existing.id,
-                                    ])
+                                    new Set([...(prev[category.id] ?? []), existing.id])
                                   ),
                                 }));
-                                setTypedServiceByCategory((prev) => ({
+                                setTypedServiceByCategory(prev => ({
                                   ...prev,
                                   [category.id]: existing.name ?? "",
                                 }));
                               } else {
-                                const created =
-                                  await createServiceMutation.mutateAsync({
-                                    serviceName: val,
-                                    categoryId: category.id,
-                                  });
+                                const created = await createServiceMutation.mutateAsync({
+                                  serviceName: val,
+                                  categoryId: category.id,
+                                });
                                 if (created?.id) {
-                                  setSelectedServiceIdsByCategory((prev) => ({
+                                  setSelectedServiceIdsByCategory(prev => ({
                                     ...prev,
                                     [category.id]: Array.from(
-                                      new Set([
-                                        ...(prev[category.id] ?? []),
-                                        created.id,
-                                      ])
+                                      new Set([...(prev[category.id] ?? []), created.id])
                                     ),
                                   }));
-                                  setTypedServiceByCategory((prev) => ({
+                                  setTypedServiceByCategory(prev => ({
                                     ...prev,
                                     [category.id]: created.name ?? val,
                                   }));
@@ -1658,36 +1633,20 @@ const AddBookingsPageClient = (props: {
                 <div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="*:not-first:mt-2">
-                      <Label className="font-normal text-foreground/50">
-                        First name
-                      </Label>
+                      <Label className="font-normal text-foreground/50">First name</Label>
                       <Input name="firstName" placeholder="John" type="text" />
                     </div>
                     <div className="*:not-first:mt-2">
-                      <Label className="font-normal text-foreground/50">
-                        Last name
-                      </Label>
+                      <Label className="font-normal text-foreground/50">Last name</Label>
                       <Input name="lastName" placeholder="Doe" type="text" />
                     </div>
                     <div className="*:not-first:mt-2">
-                      <Label className="font-normal text-foreground/50">
-                        Phone number
-                      </Label>
-                      <Input
-                        name="phoneNumber"
-                        placeholder="09123456789"
-                        type="tel"
-                      />
+                      <Label className="font-normal text-foreground/50">Phone number</Label>
+                      <Input name="phoneNumber" placeholder="09123456789" type="tel" />
                     </div>
                     <div className="*:not-first:mt-2">
-                      <Label className="font-normal text-foreground/50">
-                        Email address
-                      </Label>
-                      <Input
-                        name="email"
-                        placeholder="johndoe@gmail.com"
-                        type="email"
-                      />
+                      <Label className="font-normal text-foreground/50">Email address</Label>
+                      <Input name="email" placeholder="johndoe@gmail.com" type="email" />
                     </div>
                   </div>
                   <div className="mt-3">
@@ -1709,18 +1668,14 @@ const AddBookingsPageClient = (props: {
             className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
           >
             <p className="font-bold text-lg">Discount</p>
-            <p className="text-sm text-zinc-500">
-              Choose a discount option for this booking.
-            </p>
+            <p className="text-sm text-zinc-500">Choose a discount option for this booking.</p>
             <div className="mt-5">
               <div className="space-y-4">
                 {/* Discount Type Selection */}
                 <div>
                   <RadioGroup
                     value={discountType}
-                    onValueChange={(
-                      value: "predefined" | "custom" | "none"
-                    ) => {
+                    onValueChange={(value: "predefined" | "custom" | "none") => {
                       setDiscountType(value);
                       if (value === "predefined") {
                         // Reset custom discount states
@@ -1752,10 +1707,7 @@ const AddBookingsPageClient = (props: {
                         id="predefined"
                         className="after:absolute after:inset-0 after:cursor-pointer"
                       />
-                      <Label
-                        htmlFor="predefined"
-                        className="font-normal cursor-pointer"
-                      >
+                      <Label htmlFor="predefined" className="font-normal cursor-pointer">
                         Predefined Discount
                       </Label>
                     </div>
@@ -1765,10 +1717,7 @@ const AddBookingsPageClient = (props: {
                         id="custom"
                         className="after:absolute after:inset-0 after:cursor-pointer"
                       />
-                      <Label
-                        htmlFor="custom"
-                        className="font-normal cursor-pointer"
-                      >
+                      <Label htmlFor="custom" className="font-normal cursor-pointer">
                         Custom Discount
                       </Label>
                     </div>
@@ -1778,10 +1727,7 @@ const AddBookingsPageClient = (props: {
                         id="none"
                         className="after:absolute after:inset-0 after:cursor-pointer"
                       />
-                      <Label
-                        htmlFor="none"
-                        className="font-normal cursor-pointer"
-                      >
+                      <Label htmlFor="none" className="font-normal cursor-pointer">
                         None
                       </Label>
                     </div>
@@ -1791,15 +1737,11 @@ const AddBookingsPageClient = (props: {
                 {/* Predefined Discount Selection */}
                 {discountType === "predefined" && (
                   <div className="">
-                    <Label className="font-normal text-foreground/50">
-                      Select Discount
-                    </Label>
+                    <Label className="font-normal text-foreground/50">Select Discount</Label>
 
                     <Select
-                      value={
-                        selectedDiscountId ? String(selectedDiscountId) : ""
-                      }
-                      onValueChange={async (value) => {
+                      value={selectedDiscountId ? String(selectedDiscountId) : ""}
+                      onValueChange={async value => {
                         if (value === "") {
                           setSelectedDiscountId(null);
                           setDiscountName("");
@@ -1810,9 +1752,7 @@ const AddBookingsPageClient = (props: {
                         setSelectedDiscountId(discountId);
 
                         // Find discount in the predefined list
-                        const selectedDiscount = discounts.find(
-                          (d) => d.id === discountId
-                        );
+                        const selectedDiscount = discounts.find(d => d.id === discountId);
                         if (selectedDiscount) {
                           setDiscountName(selectedDiscount.name);
                           // Calculate percentage based on discount type
@@ -1820,12 +1760,9 @@ const AddBookingsPageClient = (props: {
                             setDiscountPercentage(selectedDiscount.percent);
                           } else if (selectedDiscount.amount) {
                             // Convert amount to percentage based on current total
-                            const currentTotal =
-                              basePackagePrice + extraHoursFee;
+                            const currentTotal = basePackagePrice + extraHoursFee;
                             const percentage =
-                              currentTotal > 0
-                                ? (selectedDiscount.amount / currentTotal) * 100
-                                : 0;
+                              currentTotal > 0 ? (selectedDiscount.amount / currentTotal) * 100 : 0;
                             setDiscountPercentage(percentage);
                           } else {
                             setDiscountPercentage(0);
@@ -1837,11 +1774,8 @@ const AddBookingsPageClient = (props: {
                         <SelectValue placeholder="Choose a discount" />
                       </SelectTrigger>
                       <SelectContent>
-                        {discounts.map((discount) => (
-                          <SelectItem
-                            key={discount.id}
-                            value={String(discount.id)}
-                          >
+                        {discounts.map(discount => (
+                          <SelectItem key={discount.id} value={String(discount.id)}>
                             <div className="flex  gap-2 items-center">
                               <span>{discount.name}</span>
                               <span className="text-xs text-muted-foreground">
@@ -1870,9 +1804,7 @@ const AddBookingsPageClient = (props: {
                         <Input
                           placeholder="e.g., Special Event Discount"
                           value={customDiscountName}
-                          onChange={(e) =>
-                            setCustomDiscountName(e.target.value)
-                          }
+                          onChange={e => setCustomDiscountName(e.target.value)}
                         />
                       </div>
                       <div>
@@ -1890,12 +1822,8 @@ const AddBookingsPageClient = (props: {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="percent">
-                              Percentage (%)
-                            </SelectItem>
-                            <SelectItem value="amount">
-                              Fixed Amount (₱)
-                            </SelectItem>
+                            <SelectItem value="percent">Percentage (%)</SelectItem>
+                            <SelectItem value="amount">Fixed Amount (₱)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1904,22 +1832,15 @@ const AddBookingsPageClient = (props: {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label className="font-normal text-foreground/50 mb-2 mt-4 block">
-                          {customDiscountType === "percent"
-                            ? "Percentage"
-                            : "Amount"}
+                          {customDiscountType === "percent" ? "Percentage" : "Amount"}
                         </Label>
                         <div className="relative">
                           <Input
-                            placeholder={
-                              customDiscountType === "percent" ? "10" : "1000"
-                            }
+                            placeholder={customDiscountType === "percent" ? "10" : "1000"}
                             value={customDiscountValue || ""}
-                            onChange={(e) => {
+                            onChange={e => {
                               const value = parseFloat(e.target.value) || 0;
-                              if (
-                                customDiscountType === "percent" &&
-                                value > 100
-                              ) {
+                              if (customDiscountType === "percent" && value > 100) {
                                 return; // Don't allow more than 100%
                               }
                               setCustomDiscountValue(value);
@@ -1928,24 +1849,15 @@ const AddBookingsPageClient = (props: {
                               if (customDiscountType === "percent") {
                                 setDiscountPercentage(value);
                               } else {
-                                const currentTotal =
-                                  basePackagePrice + extraHoursFee;
+                                const currentTotal = basePackagePrice + extraHoursFee;
                                 const percentage =
-                                  currentTotal > 0
-                                    ? (value / currentTotal) * 100
-                                    : 0;
+                                  currentTotal > 0 ? (value / currentTotal) * 100 : 0;
                                 setDiscountPercentage(percentage);
                               }
                             }}
                             min="0"
-                            max={
-                              customDiscountType === "percent"
-                                ? "100"
-                                : undefined
-                            }
-                            step={
-                              customDiscountType === "percent" ? "0.1" : "1"
-                            }
+                            max={customDiscountType === "percent" ? "100" : undefined}
+                            step={customDiscountType === "percent" ? "0.1" : "1"}
                           />
                           <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">
                             {customDiscountType === "percent" ? "%" : "₱"}
@@ -1959,9 +1871,7 @@ const AddBookingsPageClient = (props: {
                         <Input
                           placeholder="Brief description"
                           value={customDiscountDescription}
-                          onChange={(e) =>
-                            setCustomDiscountDescription(e.target.value)
-                          }
+                          onChange={e => setCustomDiscountDescription(e.target.value)}
                         />
                       </div>
                     </div>
@@ -1972,6 +1882,120 @@ const AddBookingsPageClient = (props: {
           </div>
 
           {/* === BILLING BLOCK === */}
+          <div
+            id="discount"
+            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+          >
+            <p className="font-bold text-lg">Deposit</p>
+            <div className="mt-5 grid grid-cols-2 gap-4">
+              <div className="gap-2 flex flex-col">
+                <Label className="font-normal">Mode of payment *</Label>
+                <Select value={paymentModeOfPayment} onValueChange={setPaymentModeOfPayment}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Mode of payment" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[201]">
+                    {modeOfPayments.map(mop => (
+                      <SelectItem key={mop.id} value={mop.id.toString()}>
+                        {mop.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="gap-2 flex flex-col">
+                <Label className="font-normal">Amount *</Label>
+                <InputGroup>
+                  <InputGroupAddon>
+                    <InputGroupText>₱</InputGroupText>
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
+                    value={paymentAmount}
+                    onChange={e => setPaymentAmount(e.target.value)}
+                    onKeyDown={e => {
+                      if (
+                        [8, 9, 27, 13, 46].indexOf(e.keyCode) !== -1 ||
+                        // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                        (e.keyCode === 65 && e.ctrlKey === true) ||
+                        (e.keyCode === 67 && e.ctrlKey === true) ||
+                        (e.keyCode === 86 && e.ctrlKey === true) ||
+                        (e.keyCode === 88 && e.ctrlKey === true)
+                      ) {
+                        return;
+                      }
+
+                      if (
+                        (e.shiftKey || e.keyCode < 48 || e.keyCode > 57) &&
+                        (e.keyCode < 96 || e.keyCode > 105) &&
+                        e.keyCode !== 190 &&
+                        e.keyCode !== 110
+                      ) {
+                        e.preventDefault();
+                      }
+                    }}
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupText>PHP</InputGroupText>
+                  </InputGroupAddon>
+                </InputGroup>
+              </div>
+
+              <div className="gap-2 flex flex-col">
+                <Label className="font-normal">OR Number</Label>
+                <Input
+                  placeholder="Official Receipt Number"
+                  value={paymentORNumber}
+                  onChange={e => setPaymentORNumber(e.target.value)}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label className="font-normal">Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !paymentDate && "text-muted-foreground"
+                      )}
+                    >
+                      {paymentDate ? format(paymentDate, "PPP") : <span>Pick a date</span>}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={paymentDate}
+                      onSelect={(date?: Date) => setPaymentDate(date)}
+                      disabled={(date: Date) => {
+                        // Disable future dates for payment date
+                        const today = new Date();
+                        today.setHours(23, 59, 59, 999);
+                        return date > today;
+                      }}
+                      captionLayout="dropdown"
+                      fromYear={new Date().getFullYear() - 5}
+                      toYear={new Date().getFullYear()}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="col-span-2 gap-2 flex flex-col">
+                <Label className="font-normal">Payment Notes</Label>
+                <Textarea
+                  placeholder="Optional notes about this payment..."
+                  value={paymentNotes}
+                  onChange={e => setPaymentNotes(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
         </div>
         {/* === RIGHT COLUMN (SUMMARY) === */}
         <div className="sticky top-0 h-screen mt-8">
@@ -1982,17 +2006,11 @@ const AddBookingsPageClient = (props: {
             <div>
               <div className="flex">
                 <p className="font-medium text-md">
-                  {selectedPavilion
-                    ? selectedPavilion.name
-                    : "Select a pavilion"}
+                  {selectedPavilion ? selectedPavilion.name : "Select a pavilion"}
                 </p>
                 {selectedPavilion && (
                   <Badge variant={"secondary"} className="ml-2">
-                    <Users
-                      className="-ms-0.5 opacity-60"
-                      size={12}
-                      aria-hidden="true"
-                    />
+                    <Users className="-ms-0.5 opacity-60" size={12} aria-hidden="true" />
                     {`${selectedPavilion.maxPax} pax`}
                   </Badge>
                 )}
@@ -2058,8 +2076,7 @@ const AddBookingsPageClient = (props: {
                   <div className="col-span-1">
                     <p className="text-md font-medium">Total Price</p>
                     <p className="text-sm font-normal text-black/50">
-                      {typeof totalDays === "number" &&
-                      typeof totalHours === "number"
+                      {typeof totalDays === "number" && typeof totalHours === "number"
                         ? `${totalDays > 0 ? `${totalDays} day(s), ` : ""}${totalHours} hour(s)`
                         : ``}
                     </p>
@@ -2083,7 +2100,7 @@ const AddBookingsPageClient = (props: {
                           {discountType === "predefined" && selectedDiscountId
                             ? (() => {
                                 const selectedDiscount = discounts.find(
-                                  (d) => d.id === selectedDiscountId
+                                  d => d.id === selectedDiscountId
                                 );
                                 if (selectedDiscount?.percent)
                                   return `${selectedDiscount.percent}% off`;
@@ -2091,8 +2108,7 @@ const AddBookingsPageClient = (props: {
                                   return `₱${selectedDiscount.amount.toLocaleString()} off`;
                                 return "Discount applied";
                               })()
-                            : discountType === "custom" &&
-                                customDiscountValue > 0
+                            : discountType === "custom" && customDiscountValue > 0
                               ? customDiscountType === "percent"
                                 ? `${customDiscountValue}% off`
                                 : `₱${customDiscountValue.toLocaleString()} off`
@@ -2127,65 +2143,34 @@ const AddBookingsPageClient = (props: {
             </div>
 
             <div className="w-full flex flex-col justify-end gap-2 mt-2">
-              <CreateBookingAddPayment
-                bookingData={{
-                  // Client data - will be collected from form
-                  firstName: "",
-                  lastName: "",
-                  phoneNumber: "",
-                  email: "",
-                  region: region ?? "",
-                  province: province ?? "",
-                  municipality: municipality ?? "",
-                  barangay: barangay ?? "",
-
-                  // Booking data - from current state
-                  eventName: "",
-                  pavilionId: String(selectedPavilionId ?? ""),
-                  numPax: numPax,
-                  eventType: 0,
-                  notes: "",
-                  startAt: startAt ?? new Date(),
-                  endAt: endAt ?? new Date(),
-                  serviceIds: Object.values(
-                    selectedServiceIdsByCategory
-                  ).flat(),
-                  packageId: selectedPackageId ?? undefined,
-                  catering: selectedCatering
-                    ? Number(selectedCatering)
-                    : undefined,
-
-                  // Billing data - from calculations
-                  originalPrice: originalPrice,
-                  discountedPrice: discountedPrice,
-                  discountType: discountName,
-                  discountPercentage: discountPercentage,
-                  balance: finalBalance,
-                  modeOfPaymentName: "",
-                  deposit: downPayment,
-
-                  // Selected dishes for catering
-                  selectedDishes: selectedDishes.map((dish) => ({
-                    id: dish.id,
-                    quantity: dish.quantity,
-                  })),
-                }}
-                totalAmount={discountedPrice}
-                getFormData={() => {
-                  const form = document.getElementById(
-                    "booking-form"
-                  ) as HTMLFormElement;
-                  return form ? new FormData(form) : null;
-                }}
-                onBookingCreated={() => {
-                  console.log("Booking created successfully!");
-                  // Could add navigation or form reset here
-                }}
-              />
+              <Button type="submit" className="items-center flex">
+                <CalendarPlus /> Create Booking{" "}
+              </Button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Payment Confirmation Dialog */}
+      <AlertDialog open={showPaymentConfirmDialog} onOpenChange={setShowPaymentConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create Booking Without Payment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You haven&apos;t filled in the payment details. Do you want to create this booking
+              without payment information? You can add payment details later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowPaymentConfirmDialog(false)}>
+              Add Payment Details
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleCreateBookingWithoutPayment}>
+              Create Without Payment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   );
 };

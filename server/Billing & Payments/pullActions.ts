@@ -4,7 +4,7 @@ import { prisma } from "../db";
 export async function getBillingById(id: number) {
   try {
     const data = await prisma.billing.findMany({
-      where: { bookingId:id },
+      where: { bookingId: id },
     });
     return data;
   } catch (error) {
@@ -95,7 +95,7 @@ export async function getAllPayments() {
         },
       },
       orderBy: {
-        date: 'desc',
+        date: "desc",
       },
     });
     return data;
@@ -130,7 +130,7 @@ export async function getPaymentsByBilling(billingId: number) {
         },
       },
       orderBy: {
-        date: 'desc',
+        date: "desc",
       },
     });
     return data || []; // Return empty array if no data

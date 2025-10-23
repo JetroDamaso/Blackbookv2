@@ -5,7 +5,7 @@ export async function getAllModeOfPayments() {
   try {
     const data = await prisma.modeOfPayment.findMany({
       orderBy: {
-        name: 'asc',
+        name: "asc",
       },
     });
     return data;

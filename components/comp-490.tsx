@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useState } from "react";
 
-import { Calendar } from "@/components/ui/calendar"
+import { Calendar } from "@/components/ui/calendar";
 
 export default function Component() {
-  const [date, setDate] = useState<Date | undefined>(new Date())
+  const [date, setDate] = useState<Date | undefined>(new Date());
 
   return (
     <div>
@@ -31,5 +31,5 @@ export default function Component() {
         </a>
       </p>
     </div>
-  )
+  );
 }

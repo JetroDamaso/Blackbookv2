@@ -8,7 +8,7 @@ export async function getAllDiscounts() {
         isActive: true,
       },
       orderBy: {
-        name: 'asc',
+        name: "asc",
       },
     });
     return data;

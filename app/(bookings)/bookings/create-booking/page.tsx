@@ -1,26 +1,14 @@
 import NewAddBookings from "@/components/(Bookings)/(AddBookings)/NewAddBookings";
 import AddBookingsPageClient from "@/components/(Bookings)/(AddBookings)/page";
-import {
-  getAllDiscount,
-  getModeOfPayments,
-} from "@/server/Billing & Payments/pullActions";
+import { getAllDiscount, getModeOfPayments } from "@/server/Billing & Payments/pullActions";
 import { getAllDiscounts } from "@/server/discount/pullActions";
 import { getAllEventTypes } from "@/server/Booking/pullActions";
 import { getAllBookings } from "@/server/Booking/pullActions";
-import {
-  getAllDishes,
-  getDishCategories,
-} from "@/server/Dishes/Actions/pullActions";
-import {
-  getAllInventory,
-  getInventoryCategories,
-} from "@/server/Inventory/Actions/pullActions";
+import { getAllDishes, getDishCategories } from "@/server/Dishes/Actions/pullActions";
+import { getAllInventory, getInventoryCategories } from "@/server/Inventory/Actions/pullActions";
 import { getAllPackages } from "@/server/Packages/pullActions";
 import { getAllPavilions } from "@/server/Pavilions/Actions/pullActions";
-import {
-  getAllServices,
-  getServicesCategory,
-} from "@/server/Services/pullActions";
+import { getAllServices, getServicesCategory } from "@/server/Services/pullActions";
 import React from "react";
 
 const CreateBookingsPage = async ({
@@ -66,8 +54,8 @@ const CreateBookingsPage = async ({
           preSelectedPavilionId={params.pavilionId as string}
           packages={getPackages}
           bookings={bookings
-            .filter((b) => b.startAt && b.endAt)
-            .map((b) => ({
+            .filter(b => b.startAt && b.endAt)
+            .map(b => ({
               startAt: b.startAt as Date,
               endAt: b.endAt as Date,
               pavilionId: b.pavilionId ?? null,

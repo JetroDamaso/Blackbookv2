@@ -8,9 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 // Define the additional charge type with relations
 type AdditionalChargeWithRelations = Awaited<
-  ReturnType<
-    typeof import("@/server/additionalcharge/pullActions").getAllAdditionalCharges
-  >
+  ReturnType<typeof import("@/server/additionalcharge/pullActions").getAllAdditionalCharges>
 >[number];
 
 export const columns: ColumnDef<AdditionalChargeWithRelations>[] = [
@@ -19,18 +17,17 @@ export const columns: ColumnDef<AdditionalChargeWithRelations>[] = [
     header: ({ table }) => (
       <Checkbox
         checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
+          table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")
         }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
       />
     ),
     cell: ({ row }) => (
-      <div onClick={(e) => e.stopPropagation()}>
+      <div onClick={e => e.stopPropagation()}>
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onCheckedChange={value => row.toggleSelected(!!value)}
           aria-label="Select row"
         />
       </div>
@@ -96,7 +93,7 @@ export const columns: ColumnDef<AdditionalChargeWithRelations>[] = [
   },
   {
     id: "eventName",
-    accessorFn: (row) => row.booking?.eventName || "No Event",
+    accessorFn: row => row.booking?.eventName || "No Event",
     header: ({ column }) => {
       return (
         <Button
@@ -115,7 +112,7 @@ export const columns: ColumnDef<AdditionalChargeWithRelations>[] = [
   },
   {
     id: "clientName",
-    accessorFn: (row) =>
+    accessorFn: row =>
       row.booking?.client
         ? `${row.booking.client.firstName} ${row.booking.client.lastName}`
         : "No Client",
@@ -132,11 +129,7 @@ export const columns: ColumnDef<AdditionalChargeWithRelations>[] = [
     },
     cell: ({ row }) => {
       const client = row.original.booking?.client;
-      return (
-        <div>
-          {client ? `${client.firstName} ${client.lastName}` : "No Client"}
-        </div>
-      );
+      return <div>{client ? `${client.firstName} ${client.lastName}` : "No Client"}</div>;
     },
   },
   {
@@ -154,11 +147,7 @@ export const columns: ColumnDef<AdditionalChargeWithRelations>[] = [
     },
     cell: ({ row }) => {
       const description = row.getValue("description") as string;
-      return (
-        <div className="max-w-[200px] truncate">
-          {description || "No description"}
-        </div>
-      );
+      return <div className="max-w-[200px] truncate">{description || "No description"}</div>;
     },
   },
 ];

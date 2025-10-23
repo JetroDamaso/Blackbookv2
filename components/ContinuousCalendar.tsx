@@ -7,13 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getAllPavilions } from "@/server/Pavilions/Actions/pullActions";
 import { Button } from "./ui/button";
 import CheckScheduleDialog from "./modules/checkScheduleDialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthNames = [
@@ -32,12 +26,7 @@ const monthNames = [
 ];
 
 interface ContinuousCalendarProps {
-  onClick?: (
-    _day: number,
-    _month: number,
-    _year: number,
-    _bookingId?: Booking["id"]
-  ) => void;
+  onClick?: (_day: number, _month: number, _year: number, _bookingId?: Booking["id"]) => void;
   getAllBookings?: Booking[];
   // External state control props
   currentYear?: number;
@@ -73,15 +62,11 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
   onNoDateAlert,
   onNoPavilionAlert,
 }) => {
-  const [selectedDate, setSelectedDate] = useState<selected | undefined>(
-    undefined
-  );
+  const [selectedDate, setSelectedDate] = useState<selected | undefined>(undefined);
   const [selectedDates, setSelectedDates] = useState<selected[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const today = new Date();
-  const [year, setYear] = useState<number>(
-    externalYear ?? new Date().getFullYear()
-  );
+  const [year, setYear] = useState<number>(externalYear ?? new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(
     externalMonth ?? new Date().getMonth()
   );
@@ -97,7 +82,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
 
   useEffect(() => {
     if (externalSelectedDates) {
-      const convertedDates = externalSelectedDates.map((date) => ({
+      const convertedDates = externalSelectedDates.map(date => ({
         day: date.getDate(),
         month: date.getMonth(),
         year: date.getFullYear(),
@@ -184,59 +169,42 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
       if (!dateRange) return false;
 
       const currentDate = new Date(year, month, day);
-      const startDate = new Date(
-        dateRange.start.year,
-        dateRange.start.month,
-        dateRange.start.day
-      );
-      const endDate = new Date(
-        dateRange.end.year,
-        dateRange.end.month,
-        dateRange.end.day
-      );
+      const startDate = new Date(dateRange.start.year, dateRange.start.month, dateRange.start.day);
+      const endDate = new Date(dateRange.end.year, dateRange.end.month, dateRange.end.day);
 
       return currentDate >= startDate && currentDate <= endDate;
     },
     [dateRange]
   );
 
-  const generateDateRange = useCallback(
-    (start: selected, end: selected): selected[] => {
-      const dates: selected[] = [];
-      const startDate = new Date(start.year, start.month, start.day);
-      const endDate = new Date(end.year, end.month, end.day);
+  const generateDateRange = useCallback((start: selected, end: selected): selected[] => {
+    const dates: selected[] = [];
+    const startDate = new Date(start.year, start.month, start.day);
+    const endDate = new Date(end.year, end.month, end.day);
 
-      // Ensure start is before end
-      const actualStart = startDate <= endDate ? startDate : endDate;
-      const actualEnd = startDate <= endDate ? endDate : startDate;
+    // Ensure start is before end
+    const actualStart = startDate <= endDate ? startDate : endDate;
+    const actualEnd = startDate <= endDate ? endDate : startDate;
 
-      const currentDate = new Date(actualStart);
-      while (currentDate <= actualEnd) {
-        dates.push({
-          day: currentDate.getDate(),
-          month: currentDate.getMonth(),
-          year: currentDate.getFullYear(),
-        });
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
+    const currentDate = new Date(actualStart);
+    while (currentDate <= actualEnd) {
+      dates.push({
+        day: currentDate.getDate(),
+        month: currentDate.getMonth(),
+        year: currentDate.getFullYear(),
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
 
-      return dates;
-    },
-    []
-  );
+    return dates;
+  }, []);
 
   const notifyDateChange = useCallback(
     (dates: selected[], range?: DateRange) => {
-      const convertedDates = dates.map(
-        (date) => new Date(date.year, date.month, date.day)
-      );
+      const convertedDates = dates.map(date => new Date(date.year, date.month, date.day));
       const convertedRange = range
         ? {
-            start: new Date(
-              range.start.year,
-              range.start.month,
-              range.start.day
-            ),
+            start: new Date(range.start.year, range.start.month, range.start.day),
             end: new Date(range.end.year, range.end.month, range.end.day),
           }
         : undefined;
@@ -272,11 +240,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
         } else {
           // Check if clicked date is before the start date
           const clickedDateTime = new Date(year, month, day);
-          const startDateTime = new Date(
-            selectedDate.year,
-            selectedDate.month,
-            selectedDate.day
-          );
+          const startDateTime = new Date(selectedDate.year, selectedDate.month, selectedDate.day);
 
           if (clickedDateTime < startDateTime) {
             // If clicked date is before start date, reset start date to this new date
@@ -349,8 +313,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
       const name = b.eventName ?? `Booking #${b.id}`;
       const fmt = (d?: Date | string | null): string | undefined => {
         if (!d) return undefined;
-        const dd =
-          typeof d === "string" || d instanceof Date ? new Date(d) : undefined;
+        const dd = typeof d === "string" || d instanceof Date ? new Date(d) : undefined;
         if (!dd || isNaN(dd.getTime())) return undefined;
         return dd.toLocaleTimeString([], {
           hour: "2-digit",
@@ -367,9 +330,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
         name,
         startTime: displayStart,
         endTime,
-        pavilionId:
-          (b as unknown as { pavilionId?: number | null }).pavilionId ??
-          undefined,
+        pavilionId: (b as unknown as { pavilionId?: number | null }).pavilionId ?? undefined,
       });
     }
     if (
@@ -436,10 +397,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
     }
 
     return calendarWeeks.map((week, weekIndex) => (
-      <div
-        className="flex w-full flex-1 min-h-0 select-none"
-        key={`week-${weekIndex}`}
-      >
+      <div className="flex w-full flex-1 min-h-0 select-none" key={`week-${weekIndex}`}>
         {week.map(({ day, month, year: cellYear, isCurrent }) => {
           const isToday =
             todayDate.getFullYear() === cellYear &&
@@ -455,8 +413,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
 
           const isInRange = isDateInRange(day, month, cellYear);
           const isPartOfSelection = selectedDates.some(
-            (date) =>
-              date.day === day && date.month === month && date.year === cellYear
+            date => date.day === day && date.month === month && date.year === cellYear
           );
 
           return (
@@ -481,30 +438,24 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
               {items.length > 0 && (
                 <div className="absolute top-1 w-full h-fit text-start mt-6 space-y-1 px-1">
                   {items.slice(0, 4).map((n, i) => {
-                    const rawColorToken = n.pavilionId
-                      ? pavilionColorMap[n.pavilionId]
-                      : undefined;
+                    const rawColorToken = n.pavilionId ? pavilionColorMap[n.pavilionId] : undefined;
                     // Expecting pavilion.color like 'red', 'emerald', 'slate', etc.
                     // Sanitize to avoid breaking Tailwind class name generation.
                     const sanitized = rawColorToken
                       ?.toLowerCase()
                       .replace(/[^a-z0-9-]/g, "")
                       .split(/-+/)[0];
-                    const tailwindColor = sanitized
-                      ? `bg-${sanitized}-500`
-                      : "bg-red-400";
+                    const tailwindColor = sanitized ? `bg-${sanitized}-500` : "bg-red-400";
                     // Basic contrast assumption: mid-scale colors -> white text; adjust light tones if needed.
                     const lightColors = new Set(["yellow", "amber", "lime"]); // could expand
                     const textClass =
-                      sanitized && lightColors.has(sanitized)
-                        ? "text-slate-900"
-                        : "text-white";
+                      sanitized && lightColors.has(sanitized) ? "text-slate-900" : "text-white";
                     return (
                       <div
                         key={`${dateKey}-${i}`}
                         className={`text-[10px] font-normal rounded-sm h-fit cursor-pointer transition-colors ${tailwindColor} ${textClass} hover:brightness-110`}
                         title={n.name}
-                        onClick={(e) => {
+                        onClick={e => {
                           e.stopPropagation();
                           handleDayClick(day, month, cellYear, n.id);
                         }}
@@ -519,17 +470,13 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
                               </p>
                             </div>
                           )}
-                          <p className="font-normal truncate grow pr-1">
-                            {n.name}
-                          </p>
+                          <p className="font-normal truncate grow pr-1">{n.name}</p>
                         </div>
                       </div>
                     );
                   })}
                   {items.length > 3 && (
-                    <div className="text-[10px] text-slate-600">
-                      +{items.length - 3} more
-                    </div>
+                    <div className="text-[10px] text-slate-600">+{items.length - 3} more</div>
                   )}
                 </div>
               )}
@@ -538,14 +485,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
         })}
       </div>
     ));
-  }, [
-    year,
-    selectedMonth,
-    handleDayClick,
-    bookingsByDay,
-    pavilionColorMap,
-    selectedDate,
-  ]);
+  }, [year, selectedMonth, handleDayClick, bookingsByDay, pavilionColorMap, selectedDate]);
 
   useEffect(() => {
     // No-op: observer/scroll not needed for single-month view.
@@ -562,15 +502,12 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
             >
               <MoveLeft className="size-4 text-slate-800" />
             </button>
-            <Select
-              value={`${selectedMonth}`}
-              onValueChange={handleMonthChange}
-            >
+            <Select value={`${selectedMonth}`} onValueChange={handleMonthChange}>
               <SelectTrigger className="w-[140px] ">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="z-100">
-                {monthOptions.map((month) => (
+                {monthOptions.map(month => (
                   <SelectItem key={month.value} value={month.value}>
                     {month.name}
                   </SelectItem>
@@ -588,7 +525,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="z-100">
-                {yearOptions.map((year) => (
+                {yearOptions.map(year => (
                   <SelectItem key={year.value} value={year.value}>
                     {year.name}
                   </SelectItem>
@@ -606,11 +543,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
 
           <div className="flex items-center justify-between gap-2">
             <Button variant="outline" className="text-md">
-              <Inbox
-                className="opacity-60 sm:-ms-1"
-                size={16}
-                aria-hidden="true"
-              />
+              <Inbox className="opacity-60 sm:-ms-1" size={16} aria-hidden="true" />
               <span className="max-[479px]:sr-only">Manage</span>
             </Button>
 
@@ -642,10 +575,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
         </div>
         <div className="grid w-full grid-cols-7 justify-between text-slate-500 rounded-b-md">
           {daysOfWeek.map((day, index) => (
-            <div
-              key={index}
-              className="w-full border-foreground/20 py-2 text-center font-semibold"
-            >
+            <div key={index} className="w-full border-foreground/20 py-2 text-center font-semibold">
               {day}
             </div>
           ))}
@@ -689,7 +619,7 @@ export const CustomSelect = ({
       className="cursor-pointer rounded-md border border-gray-300 bg-white py-1.5 pl-2 pr-6 font-medium text-gray-900 hover:bg-gray-100 sm:py-2.5"
       required
     >
-      {options.map((option) => (
+      {options.map(option => (
         <option key={option.value} value={option.value}>
           {option.name}
         </option>

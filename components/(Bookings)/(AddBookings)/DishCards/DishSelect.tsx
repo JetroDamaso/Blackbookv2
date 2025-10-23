@@ -19,13 +19,7 @@ type DishSelectProps = {
   onAddDish: (dish: Dish) => void;
 };
 
-function DishDialog({
-  dish,
-  onAddDish,
-}: {
-  dish: Dish;
-  onAddDish: (dish: Dish) => void;
-}) {
+function DishDialog({ dish, onAddDish }: { dish: Dish; onAddDish: (dish: Dish) => void }) {
   const handleAdd = () => {
     onAddDish(dish);
   };
@@ -43,22 +37,22 @@ function DishDialog({
                   dish.categoryId === 1
                     ? "border-l-red-500"
                     : dish.categoryId === 2
-                    ? "border-l-pink-500"
-                    : dish.categoryId === 3
-                    ? "border-l-yellow-500"
-                    : dish.categoryId === 4
-                    ? "border-l-blue-500"
-                    : dish.categoryId === 5
-                    ? "border-l-green-500"
-                    : dish.categoryId === 6
-                    ? "border-l-amber-500"
-                    : dish.categoryId === 7
-                    ? "border-l-purple-500"
-                    : dish.categoryId === 8
-                    ? "border-l-cyan-500"
-                    : dish.categoryId === 9
-                    ? "border-l-gray-500"
-                    : "border-input"
+                      ? "border-l-pink-500"
+                      : dish.categoryId === 3
+                        ? "border-l-yellow-500"
+                        : dish.categoryId === 4
+                          ? "border-l-blue-500"
+                          : dish.categoryId === 5
+                            ? "border-l-green-500"
+                            : dish.categoryId === 6
+                              ? "border-l-amber-500"
+                              : dish.categoryId === 7
+                                ? "border-l-purple-500"
+                                : dish.categoryId === 8
+                                  ? "border-l-cyan-500"
+                                  : dish.categoryId === 9
+                                    ? "border-l-gray-500"
+                                    : "border-input"
                 }
                 relative flex h-full w-full items-start gap-2 rounded-md p-4 shadow-xs outline-none hover:bg-black/3`}
             >
@@ -84,19 +78,14 @@ function DishDialog({
           <div className="grid grid-cols-3 w-full px-3">
             <div className=" col-span-2 flex flex-col justify-start items-start">
               <AlertDialogTitle>{dish.name}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {dish.description}
-              </AlertDialogDescription>
+              <AlertDialogDescription>{dish.description}</AlertDialogDescription>
             </div>
             {/* Quantity input removed */}
           </div>
         </AlertDialogHeader>
         <AlertDialogFooter className="px-3 pb-3">
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-red-500 hover:bg-red-600 text-white"
-            onClick={handleAdd}
-          >
+          <AlertDialogAction className="bg-red-500 hover:bg-red-600 text-white" onClick={handleAdd}>
             Add
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -105,13 +94,10 @@ function DishDialog({
   );
 }
 
-export default function DishSelectComponent({
-  dishes,
-  onAddDish,
-}: DishSelectProps) {
+export default function DishSelectComponent({ dishes, onAddDish }: DishSelectProps) {
   return (
     <div className="grid grid-cols-3 gap-1 p-2">
-      {dishes.map((dish) => (
+      {dishes.map(dish => (
         <DishDialog key={dish.id} dish={dish} onAddDish={onAddDish} />
       ))}
     </div>

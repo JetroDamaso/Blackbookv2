@@ -1,25 +1,20 @@
-"use client"
+"use client";
 
-import { useId, useState } from "react"
-import { ClockIcon } from "lucide-react"
+import { useId, useState } from "react";
+import { ClockIcon } from "lucide-react";
 
-import { Calendar } from "@/components/ui/calendar"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function Component() {
-  const id = useId()
-  const [date, setDate] = useState<Date | undefined>(new Date())
+  const id = useId();
+  const [date, setDate] = useState<Date | undefined>(new Date());
 
   return (
     <div>
       <div className="rounded-md border">
-        <Calendar
-          mode="single"
-          className="p-2"
-          selected={date}
-          onSelect={setDate}
-        />
+        <Calendar mode="single" className="p-2" selected={date} onSelect={setDate} />
         <div className="border-t p-3">
           <div className="flex items-center gap-3">
             <Label htmlFor={id} className="text-xs">
@@ -56,5 +51,5 @@ export default function Component() {
         </a>
       </p>
     </div>
-  )
+  );
 }

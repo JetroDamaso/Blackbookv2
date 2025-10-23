@@ -1,31 +1,28 @@
 "use client";
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { columns } from "./columns";
-import { DataTable } from "./data-table";
-import { getAllClients } from "@/server/clients/pullActions";
-import { Dot, HandCoins, Notebook, Users } from "lucide-react";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ChartPieSimple } from "@/components/Charts/EventDistribution";
 import { Button } from "@/components/ui/button";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { getAllClientsPaginated } from "@/server/clients/pullActions";
+import { useQuery } from "@tanstack/react-query";
+import { Dot, HandCoins, Notebook, Users } from "lucide-react";
+import { useState } from "react";
+import { columns } from "./columns";
+import { DataTable } from "./data-table";
 
 export default function ManageClients() {
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const { isPending, error, data } = useQuery({
-    queryKey: ["allClients"],
-    queryFn: () => getAllClients(),
+    queryKey: ["allClients", currentPage],
+    queryFn: () => getAllClientsPaginated(currentPage, pageSize),
   });
 
   const handleRowClick = (clientId: number) => {
     setSelectedClientId(clientId);
     setIsDialogOpen(true);
-  };
-
-  const handleDialogClose = () => {
-    setIsDialogOpen(false);
-    setSelectedClientId(null);
   };
 
   if (isPending) {
@@ -39,9 +36,7 @@ export default function ManageClients() {
   if (error) {
     return (
       <div className="container mx-auto py-10">
-        <div className="text-center text-red-500">
-          Error loading clients: {error.message}
-        </div>
+        <div className="text-center text-red-500">Error loading clients: {error.message}</div>
       </div>
     );
   }
@@ -62,7 +57,7 @@ export default function ManageClients() {
         <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
           <div className="flex flex-col">
             <p className="text-md">Total Clients</p>
-            <p className="text-4xl font-semibold">{data?.length || 0}</p>
+            <p className="text-4xl font-semibold">{data?.pagination.totalCount || 0}</p>
             <p className="text-xs">
               Active <span className="text-primary">clients</span>
             </p>
@@ -130,8 +125,10 @@ export default function ManageClients() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
         <DataTable
           columns={columns}
-          data={data || []}
+          data={data?.data || []}
           onRowClick={handleRowClick}
+          pagination={data?.pagination}
+          onPageChange={setCurrentPage}
         />
       </div>
     </>

@@ -15,7 +15,7 @@ export async function getAllRoles() {
         },
       },
       orderBy: {
-        name: 'asc',
+        name: "asc",
       },
     });
     return data;

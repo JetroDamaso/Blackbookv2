@@ -8,9 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 // Define the inventory type with relations
 type InventoryWithRelations = Awaited<
-  ReturnType<
-    typeof import("@/server/Inventory/Actions/pullActions").getAllInventory
-  >
+  ReturnType<typeof import("@/server/Inventory/Actions/pullActions").getAllInventory>
 >[number];
 
 export const columns: ColumnDef<InventoryWithRelations>[] = [
@@ -19,18 +17,17 @@ export const columns: ColumnDef<InventoryWithRelations>[] = [
     header: ({ table }) => (
       <Checkbox
         checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
+          table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")
         }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
       />
     ),
     cell: ({ row }) => (
-      <div onClick={(e) => e.stopPropagation()}>
+      <div onClick={e => e.stopPropagation()}>
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onCheckedChange={value => row.toggleSelected(!!value)}
           aria-label="Select row"
         />
       </div>
@@ -57,7 +54,7 @@ export const columns: ColumnDef<InventoryWithRelations>[] = [
   },
   {
     id: "category",
-    accessorFn: (row) => row.category?.name ?? "No Category",
+    accessorFn: row => row.category?.name ?? "No Category",
     header: ({ column }) => {
       return (
         <Button
@@ -117,7 +114,7 @@ export const columns: ColumnDef<InventoryWithRelations>[] = [
   },
   {
     id: "available",
-    accessorFn: (row) => row.quantity - row.out,
+    accessorFn: row => row.quantity - row.out,
     header: ({ column }) => {
       return (
         <Button
@@ -133,16 +130,14 @@ export const columns: ColumnDef<InventoryWithRelations>[] = [
       const available = row.original.quantity - row.original.out;
       return (
         <div className="text-center">
-          <Badge variant={available > 0 ? "default" : "destructive"}>
-            {available}
-          </Badge>
+          <Badge variant={available > 0 ? "default" : "destructive"}>{available}</Badge>
         </div>
       );
     },
   },
   {
     id: "status",
-    accessorFn: (row) => {
+    accessorFn: row => {
       const available = row.quantity - row.out;
       if (available <= 0) return "Out of Stock";
       if (available <= 5) return "Low Stock";

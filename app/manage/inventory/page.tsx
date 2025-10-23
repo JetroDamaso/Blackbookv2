@@ -29,18 +29,15 @@ export default function ManageInventory() {
   if (error) {
     return (
       <div className="container mx-auto py-10">
-        <div className="text-center text-red-500">
-          Error loading inventory: {error.message}
-        </div>
+        <div className="text-center text-red-500">Error loading inventory: {error.message}</div>
       </div>
     );
   }
 
   // Calculate inventory stats
   const totalItems = data?.length || 0;
-  const lowStockItems = data?.filter((item) => item.quantity < 10).length || 0;
-  const totalQuantity =
-    data?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const lowStockItems = data?.filter(item => item.quantity < 10).length || 0;
+  const totalQuantity = data?.reduce((sum, item) => sum + item.quantity, 0) || 0;
 
   return (
     <>
@@ -68,9 +65,7 @@ export default function ManageInventory() {
         <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
           <div className="flex flex-col">
             <p className="text-md">Low Stock Alert</p>
-            <p className="text-4xl font-semibold text-orange-500">
-              {lowStockItems}
-            </p>
+            <p className="text-4xl font-semibold text-orange-500">{lowStockItems}</p>
             <p className="text-xs">
               Items <span className="text-orange-500">below 10</span>
             </p>
@@ -89,11 +84,7 @@ export default function ManageInventory() {
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
-        <DataTable
-          columns={columns}
-          data={data || []}
-          onRowClick={handleRowClick}
-        />
+        <DataTable columns={columns} data={data || []} onRowClick={handleRowClick} />
       </div>
     </>
   );
