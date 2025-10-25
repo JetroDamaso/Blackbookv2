@@ -44,7 +44,7 @@ const SearchService = ({
           onBlur={() => setOpen(false)}
         />
         {open && (
-          <CommandList className="absolute z-10 mt-10 w-full max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-lg">
+          <CommandList className="absolute z-[300] mt-10 w-full max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-lg">
             <CommandEmpty>No results found.</CommandEmpty>
             {services.map(service => (
               <CommandGroup key={service.id}>

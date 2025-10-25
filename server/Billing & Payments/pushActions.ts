@@ -1,5 +1,6 @@
 "use server";
 import { prisma } from "../db";
+import { updateBookingStatus } from "../Booking/pushActions";
 
 export async function createBilling(
   bookingId: number,
@@ -40,6 +41,15 @@ export async function createBilling(
         cateringPerPaxAmount: cateringPerPaxAmount,
       },
     });
+
+    // Update booking status after billing is created
+    try {
+      await updateBookingStatus(bookingId);
+    } catch (statusError) {
+      console.error("Failed to update booking status after billing creation:", statusError);
+      // Don't throw - billing was created successfully
+    }
+
     return data;
   } catch (error) {
     console.error("Error creating billing:", error);
@@ -87,6 +97,17 @@ export async function createPayment(
         },
       },
     });
+
+    // Update booking status after payment is added
+    if (data.billing?.booking?.id) {
+      try {
+        await updateBookingStatus(data.billing.booking.id);
+      } catch (statusError) {
+        console.error("Failed to update booking status after payment:", statusError);
+        // Don't throw - payment was created successfully
+      }
+    }
+
     return data;
   } catch (error) {
     console.error("Error creating payment:", error);

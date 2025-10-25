@@ -67,6 +67,7 @@ export async function getInventoryStatus() {
       },
       // No WHERE clause - fetch all inventory statuses for client-side filtering
     });
+
     return data;
   } catch (error) {
     console.error("Failed to fetch inventory status", error);

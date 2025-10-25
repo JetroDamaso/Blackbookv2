@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { ContinuousCalendar } from "../ContinuousCalendar";
 import { ScrollArea } from "../ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import BookingDialogComponent from "./BookingDialog";
 import NoDateSelectedAlert from "./NoDateSelectedAlert";
 import NoPavilionSelectedAlert from "./NoPavilionSelectedAlert";
@@ -41,6 +42,28 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
   // Alert state for no pavilion selected
   const [showPavilionAlert, setShowPavilionAlert] = useState(false);
   const [pavilionAlertVisible, setPavilionAlertVisible] = useState(false);
+
+  // Status filter state
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+
+  // Status options
+  const statusOptions = [
+    { value: "all", label: "All Statuses" },
+    { value: "1", label: "Pending" },
+    { value: "2", label: "Confirmed" },
+    { value: "3", label: "In Progress" },
+    { value: "4", label: "Completed" },
+    { value: "5", label: "Unpaid" },
+    { value: "6", label: "Canceled" },
+    { value: "7", label: "Archived" },
+    { value: "8", label: "Draft" },
+  ];
+
+  // Filter bookings by selected status
+  const filteredBookings =
+    selectedStatus === "all"
+      ? getAllBookings
+      : getAllBookings.filter(booking => booking.status?.toString() === selectedStatus);
 
   // Auto-fade alert after 5 seconds
   useEffect(() => {
@@ -125,7 +148,7 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
               setDialogOpen(true);
             }
           }}
-          getAllBookings={getAllBookings}
+          getAllBookings={filteredBookings}
           currentYear={currentYear}
           currentMonth={currentMonth}
           onYearChange={setCurrentYear}
@@ -143,6 +166,20 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
           }}
           onNoDateAlert={triggerNoDateAlert}
           onNoPavilionAlert={triggerNoPavilionAlert}
+          statusFilter={
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent className="z-[100]">
+                {statusOptions.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
         />
       </div>
       {bookingId != null && (
@@ -155,11 +192,11 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
         </div>
       )}
       {/* Right Booking Summary */}
-      <div className="min-w-[249px] max-w-[249px] sticky top-0 h-screen flex flex-col bg-white border-l border-gray-200 z-50">
+      <div className="min-w-[249px] max-w-[249px] sticky top-0 h-screen flex flex-col bg-white border-l border-gray-200 z-10">
         {(() => {
           // Filter and organize upcoming bookings
           const today = new Date();
-          const upcomingBookings = getAllBookings
+          const upcomingBookings = filteredBookings
             .filter(booking => {
               const bookingDate = booking.startAt || booking.foodTastingAt;
               return bookingDate && new Date(bookingDate) >= today;
@@ -228,6 +265,7 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
                               // Standard colors
                               red: "#ef4444",
                               green: "#22c55e",
+                              emerald: "#10b981",
                               pink: "#ec4899",
                               blue: "#3b82f6",
                               yellow: "#eab308",
@@ -236,33 +274,27 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
                               indigo: "#6366f1",
                               cyan: "#06b6d4",
                               teal: "#14b8a6",
-                              // Tailwind variants
-                              "red-500": "#ef4444",
-                              "green-500": "#22c55e",
-                              "pink-500": "#ec4899",
-                              "blue-500": "#3b82f6",
-                              // Pavilion specific mappings
-                              "palacio de victoria": "#ef4444", // red
-                              "grand pavilion": "#22c55e", // green
-                              "mini pavilion": "#ec4899", // pink
+                              slate: "#64748b",
+                              amber: "#f59e0b",
+                              lime: "#84cc16",
+                              sky: "#0ea5e9",
+                              violet: "#8b5cf6",
+                              fuchsia: "#d946ef",
+                              rose: "#f43f5e",
                             };
 
-                            // Check if it's a Tailwind color name or pavilion name
-                            if (pavilionColor && colorMap[pavilionColor.toLowerCase()]) {
-                              pavilionColor = colorMap[pavilionColor.toLowerCase()];
-                            } else if (pavilion?.name && colorMap[pavilion.name.toLowerCase()]) {
-                              // Fallback: check by pavilion name if color mapping fails
-                              pavilionColor = colorMap[pavilion.name.toLowerCase()];
+                            // Check if it's a Tailwind color name
+                            if (pavilionColor) {
+                              const sanitized = pavilionColor
+                                .toLowerCase()
+                                .replace(/[^a-z0-9-]/g, "")
+                                .split(/-+/)[0];
+                              pavilionColor = colorMap[sanitized] || pavilionColor;
                             }
 
                             // Validate hex color format
                             const isValidHex = /^#([0-9A-F]{3}){1,2}$/i.test(pavilionColor);
                             const finalColor = isValidHex ? pavilionColor : "#ef4444";
-
-                            // Debug: Log pavilion colors (remove this later)
-                            console.log(
-                              `Booking: ${booking.eventName}, Pavilion: ${pavilion?.name}, Original Color: ${pavilion?.color}, Final Color: ${finalColor}`
-                            );
 
                             return (
                               <li key={booking.id} className="flex rounded-l-md items-center">

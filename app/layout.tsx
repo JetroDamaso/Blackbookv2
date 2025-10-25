@@ -1,5 +1,6 @@
 import { ConditionalLayout } from "@/components/conditional-layout";
 import Provider from "@/components/Providers/tanstack-provider";
+import { BookingStatusInitializer } from "@/components/BookingStatusInitializer";
 import type { Metadata } from "next";
 import { Geist, Rubik, Rufina } from "next/font/google";
 import "./globals.css";
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className={`${rufina.variable} font-roboto antialiased`}>
         <Provider>
+          <BookingStatusInitializer />
           <ConditionalLayout>{children}</ConditionalLayout>
         </Provider>
       </body>

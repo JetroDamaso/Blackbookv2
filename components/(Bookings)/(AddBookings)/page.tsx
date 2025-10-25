@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import React, { useEffect, useId, useState } from "react";
+import { InventorySelectionDialog } from "@/components/(Bookings)/InventorySelectionDialog";
 
 import {
   AlertDialog,
@@ -37,6 +38,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -81,7 +83,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { EndDatePickerForm } from "./TimeDatePicker/endDatePicker";
 import { StartDatePickerForm } from "./TimeDatePicker/startDatePicker";
 // import MultipleSelector from "@/components/ui/multiselect";
-import { createNewService, createServiceCategory } from "@/server/Services/pushActions";
+import {
+  createNewService,
+  createServiceCategory,
+  updateServiceCategory,
+  deleteServiceCategory,
+} from "@/server/Services/pushActions";
 // Removed unused Command imports and Autocomplete
 import SearchService from "@/components/searchService";
 import { Button } from "@/components/ui/button";
@@ -267,6 +274,16 @@ const AddBookingsPageClient = (props: {
   const [isCustomDiscountDialogOpen, setIsCustomDiscountDialogOpen] = useState(false);
   const [isLoadingCustomDiscount, setIsLoadingCustomDiscount] = useState(false);
 
+  // Service dialog state
+  const [isAddServiceDialogOpen, setIsAddServiceDialogOpen] = useState(false);
+  const [selectedCategoryForService, setSelectedCategoryForService] = useState<number | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState<string>("");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [newServiceName, setNewServiceName] = useState<string>("");
+  const [newServiceCategory, setNewServiceCategory] = useState<string>("");
+
   // Removed unused pavilion/hour pricing interim states (reintroduce if needed)
   const [selectedCatering, setSelectedCatering] = useState<string>("1");
 
@@ -339,10 +356,21 @@ const AddBookingsPageClient = (props: {
     // Don't set default end time - let user select it manually
   }, [preSelectedStartDate, preSelectedEndDate, startDate, endDate, startTime, endTime]);
 
-  const { data: inventoryStatuses = [] } = useQuery({
+  const { data: inventoryStatuses = [], refetch: refetchInventoryStatuses } = useQuery({
     queryKey: ["inventoryStatus"],
     queryFn: () => getInventoryStatus(),
+    staleTime: 0, // Always consider data stale
+    refetchOnMount: true, // Always refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when window regains focus
   });
+
+  // Refetch inventory statuses when dialog opens to ensure fresh data
+  React.useEffect(() => {
+    if (isInventoryDialogOpen && refetchInventoryStatuses) {
+      console.log("Inventory dialog opened - refetching inventory statuses...");
+      refetchInventoryStatuses();
+    }
+  }, [isInventoryDialogOpen, refetchInventoryStatuses]);
 
   // Use useEffect for debugging instead of onSuccess
   useEffect(() => {
@@ -390,21 +418,28 @@ const AddBookingsPageClient = (props: {
       setServicesCategory(prev => [...prev, newCategory]);
     },
   });
-  const [paymentDate, setPaymentDate] = useState<Date | undefined>(undefined);
 
-  // Payment form state variables
-  const [paymentModeOfPayment, setPaymentModeOfPayment] = useState<string>("");
-  const [paymentAmount, setPaymentAmount] = useState<string>("");
-  const [paymentORNumber, setPaymentORNumber] = useState<string>("");
-  const [paymentNotes, setPaymentNotes] = useState<string>("");
+  const updateServiceCategoryMutation = useMutation({
+    mutationFn: ({ categoryId, categoryName }: { categoryId: number; categoryName: string }) =>
+      updateServiceCategory(categoryId, categoryName),
+    onSuccess: updatedCategory => {
+      setServicesCategory(prev =>
+        prev.map(cat => (cat.id === updatedCategory.id ? updatedCategory : cat))
+      );
+      setEditingCategoryId(null);
+      setEditingCategoryName("");
+    },
+  });
 
-  // Dialog state for payment confirmation
-  const [showPaymentConfirmDialog, setShowPaymentConfirmDialog] = useState<boolean>(false);
+  const deleteServiceCategoryMutation = useMutation({
+    mutationFn: (categoryId: number) => deleteServiceCategory(categoryId),
+    onSuccess: (_, categoryId) => {
+      setServicesCategory(prev => prev.filter(cat => cat.id !== categoryId));
+    },
+  });
 
-  // Helper function to check if payment is filled
-  const isPaymentFilled = () => {
-    return paymentModeOfPayment && paymentAmount && parseFloat(paymentAmount) > 0;
-  };
+  // Dialog state for booking success
+  const [showBookingSuccessDialog, setShowBookingSuccessDialog] = useState<boolean>(false);
 
   // Pre-compute a set of booked calendar days (date-only) for quick disable lookup
   const bookedDaySet = React.useMemo(() => {
@@ -481,11 +516,26 @@ const AddBookingsPageClient = (props: {
     mutationKey: ["create-service"],
     mutationFn: (data: { serviceName: string; categoryId: number }) =>
       createNewService(data.serviceName, data.categoryId),
+    onSuccess: newService => {
+      queryClient.invalidateQueries({ queryKey: ["allServices"] });
+
+      // Auto-add the newly created service to the selected services
+      if (newService?.id && newServiceCategory) {
+        const categoryId = parseInt(newServiceCategory);
+        setSelectedServiceIdsByCategory(prev => ({
+          ...prev,
+          [categoryId]: [...(prev[categoryId] || []), newService.id],
+        }));
+      }
+
+      setNewServiceName("");
+      setNewServiceCategory("");
+    },
   });
 
   const createBookingMutation = useMutation({
     mutationKey: ["create-bookings"],
-    mutationFn: (data: {
+    mutationFn: async (data: {
       eventName: string;
       clientID: number;
       pavilionID: string;
@@ -497,8 +547,8 @@ const AddBookingsPageClient = (props: {
       serviceIds?: number[];
       packageId?: number;
       catering?: number;
-    }) =>
-      createBooking(
+    }) => {
+      const result = await createBooking(
         data.eventName,
         data.clientID,
         data.pavilionID,
@@ -510,7 +560,9 @@ const AddBookingsPageClient = (props: {
         data.serviceIds,
         data.packageId,
         data.catering
-      ),
+      );
+      return result;
+    },
     onSuccess: () => {
       // Invalidate inventory status query to refresh the data
       queryClient.invalidateQueries({ queryKey: ["inventoryStatus"] });
@@ -552,28 +604,6 @@ const AddBookingsPageClient = (props: {
         data.isCustomDiscount,
         data.catering,
         data.cateringPerPaxAmount
-      ),
-  });
-
-  const createPaymentMutation = useMutation({
-    mutationKey: ["create-payment"],
-    mutationFn: (data: {
-      billingId: number;
-      clientId: number;
-      amount: number;
-      status: string;
-      date?: Date;
-      notes?: string;
-      orNumber?: string;
-    }) =>
-      createPayment(
-        data.billingId,
-        data.clientId,
-        data.amount,
-        data.status,
-        data.date,
-        data.notes,
-        data.orNumber
       ),
   });
 
@@ -712,7 +742,8 @@ const AddBookingsPageClient = (props: {
       .filter((status: any) => {
         if (status.inventoryId !== inventoryId) return false;
         if (!status.booking?.startAt || !status.booking?.endAt) return false;
-        if (status.booking.status !== 1) return false; // Only consider Active bookings
+        // Count inventory from all statuses except Canceled (6) and Archived (7)
+        if (status.booking.status === 6 || status.booking.status === 7) return false;
 
         // Check for date overlap with selected booking dates
         const bookingStart = new Date(status.booking.startAt);
@@ -770,7 +801,8 @@ const AddBookingsPageClient = (props: {
     const conflictingStatuses = (inventoryStatuses as any[]).filter((status: any) => {
       if (status.inventoryId !== inventoryId) return false;
       if (!status.booking?.startAt || !status.booking?.endAt) return false;
-      if (status.booking.status !== 1) return false; // Only consider Active bookings
+      // Count inventory from all statuses except Canceled (6) and Archived (7)
+      if (status.booking.status === 6 || status.booking.status === 7) return false;
 
       // Check for date overlap with normalized dates
       const bookingStart = new Date(status.booking.startAt);
@@ -842,7 +874,8 @@ const AddBookingsPageClient = (props: {
       .filter((status: any) => {
         if (status.inventoryId !== inventoryId) return false;
         if (!status.booking?.startAt || !status.booking?.endAt) return false;
-        if (status.booking.status !== 1) return false;
+        // Count inventory from all statuses except Canceled (6) and Archived (7)
+        if (status.booking.status === 6 || status.booking.status === 7) return false;
 
         const bookingStart = new Date(status.booking.startAt);
         const bookingEnd = new Date(status.booking.endAt);
@@ -945,6 +978,16 @@ const AddBookingsPageClient = (props: {
 
   // Removed mop state & remote fetch; we derive selected mode of payment directly on submit
 
+  // Handler for creating a new service
+  const handleCreateService = () => {
+    if (newServiceName.trim() && newServiceCategory) {
+      createServiceMutation.mutate({
+        serviceName: newServiceName.trim(),
+        categoryId: parseInt(newServiceCategory),
+      });
+    }
+  };
+
   const handleSubmitDraft = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -961,18 +1004,11 @@ const AddBookingsPageClient = (props: {
     const firstName = formData.get("firstName");
     const lastName = formData.get("lastName");
 
-    // Check if payment is filled
-    if (!isPaymentFilled()) {
-      // Show confirmation dialog
-      setShowPaymentConfirmDialog(true);
-      return;
-    }
-
-    // Proceed with booking creation including payment
-    await createBookingWithPayment(e);
+    // Proceed with booking creation
+    await handleCreateBooking(e);
   };
 
-  const createBookingWithPayment = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateBooking = async (e: React.FormEvent<HTMLFormElement>) => {
     const formData = new FormData(e.currentTarget);
     const eventName = formData.get("eventName");
     const numberOfPax = formData.get("numPax");
@@ -1081,7 +1117,7 @@ const AddBookingsPageClient = (props: {
       catering: selectedCatering ? Number(selectedCatering) : undefined,
     });
 
-    const bookingId = Number(booking?.id);
+    const bookingId = (booking as any)?.id ? Number((booking as any).id) : 0;
 
     // If in-house catering selected (value "1"), create a menu with selected dishes & their quantities
     if (selectedCatering === "1" && bookingId) {
@@ -1215,11 +1251,9 @@ const AddBookingsPageClient = (props: {
       discountedPrice: finalDiscountedPrice,
       discountType: finalDiscountType,
       discountPercentage: Number(finalDiscountPercentage),
-      balance: Number(finalDiscountedPrice - (isPaymentFilled() ? parseFloat(paymentAmount) : 0)),
-      modeOfPayment: isPaymentFilled()
-        ? (modeOfPayments.find(m => m.id.toString() === paymentModeOfPayment)?.name ?? "")
-        : (selectedModeOfPayment?.name ?? ""),
-      deposit: isPaymentFilled() ? parseFloat(paymentAmount) : Number(downpayment || 0),
+      balance: Number(finalDiscountedPrice),
+      modeOfPayment: selectedModeOfPayment?.name ?? "",
+      deposit: Number(downpayment || 0),
       status: 1,
       discountAmount: finalDiscountAmount,
       discountId: finalDiscountId || undefined,
@@ -1229,49 +1263,8 @@ const AddBookingsPageClient = (props: {
         selectedCatering === "1" && pricePerPax ? parseFloat(pricePerPax) : undefined,
     });
 
-    const billingId = Number(billing?.id);
-
-    // If payment is filled, create payment record
-    if (isPaymentFilled() && billingId) {
-      try {
-        await createPaymentMutation.mutateAsync({
-          billingId: billingId,
-          clientId: clientID,
-          amount: parseFloat(paymentAmount),
-          status: "completed",
-          date: paymentDate || new Date(),
-          notes: paymentNotes || undefined,
-          orNumber: paymentORNumber || undefined,
-        });
-      } catch (err) {
-        // Payment creation failed - continue silently
-      }
-    }
-  };
-
-  const handleCreateBookingWithoutPayment = async () => {
-    setShowPaymentConfirmDialog(false);
-
-    // Validate required fields again
-
-    // Additional validation for form fields
-    const formElement = document.getElementById("booking-form") as HTMLFormElement;
-    if (formElement) {
-      const formData = new FormData(formElement);
-      const eventName = formData.get("eventName");
-      const firstName = formData.get("firstName");
-      const lastName = formData.get("lastName");
-    }
-
-    // Create a form event manually to reuse the same logic
-    const bookingForm = document.getElementById("booking-form") as HTMLFormElement;
-    if (bookingForm) {
-      const formEvent = {
-        preventDefault: () => {},
-        currentTarget: bookingForm,
-      } as React.FormEvent<HTMLFormElement>;
-      await createBookingWithPayment(formEvent);
-    }
+    // Show success dialog
+    setShowBookingSuccessDialog(true);
   };
 
   const handlePavilionSelect = (e: string) => {
@@ -1285,6 +1278,13 @@ const AddBookingsPageClient = (props: {
   // Catering pax and price per pax state
   const [cateringPax, setCateringPax] = useState<string>("");
   const [pricePerPax, setPricePerPax] = useState<string>("");
+
+  // Auto-sync Event Pax to Catering Pax (one-way: event controls catering)
+  useEffect(() => {
+    if (numPax) {
+      setCateringPax(numPax);
+    }
+  }, [numPax]);
 
   const getMonthName = (d: Date) => d.toLocaleString("en-US", { month: "long" });
 
@@ -1373,8 +1373,7 @@ const AddBookingsPageClient = (props: {
   }
 
   const discountedPrice = Math.max(0, originalPrice - discountAmount);
-  const currentDeposit = isPaymentFilled() ? parseFloat(paymentAmount) : 0;
-  const finalBalance = Math.max(0, discountedPrice - currentDeposit);
+  const finalBalance = discountedPrice;
 
   if (!isVisible) return null;
   return (
@@ -1553,1705 +1552,6 @@ const AddBookingsPageClient = (props: {
                       </DialogHeader>
                     </DialogContent>
                   </Dialog>
-                </div>
-              </div>
-            </div>
-          </div>
-          {/* === DATE AND TIME BLOCK === */}
-          <div
-            id="date_and_time"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
-          >
-            <p className="font-bold text-lg">Date and Time</p>
-            <div className="flex w-full">
-              <div className="w-full">
-                <div className="grid grid-cols-2 gap-4 w-full ">
-                  <div className="mr-4 flex-grow w-full">
-                    <StartDatePickerForm
-                      startDateOnChange={setStartDate}
-                      initialDate={startDate}
-                      disabledDates={bookedDaySet}
-                    />
-                  </div>
-                  <div className="flex-grow w-full">
-                    <EndDatePickerForm
-                      endDateOnChange={setEndDate}
-                      initialDate={
-                        preSelectedEndDate ? new Date(preSelectedEndDate) : startDate || undefined
-                      }
-                      disabledDates={bookedDaySet}
-                      minDate={startDate}
-                    />
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <div className="grid grid-cols-2 gap-4 w-full ">
-                    <div className="flex-grow">
-                      <TimeStartPickerCreateBookingComponent startTimeOnChange={setStartTime} />
-                    </div>
-                    <div className="flex-grow">
-                      <TimeEndPickerCreateBookingComponent endTimeOnChange={setEndTime} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="ml-4"></div>
-            </div>
-          </div>
-          {/* === EVENT DETAILS BLOCK === */}
-          <div
-            id="event_details"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
-          >
-            <p className="font-bold text-lg">Event Details</p>
-            <div className="flex">
-              <div className="mt-2 *:not-first:mt-2 flex-1">
-                <Label className="text-foreground/50 font-normal">Event Name</Label>
-                <Input name="eventName" placeholder="Chris' Birthday Party" type="text" />
-              </div>
-              <div className="mt-2 *:not-first:mt-2 flex-1 ml-4">
-                <Label className="text-foreground/50 font-normal">No. of pax</Label>
-                <Input
-                  name="numPax"
-                  placeholder="200"
-                  type="text"
-                  value={numPax}
-                  onChange={e => setNumPax(e.currentTarget.value)}
-                />
-              </div>
-            </div>
-            <div className="mt-4 *:not-first:mt-2">
-              <Label className="text-foreground/50 font-normal">Event type</Label>
-
-              <Select name="eventType">
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {eventTypes.map(eventType => (
-                    <SelectItem value={`${eventType.id}`} key={eventType.id}>
-                      {eventType.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* === CATERING BLOCK === */}
-          <div
-            id="catering"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
-          >
-            <div className="flex justify-between items-center">
-              <p className="font-bold text-lg">Catering</p>
-
-              {selectedCatering === "1" && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsDishesDialogOpen(true)}
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Manage Dishes
-                </Button>
-              )}
-            </div>
-
-            <div className="">
-              <div className="mt-2">
-                <div>
-                  <RadioGroup
-                    className="grid grid-cols-4 "
-                    defaultValue="4"
-                    orientation="horizontal"
-                    name="catering"
-                    onValueChange={setSelectedCatering}
-                  >
-                    {/* Radio card #1 */}
-                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none min-h-[100px]">
-                      <RadioGroupItem
-                        value="1"
-                        id={`${id}-1`}
-                        aria-describedby={`${id}-2-description`}
-                        className="order-1 after:absolute after:inset-0"
-                      />
-                      <div className="flex flex-col grow gap-2 justify-start items-baseline">
-                        <Label htmlFor={`${id}-1`} className="flex items-center">
-                          <Users className="mr-1" size={20} />
-                          {"Susing and Rufins Catering"}
-                          <span className="text-muted-foreground text-xs leading-[inherit] font-normal"></span>
-                        </Label>
-                        <div id={`${id}-1-description`} className="text-muted-foreground text-xs">
-                          <ul className="list-disc list-inside space-y-1 mb-2">
-                            <li>Use the in-house catering.</li>
-                            <li>Menu, staff, and setup are handled internally.</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Radio card #2 */}
-
-                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
-                      <RadioGroupItem
-                        value="2"
-                        id={`${id}-2`}
-                        aria-describedby={`${id}-2-description`}
-                        className="order-1 after:absolute after:inset-0"
-                      />
-                      <div className="flex flex-col grow gap-2 justify-start items-baseline">
-                        <Label htmlFor={`${id}-2`} className="flex items-center">
-                          <Truck className="mr-1" size={20} />
-                          {"3rd Party Catering"}
-                          <span className=" ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
-                        </Label>
-                        <div id={`${id}-2-description`} className="text-muted-foreground text-xs">
-                          <ul className="list-disc list-inside space-y-1 mb-2">
-                            <li>Client brings an external caterer.</li>
-                            <li>All food, equipment, and utensils are provided by the caterer.</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Radio card #3 */}
-                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
-                      <RadioGroupItem
-                        value="3"
-                        id={`${id}-3`}
-                        aria-describedby={`${id}-2-description`}
-                        className="order-1 after:absolute after:inset-0"
-                      />
-                      <div className="flex flex-col grow gap-2">
-                        <Label htmlFor={`${id}-2`} className="flex items-center">
-                          <Layers className="mr-1" size={20} />
-                          {"Hybrid Service"}
-                          <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
-                        </Label>
-                        <div id={`${id}-2-description`} className="text-muted-foreground text-xs">
-                          <ul className="list-disc list-inside space-y-1 mb-2">
-                            <li>Client provides an external caterer.</li>
-                            <li>
-                              Susing and Rufins staff handle serving, table setup, and cleanup.
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Radio card #3 */}
-                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
-                      <RadioGroupItem
-                        value="4"
-                        id={`${id}-4`}
-                        aria-describedby={`${id}-4-description`}
-                        className="order-1 after:absolute after:inset-0"
-                      />
-                      <div className="flex flex-col grow gap-2">
-                        <Label htmlFor={`${id}-4`} className="flex items-center">
-                          <MinusCircle className="mr-1" size={20} />
-                          {"None"}
-                          <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
-                        </Label>
-                        <div id={`${id}-4-description`} className="text-muted-foreground text-xs">
-                          <ul className="list-disc list-inside space-y-1 mb-2">
-                            <li>No catering service included.</li>
-                            <li>No food or beverage arrangements are needed.</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  </RadioGroup>
-                </div>
-              </div>
-              {selectedCatering === "1" && (
-                <div className="w-full h-fit mt-4">
-                  <div className="grid grid-cols-2 gap-2 mt-4">
-                    <div className="flex flex-col gap-2">
-                      <p className="text-sm text-foreground/50">Pax</p>
-                      <InputGroup>
-                        <InputGroupInput
-                          placeholder="200"
-                          value={cateringPax}
-                          onChange={e => setCateringPax(e.target.value)}
-                          type="number"
-                          min="0"
-                        />
-                        <InputGroupAddon>
-                          <Users />
-                        </InputGroupAddon>
-                      </InputGroup>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <p className="text-sm text-foreground/50">Price per pax</p>
-                      <InputGroup>
-                        <InputGroupInput
-                          placeholder="200"
-                          value={pricePerPax}
-                          onChange={e => setPricePerPax(e.target.value)}
-                          type="number"
-                          min="0"
-                          step="0.01"
-                        />
-                        <InputGroupAddon>
-                          <Banknote />
-                        </InputGroupAddon>
-                      </InputGroup>
-                    </div>
-                  </div>
-
-                  <div className="border rounded-md mt-4">
-                    <Table>
-                      <TableHeader className="sticky top-0 bg-white z-10">
-                        <TableRow>
-                          <TableHead>Dish</TableHead>
-                          <TableHead>Category</TableHead>
-                          <TableHead>Quantity</TableHead>
-                          <TableHead className="w-20">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-
-                      <TableBody>
-                        {selectedDishes.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center text-muted-foreground">
-                              No dishes selected
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          selectedDishes.map(dish => {
-                            const category = categoriesSource?.find(c => c.id === dish.categoryId);
-                            return (
-                              <TableRow key={dish.id}>
-                                <TableCell className="font-medium flex-1 grow">
-                                  {dish.name}
-                                </TableCell>
-                                <TableCell>{category?.name || "—"}</TableCell>
-                                <TableCell>{dish.quantity}</TableCell>
-                                <TableCell>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-red-600"
-                                    onClick={() => removeDish(dish.id)}
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  {/* Custom Manage Dishes Modal */}
-                  {isDishesDialogOpen && (
-                    <>
-                      <div
-                        className="fixed inset-0 bg-black/60 z-[200]"
-                        onClick={() => setIsDishesDialogOpen(false)}
-                      />
-                      <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
-                        <div className="bg-white rounded-xl shadow-xl w-full max-w-[1400px] max-h-[90vh] overflow-auto p-6">
-                          {/* Header */}
-                          <div className="flex items-start justify-between mb-6">
-                            <div>
-                              <h2 className="text-xl font-semibold">Manage Dishes</h2>
-                              <p className="text-sm text-muted-foreground">
-                                Add, edit, or remove dishes from your menu.
-                              </p>
-                            </div>
-                            <Button
-                              type="button"
-                              className="text-foreground hover:text-foreground/70 transition-all"
-                              variant="link"
-                              onClick={() => setIsDishesDialogOpen(false)}
-                            >
-                              <X />
-                            </Button>
-                          </div>
-
-                          {/* 2-Column Layout */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {/* LEFT COLUMN - Current Selected Dishes */}
-                            <div className="space-y-6">
-                              {/* Current Selected Dishes */}
-                              <div>
-                                <div className="flex items-center justify-between mb-3">
-                                  <h3 className="text-lg font-medium">
-                                    Selected Dishes for this Booking
-                                  </h3>
-                                  <span className="text-sm text-muted-foreground">
-                                    {filteredSelectedDishes.length} of {selectedDishes.length}{" "}
-                                    dishes
-                                  </span>
-                                </div>
-
-                                {/* Filter and Search Controls for Selected Dishes */}
-                                <div className="flex gap-2 mb-2">
-                                  <Select
-                                    value={selectedDishesCategoryFilter}
-                                    onValueChange={setSelectedDishesCategoryFilter}
-                                  >
-                                    <SelectTrigger className="w-[200px]">
-                                      <SelectValue placeholder="Category" />
-                                    </SelectTrigger>
-                                    <SelectContent className="z-[400]">
-                                      <SelectItem value="all">All Categories</SelectItem>
-                                      {categoriesSource?.map(
-                                        (category: { id: number; name: string }) => (
-                                          <SelectItem
-                                            key={category.id}
-                                            value={category.id.toString()}
-                                          >
-                                            {category.name}
-                                          </SelectItem>
-                                        )
-                                      )}
-                                    </SelectContent>
-                                  </Select>
-
-                                  <InputGroup className="mb-2">
-                                    <InputGroupInput
-                                      placeholder="Search selected dishes..."
-                                      value={selectedDishesSearchQuery}
-                                      onChange={e => setSelectedDishesSearchQuery(e.target.value)}
-                                    />
-                                    <InputGroupAddon>
-                                      <SearchIcon />
-                                    </InputGroupAddon>
-                                    <InputGroupAddon align="inline-end">
-                                      <InputGroupButton
-                                        type="button"
-                                        onClick={resetSelectedDishesFilters}
-                                      >
-                                        Clear All
-                                      </InputGroupButton>
-                                    </InputGroupAddon>
-                                  </InputGroup>
-                                </div>
-                                <div className="border rounded-md max-h-[70vh] overflow-y-auto">
-                                  <ScrollArea className="h-[200px] w-full flex flex-1 grow">
-                                    <Table>
-                                      <TableHeader className="sticky top-0 bg-white z-10">
-                                        <TableRow>
-                                          <TableHead>Dish Name</TableHead>
-                                          <TableHead>Category</TableHead>
-                                          <TableHead>Quantity</TableHead>
-                                          <TableHead className="w-20">Actions</TableHead>
-                                        </TableRow>
-                                      </TableHeader>
-
-                                      <TableBody>
-                                        {selectedDishes.length === 0 ? (
-                                          <TableRow>
-                                            <TableCell
-                                              colSpan={4}
-                                              className="text-center text-muted-foreground"
-                                            >
-                                              No dishes selected for this booking
-                                            </TableCell>
-                                          </TableRow>
-                                        ) : filteredSelectedDishes.length === 0 ? (
-                                          <TableRow>
-                                            <TableCell
-                                              colSpan={4}
-                                              className="text-center text-muted-foreground"
-                                            >
-                                              {selectedDishesSearchQuery.trim() !== "" ||
-                                              selectedDishesCategoryFilter !== "all"
-                                                ? `No selected dishes found matching your filters. ${selectedDishesSearchQuery.trim() !== "" ? `Search: ${selectedDishesSearchQuery}` : ""} ${selectedDishesCategoryFilter !== "all" ? `Category: ${categoriesSource?.find(c => c.id.toString() === selectedDishesCategoryFilter)?.name}` : ""}`
-                                                : "No dishes selected for this booking"}
-                                            </TableCell>
-                                          </TableRow>
-                                        ) : (
-                                          filteredSelectedDishes.map(dish => {
-                                            const category = categoriesSource?.find(
-                                              (c: { id: number; name: string }) =>
-                                                c.id === dish.categoryId
-                                            );
-                                            return (
-                                              <TableRow key={dish.id}>
-                                                <TableCell className="font-medium flex-1 grow">
-                                                  {dish.name}
-                                                </TableCell>
-                                                <TableCell>{category?.name ?? "—"}</TableCell>
-                                                <TableCell>{dish.quantity}</TableCell>
-                                                <TableCell>
-                                                  <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="text-red-600"
-                                                    onClick={() => removeDish(dish.id)}
-                                                  >
-                                                    <Trash2 className="w-3 h-3" />
-                                                  </Button>
-                                                </TableCell>
-                                              </TableRow>
-                                            );
-                                          })
-                                        )}
-                                      </TableBody>
-                                    </Table>
-                                  </ScrollArea>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* RIGHT COLUMN - All Available Dishes */}
-                            <div>
-                              <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-lg font-medium">All Available Dishes</h3>
-                                <span className="text-sm text-muted-foreground">
-                                  {filteredDishes.length} of {dishesSource?.length || 0} dishes
-                                  {allDishesQuery.isLoading && " (Loading...)"}
-                                  {allDishesQuery.error && " (Error loading)"}
-                                </span>
-                              </div>
-                              <div className="flex gap-2 mb-2">
-                                <Select
-                                  value={selectedDishCategoryFilter}
-                                  onValueChange={setSelectedDishCategoryFilter}
-                                >
-                                  <SelectTrigger className="w-[200px]">
-                                    <SelectValue placeholder="Category" />
-                                  </SelectTrigger>
-                                  <SelectContent className="z-[400]">
-                                    <SelectItem value="all">All Categories</SelectItem>
-                                    {categoriesSource?.map(
-                                      (category: { id: number; name: string }) => (
-                                        <SelectItem
-                                          key={category.id}
-                                          value={category.id.toString()}
-                                        >
-                                          {category.name}
-                                        </SelectItem>
-                                      )
-                                    )}
-                                  </SelectContent>
-                                </Select>
-
-                                <InputGroup className="mb-2">
-                                  <InputGroupInput
-                                    placeholder="Search dishes..."
-                                    value={dishSearchQuery}
-                                    onChange={e => setDishSearchQuery(e.target.value)}
-                                  />
-                                  <InputGroupAddon>
-                                    <SearchIcon />
-                                  </InputGroupAddon>
-                                  <InputGroupAddon align="inline-end">
-                                    <InputGroupButton type="button" onClick={resetDishFilters}>
-                                      Clear All
-                                    </InputGroupButton>
-                                  </InputGroupAddon>
-                                </InputGroup>
-                              </div>
-
-                              <div className="border rounded-md max-h-[70vh] overflow-y-auto">
-                                <ScrollArea className="h-[400px] w-full flex flex-1 grow">
-                                  <Table>
-                                    <TableHeader className="sticky top-0 bg-white">
-                                      <TableRow>
-                                        <TableHead>Dish Name</TableHead>
-                                        <TableHead>Category</TableHead>
-                                        <TableHead className="w-24">Actions</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {allDishesQuery.isLoading ? (
-                                        <TableRow>
-                                          <TableCell colSpan={3} className="text-center py-8">
-                                            Loading dishes...
-                                          </TableCell>
-                                        </TableRow>
-                                      ) : allDishesQuery.error ? (
-                                        <TableRow>
-                                          <TableCell
-                                            colSpan={3}
-                                            className="text-center py-8 text-red-600"
-                                          >
-                                            Error loading dishes: {allDishesQuery.error?.message}
-                                          </TableCell>
-                                        </TableRow>
-                                      ) : filteredDishes.length > 0 ? (
-                                        filteredDishes.map((dish: any) => {
-                                          const category = categoriesSource?.find(
-                                            (c: { id: number; name: string }) =>
-                                              c.id === dish.categoryId
-                                          );
-                                          const isSelected = selectedDishes.some(
-                                            sd => sd.id === dish.id
-                                          );
-
-                                          return (
-                                            <TableRow
-                                              key={dish.id}
-                                              className={isSelected ? "bg-green-50" : ""}
-                                            >
-                                              <TableCell className="font-medium">
-                                                {dish.name}
-                                              </TableCell>
-                                              <TableCell>{category?.name ?? "—"}</TableCell>
-                                              <TableCell>
-                                                <div className="flex gap-1">
-                                                  <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => addDish(dish)}
-                                                  >
-                                                    <Plus className="w-3 h-3" />
-                                                  </Button>
-                                                  <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => setEditingDish(dish)}
-                                                  >
-                                                    <Pencil className="w-3 h-3" />
-                                                  </Button>
-                                                  <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="text-red-600"
-                                                    onClick={() =>
-                                                      deleteDishMutation.mutate(dish.id)
-                                                    }
-                                                    disabled={deleteDishMutation.isPending}
-                                                  >
-                                                    <Trash2 className="w-3 h-3" />
-                                                  </Button>
-                                                </div>
-                                              </TableCell>
-                                            </TableRow>
-                                          );
-                                        })
-                                      ) : (
-                                        <TableRow>
-                                          <TableCell
-                                            colSpan={3}
-                                            className="text-center py-8 text-muted-foreground"
-                                          >
-                                            {dishSearchQuery.trim() !== "" ||
-                                            selectedDishCategoryFilter !== "all"
-                                              ? `No dishes found matching your filters. ${dishSearchQuery.trim() !== "" ? `Search: ${dishSearchQuery}` : ""} ${selectedDishCategoryFilter !== "all" ? `Category: ${categoriesSource?.find(c => c.id.toString() === selectedDishCategoryFilter)?.name}` : ""}`
-                                              : "No dishes available."}
-                                          </TableCell>
-                                        </TableRow>
-                                      )}
-                                    </TableBody>
-                                  </Table>
-                                </ScrollArea>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Nested Edit Dish Modal */}
-                        {editingDish && (
-                          <>
-                            <div
-                              className="fixed inset-0 bg-black/60 z-[209]"
-                              onClick={() => setEditingDish(null)}
-                            />
-                            <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
-                              <div className="bg-white rounded-xl shadow-xl w-full max-w-[600px] max-h-[80vh] overflow-auto p-6">
-                                <div className="flex items-start justify-between mb-4">
-                                  <h3 className="text-lg font-semibold">Edit Dish</h3>
-                                  <Button
-                                    type="button"
-                                    variant="link"
-                                    onClick={() => setEditingDish(null)}
-                                    className="text-foreground hover:text-foreground/80 transition-all"
-                                  >
-                                    <X />
-                                  </Button>
-                                </div>
-
-                                <div className="space-y-4">
-                                  <div>
-                                    <Label htmlFor="edit-dish-name">Dish Name</Label>
-                                    <Input
-                                      id="edit-dish-name"
-                                      defaultValue={editingDish.name}
-                                      placeholder="Enter dish name"
-                                      onChange={e =>
-                                        setEditingDish({
-                                          ...editingDish,
-                                          name: e.target.value,
-                                        })
-                                      }
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor="edit-dish-category">Category</Label>
-                                    <Select
-                                      value={editingDish.categoryId?.toString() || ""}
-                                      onValueChange={value => {
-                                        setEditingDish({
-                                          ...editingDish,
-                                          categoryId: Number(value),
-                                        });
-                                      }}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent className="z-[400]">
-                                        {categoriesSource?.map(
-                                          (category: { id: number; name: string }) => (
-                                            <SelectItem
-                                              key={category.id}
-                                              value={category.id.toString()}
-                                            >
-                                              {category.name}
-                                            </SelectItem>
-                                          )
-                                        )}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="flex gap-2 justify-end pt-4">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      onClick={() => setEditingDish(null)}
-                                    >
-                                      Cancel
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      onClick={() => {
-                                        updateDishMutation.mutate(
-                                          {
-                                            dishId: editingDish.id,
-                                            name: editingDish.name,
-                                            categoryId: editingDish.categoryId || 1,
-                                          },
-                                          {
-                                            onSuccess: () => {
-                                              setEditingDish(null);
-                                            },
-                                          }
-                                        );
-                                      }}
-                                      disabled={updateDishMutation.isPending}
-                                    >
-                                      {updateDishMutation.isPending ? "Saving..." : "Save Changes"}
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* === DISHES BLOCK === */}
-
-          {/* === SELECT SERVICES BLOCK === */}
-          <div
-            id="services"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <p className="font-bold text-lg">3rd Party Services</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setIsServiceCategoryDialogOpen(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Service Category
-              </Button>
-            </div>
-            <div className="">
-              <div className="mt-2">
-                <div className="flex items-center [--primary:var(--color-red-500)] [--ring:var(--color-red-500)] in-[.dark]:[--primary:var(--color-red-500)] in-[.dark]:[--ring:var(--color-red-500)]">
-                  <div className="grid grid-cols-3 gap-3 w-full">
-                    {servicesCategory.map(category => (
-                      <div className=" mt-1" key={category.id}>
-                        <Label className="font-normal text-foreground/50">{category.name}</Label>
-                        <div className="mt-2">
-                          <SearchService
-                            services={allServices.filter(s => s.categoryId === category.id)}
-                            value={typedServiceByCategory[category.id] ?? ""}
-                            onTypeChange={v =>
-                              setTypedServiceByCategory(prev => ({
-                                ...prev,
-                                [category.id]: v,
-                              }))
-                            }
-                            onPick={async val => {
-                              const existing = allServices.find(
-                                s =>
-                                  (s.name?.toLowerCase() ?? "") === val.toLowerCase() &&
-                                  s.categoryId === category.id
-                              );
-                              if (existing) {
-                                setSelectedServiceIdsByCategory(prev => ({
-                                  ...prev,
-                                  [category.id]: Array.from(
-                                    new Set([...(prev[category.id] ?? []), existing.id])
-                                  ),
-                                }));
-                                setTypedServiceByCategory(prev => ({
-                                  ...prev,
-                                  [category.id]: existing.name ?? "",
-                                }));
-                              } else {
-                                const created = await createServiceMutation.mutateAsync({
-                                  serviceName: val,
-                                  categoryId: category.id,
-                                });
-                                if (created?.id) {
-                                  setSelectedServiceIdsByCategory(prev => ({
-                                    ...prev,
-                                    [category.id]: Array.from(
-                                      new Set([...(prev[category.id] ?? []), created.id])
-                                    ),
-                                  }));
-                                  setTypedServiceByCategory(prev => ({
-                                    ...prev,
-                                    [category.id]: created.name ?? val,
-                                  }));
-                                }
-                              }
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Add Service Category Modal */}
-          {isServiceCategoryDialogOpen && (
-            <>
-              <div
-                className="fixed inset-0 bg-black/60 z-[200]"
-                onClick={() => setIsServiceCategoryDialogOpen(false)}
-              />
-              <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
-                <div className="bg-white rounded-xl shadow-xl w-full max-w-[500px] max-h-[80vh] overflow-auto p-6">
-                  <div className="flex items-start justify-between mb-6">
-                    <div>
-                      <h2 className="text-xl font-semibold">Add Service Category</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Create a new category for organizing services.
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      className="text-foreground hover:text-foreground/70 transition-all"
-                      variant="link"
-                      onClick={() => setIsServiceCategoryDialogOpen(false)}
-                    >
-                      <X />
-                    </Button>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="service-category-name">Category Name</Label>
-                      <Input
-                        id="service-category-name"
-                        value={newServiceCategoryName}
-                        onChange={e => setNewServiceCategoryName(e.target.value)}
-                        placeholder="Enter category name (e.g., Photography, Catering, Entertainment)"
-                      />
-                    </div>
-                    <div className="flex gap-2 justify-end pt-4">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsServiceCategoryDialogOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          if (newServiceCategoryName.trim()) {
-                            createServiceCategoryMutation.mutate(newServiceCategoryName.trim());
-                          }
-                        }}
-                        disabled={
-                          !newServiceCategoryName.trim() || createServiceCategoryMutation.isPending
-                        }
-                      >
-                        {createServiceCategoryMutation.isPending
-                          ? "Creating..."
-                          : "Create Category"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* === INVENTORY BLOCK === */}
-          <div
-            id="inventory"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
-          >
-            <p className="font-bold text-lg -mb-2">Inventory Items</p>
-            <div className="">
-              <div className="mt-5">
-                <div
-                  className="flex border-1 p-4 rounded-md justify-between items-center cursor-pointer hover:bg-gray-50 -mb-2"
-                  onClick={() => setIsInventoryDialogOpen(true)}
-                >
-                  <div className="flex flex-col justify-start items-start">
-                    <p className="flex font-medium gap-2 items-center text-sm">
-                      {selectedInventoryItems.length > 0
-                        ? `${selectedInventoryItems.length} inventory item(s) selected`
-                        : "Select inventory items"}
-                    </p>
-                    <p className="text-xs font-normal text-foreground/50 text-left">
-                      {selectedInventoryItems.length > 0
-                        ? `Total items: ${selectedInventoryItems.reduce((sum, item) => sum + item.quantity, 0)}`
-                        : "Choose inventory items to see details"}
-                    </p>
-                  </div>
-                  <Pen size={18} />
-                </div>
-
-                {/* Custom Inventory Dialog */}
-                {isInventoryDialogOpen && (
-                  <>
-                    {/* Backdrop */}
-                    <div
-                      className="fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity duration-200"
-                      onClick={() => setIsInventoryDialogOpen(false)}
-                    />
-
-                    {/* Dialog Content */}
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                      <div
-                        className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[90vh] flex flex-col transform transition-all duration-200 scale-100"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-6 border-b">
-                          <div>
-                            <h2 className="text-xl font-semibold">Select Inventory Items</h2>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Choose inventory items needed for this booking
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={e => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setIsInventoryDialogOpen(false);
-                            }}
-                            className="text-gray-400 hover:text-gray-600 transition-colors duration-200 p-1 rounded-md hover:bg-gray-100"
-                            aria-label="Close dialog"
-                          >
-                            <X size={24} />
-                          </button>
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 p-6 overflow-hidden">
-                          <div className="h-full grid grid-cols-2 gap-4">
-                            {/* LEFT COLUMN - Selected Items Table */}
-                            <div className="flex flex-col gap-2">
-                              <div>
-                                <h3 className="text-lg font-medium ">Selected Inventory Items</h3>
-                              </div>
-
-                              {/* Filter Controls for Selected Items */}
-                              <div className="flex gap-2">
-                                <Select
-                                  value={selectedItemsCategoryFilter}
-                                  onValueChange={setSelectedItemsCategoryFilter}
-                                >
-                                  <SelectTrigger className="w-[200px]">
-                                    <SelectValue placeholder="Category" />
-                                  </SelectTrigger>
-                                  <SelectContent className="z-[60]">
-                                    <SelectItem value="all">All Categories</SelectItem>
-                                    {inventoryCategoriesData?.map((category: any) => (
-                                      <SelectItem key={category.id} value={category.id.toString()}>
-                                        {category.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-
-                                <InputGroup className="flex-1">
-                                  <InputGroupInput
-                                    placeholder="Search selected..."
-                                    value={selectedItemsSearchQuery}
-                                    onChange={e => setSelectedItemsSearchQuery(e.target.value)}
-                                  />
-                                  <InputGroupAddon>
-                                    <SearchIcon />
-                                  </InputGroupAddon>
-                                  <InputGroupAddon align="inline-end">
-                                    <InputGroupButton
-                                      type="button"
-                                      onClick={resetSelectedItemsFilters}
-                                    >
-                                      Clear
-                                    </InputGroupButton>
-                                  </InputGroupAddon>
-                                </InputGroup>
-                              </div>
-
-                              {/* Selected Items Table */}
-                              <div className="flex-1 border rounded-md overflow-hidden">
-                                <ScrollArea className="h-[calc(90vh-280px)]">
-                                  <Table>
-                                    <TableHeader className="sticky top-0 bg-white z-10">
-                                      <TableRow>
-                                        <TableHead>Item Name</TableHead>
-                                        <TableHead>Category</TableHead>
-                                        <TableHead>Quantity</TableHead>
-                                        <TableHead className="w-20">Actions</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {selectedInventoryItems.length === 0 ? (
-                                        <TableRow>
-                                          <TableCell
-                                            colSpan={4}
-                                            className="text-center py-8 text-muted-foreground"
-                                          >
-                                            No items selected
-                                          </TableCell>
-                                        </TableRow>
-                                      ) : (
-                                        selectedInventoryItems
-                                          .filter(selectedItem => {
-                                            const item = inventoryItems.find(
-                                              inv => inv.id === selectedItem.id
-                                            );
-                                            if (!item) return false;
-
-                                            const matchesSearch = item.name
-                                              .toLowerCase()
-                                              .includes(selectedItemsSearchQuery.toLowerCase());
-                                            const matchesCategory =
-                                              selectedItemsCategoryFilter === "all" ||
-                                              item.categoryId?.toString() ===
-                                                selectedItemsCategoryFilter;
-                                            return matchesSearch && matchesCategory;
-                                          })
-                                          .map(selectedItem => {
-                                            const item = inventoryItems.find(
-                                              inv => inv.id === selectedItem.id
-                                            );
-                                            const category = inventoryCategoriesData?.find(
-                                              (c: any) => c.id === item?.categoryId
-                                            );
-                                            return (
-                                              <TableRow key={selectedItem.id}>
-                                                <TableCell className="font-medium">
-                                                  {item?.name || "Unknown Item"}
-                                                </TableCell>
-                                                <TableCell>{category?.name || "—"}</TableCell>
-                                                <TableCell>{selectedItem.quantity}</TableCell>
-                                                <TableCell>
-                                                  <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="text-red-600"
-                                                    onClick={() =>
-                                                      removeInventoryItem(selectedItem.id)
-                                                    }
-                                                  >
-                                                    <Trash2 className="w-3 h-3" />
-                                                  </Button>
-                                                </TableCell>
-                                              </TableRow>
-                                            );
-                                          })
-                                      )}
-                                    </TableBody>
-                                  </Table>
-                                </ScrollArea>
-                              </div>
-                            </div>
-
-                            {/* RIGHT COLUMN - Available Inventory Items List */}
-                            <div className="flex flex-col gap-2">
-                              <div>
-                                <h3 className="text-lg font-medium ">Available Inventory Items</h3>
-                              </div>
-
-                              {/* Filter Controls for Available Items */}
-                              <div className="flex gap-2">
-                                <Select
-                                  value={selectedInventoryCategoryFilter}
-                                  onValueChange={setSelectedInventoryCategoryFilter}
-                                >
-                                  <SelectTrigger className="w-[200px]">
-                                    <SelectValue placeholder="Category" />
-                                  </SelectTrigger>
-                                  <SelectContent className="z-[60]">
-                                    <SelectItem value="all">All Categories</SelectItem>
-                                    {inventoryCategoriesData?.map((category: any) => (
-                                      <SelectItem key={category.id} value={category.id.toString()}>
-                                        {category.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-
-                                <InputGroup className="flex-1">
-                                  <InputGroupInput
-                                    placeholder="Search available..."
-                                    value={inventorySearchQuery}
-                                    onChange={e => setInventorySearchQuery(e.target.value)}
-                                  />
-                                  <InputGroupAddon>
-                                    <SearchIcon />
-                                  </InputGroupAddon>
-                                  <InputGroupAddon align="inline-end">
-                                    <InputGroupButton type="button" onClick={resetInventoryFilters}>
-                                      Clear
-                                    </InputGroupButton>
-                                  </InputGroupAddon>
-                                </InputGroup>
-                              </div>
-
-                              {/* Inventory Items List */}
-                              <div className="flex-1 border rounded-md overflow-hidden">
-                                <div className="h-full overflow-y-auto">
-                                  <Table>
-                                    <TableHeader className="sticky top-0 bg-white z-10">
-                                      <TableRow>
-                                        <TableHead>Item Name</TableHead>
-                                        <TableHead>Category</TableHead>
-                                        <TableHead>Available</TableHead>
-                                        <TableHead>Selected</TableHead>
-                                        <TableHead className="w-32">Actions</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {filteredInventoryItems.length === 0 ? (
-                                        <TableRow>
-                                          <TableCell
-                                            colSpan={5}
-                                            className="text-center py-8 text-muted-foreground"
-                                          >
-                                            {inventorySearchQuery.trim() !== "" ||
-                                            selectedInventoryCategoryFilter !== "all"
-                                              ? "No inventory items found matching your filters"
-                                              : "No inventory items available"}
-                                          </TableCell>
-                                        </TableRow>
-                                      ) : (
-                                        filteredInventoryItems.map((item: any) => {
-                                          const selectedItem = selectedInventoryItems.find(
-                                            si => si.id === item.id
-                                          );
-                                          const selectedQuantity = selectedItem?.quantity || 0;
-                                          const conflicts = getInventoryConflicts(
-                                            item.id,
-                                            selectedQuantity + 1,
-                                            true
-                                          );
-                                          const category = inventoryCategoriesData?.find(
-                                            (c: any) => c.id === item.categoryId
-                                          );
-
-                                          // Calculate available quantity for this item
-                                          let totalUsedQuantity = 0;
-                                          let availableQuantity = item.quantity - (item.out || 0);
-
-                                          // If dates are selected, calculate used quantity for overlapping dates only
-                                          if (startDate && endDate) {
-                                            totalUsedQuantity = (inventoryStatuses as any[])
-                                              .filter((status: any) => {
-                                                if (status.inventoryId !== item.id) return false;
-                                                if (
-                                                  !status.booking?.startAt ||
-                                                  !status.booking?.endAt
-                                                )
-                                                  return false;
-                                                if (status.booking.status !== 1) return false; // Only consider Active bookings
-
-                                                // Only consider bookings that overlap with selected dates
-                                                const bookingStart = new Date(
-                                                  status.booking.startAt
-                                                );
-                                                const bookingEnd = new Date(status.booking.endAt);
-
-                                                // Normalize dates to start of day for comparison
-                                                const normalizedBookingStart = new Date(
-                                                  bookingStart.getFullYear(),
-                                                  bookingStart.getMonth(),
-                                                  bookingStart.getDate()
-                                                );
-                                                const normalizedBookingEnd = new Date(
-                                                  bookingEnd.getFullYear(),
-                                                  bookingEnd.getMonth(),
-                                                  bookingEnd.getDate()
-                                                );
-                                                const normalizedStartDate = new Date(
-                                                  startDate.getFullYear(),
-                                                  startDate.getMonth(),
-                                                  startDate.getDate()
-                                                );
-                                                const normalizedEndDate = new Date(
-                                                  endDate.getFullYear(),
-                                                  endDate.getMonth(),
-                                                  endDate.getDate()
-                                                );
-
-                                                return (
-                                                  normalizedBookingStart <= normalizedEndDate &&
-                                                  normalizedBookingEnd >= normalizedStartDate
-                                                );
-                                              })
-                                              .reduce(
-                                                (sum: number, status: any) =>
-                                                  sum + (status.quantity || 0),
-                                                0
-                                              );
-
-                                            availableQuantity =
-                                              item.quantity - (item.out || 0) - totalUsedQuantity;
-                                          }
-
-                                          return (
-                                            <>
-                                              <TableRow
-                                                key={item.id}
-                                                className={selectedQuantity > 0 ? "bg-blue-50" : ""}
-                                              >
-                                                <TableCell className="font-medium">
-                                                  {item.name}
-                                                </TableCell>
-                                                <TableCell>{category?.name || "—"}</TableCell>
-                                                <TableCell>
-                                                  <div className="flex flex-col">
-                                                    <span
-                                                      className={
-                                                        availableQuantity < 5
-                                                          ? "text-orange-600 font-medium"
-                                                          : ""
-                                                      }
-                                                    >
-                                                      {availableQuantity}
-                                                      {availableQuantity < 5 && " (Low Stock)"}
-                                                    </span>
-                                                  </div>
-                                                </TableCell>
-                                                <TableCell>{selectedQuantity}</TableCell>
-                                                <TableCell>
-                                                  <div className="flex gap-1">
-                                                    <Button
-                                                      type="button"
-                                                      variant="outline"
-                                                      size="sm"
-                                                      onClick={() => addInventoryItem(item.id, 1)}
-                                                      disabled={
-                                                        selectedQuantity >= availableQuantity
-                                                      }
-                                                    >
-                                                      <Plus className="w-3 h-3" />
-                                                    </Button>
-                                                    {selectedQuantity > 0 && (
-                                                      <>
-                                                        <Input
-                                                          type="text"
-                                                          min="0"
-                                                          max={availableQuantity}
-                                                          value={selectedQuantity}
-                                                          onChange={e => {
-                                                            const newQuantity =
-                                                              parseInt(e.target.value) || 0;
-                                                            console.log(
-                                                              `Input onChange: itemId=${item.id}, inputValue=${e.target.value}, parsedQuantity=${newQuantity}, currentSelectedQuantity=${selectedQuantity}`
-                                                            );
-                                                            updateInventoryQuantity(
-                                                              item.id,
-                                                              newQuantity
-                                                            );
-                                                          }}
-                                                          className="w-16 h-8 text-center text-xs"
-                                                        />
-                                                        <Button
-                                                          type="button"
-                                                          variant="outline"
-                                                          size="sm"
-                                                          className="text-red-600"
-                                                          onClick={() =>
-                                                            removeInventoryItem(item.id)
-                                                          }
-                                                        >
-                                                          <Trash2 className="w-3 h-3" />
-                                                        </Button>
-                                                      </>
-                                                    )}
-                                                  </div>
-                                                </TableCell>
-                                              </TableRow>
-
-                                              {/* Warnings Row */}
-                                              {conflicts.warnings.length > 0 && (
-                                                <TableRow key={`${item.id}-warnings`}>
-                                                  <TableCell
-                                                    colSpan={5}
-                                                    className="bg-orange-50/50 p-2"
-                                                  >
-                                                    <div className="space-y-1">
-                                                      {conflicts.warnings.map((warning, idx) => (
-                                                        <div
-                                                          key={idx}
-                                                          className="text-xs text-orange-600 bg-orange-50 p-2 rounded-md border border-orange-200"
-                                                        >
-                                                          {warning}
-                                                        </div>
-                                                      ))}
-                                                    </div>
-                                                  </TableCell>
-                                                </TableRow>
-                                              )}
-
-                                              {/* Conflicts/Errors Row */}
-                                              {conflicts.conflicts.length > 0 && (
-                                                <TableRow key={`${item.id}-conflicts`}>
-                                                  <TableCell
-                                                    colSpan={5}
-                                                    className="bg-red-50/50 p-2"
-                                                  >
-                                                    <div className="space-y-1">
-                                                      {conflicts.conflicts.map((conflict, idx) => (
-                                                        <div
-                                                          key={idx}
-                                                          className="text-xs text-red-600 bg-red-50 p-2 border border-red-200 rounded-md"
-                                                        >
-                                                          <button
-                                                            type="button"
-                                                            onClick={e => {
-                                                              e.preventDefault();
-                                                              e.stopPropagation();
-                                                              const selectedItem =
-                                                                selectedInventoryItems.find(
-                                                                  si => si.id === item.id
-                                                                );
-                                                              handleConflictClick(
-                                                                item.id,
-                                                                selectedItem?.quantity || 1
-                                                              );
-                                                            }}
-                                                            className="text-left hover:underline flex items-start gap-1"
-                                                          >
-                                                            <span>🚫</span>
-                                                            <span>{conflict}</span>
-                                                          </button>
-                                                        </div>
-                                                      ))}
-                                                    </div>
-                                                  </TableCell>
-                                                </TableRow>
-                                              )}
-                                            </>
-                                          );
-                                        })
-                                      )}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="flex items-center justify-between p-6 border-t bg-gray-50 rounded-b-lg">
-                          <div className="text-sm text-gray-600">
-                            {selectedInventoryItems.length > 0 && (
-                              <span>
-                                {selectedInventoryItems.length} item(s) selected • Total quantity:{" "}
-                                {selectedInventoryItems.reduce(
-                                  (sum, item) => sum + item.quantity,
-                                  0
-                                )}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={e => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setIsInventoryDialogOpen(false);
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              type="button"
-                              onClick={e => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setIsInventoryDialogOpen(false);
-                              }}
-                              disabled={selectedInventoryItems.length === 0}
-                            >
-                              Done ({selectedInventoryItems.length})
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* Inventory Conflict Dialog */}
-                {isConflictDialogOpen && conflictData && (
-                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
-                      <div className="border-b px-6 py-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              Inventory Conflict Details
-                            </h3>
-                            <p className="text-sm text-gray-600 mt-1">
-                              {conflictData.inventoryItem.name} - Requested:{" "}
-                              {conflictData.requestedQuantity} items
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={e => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setIsConflictDialogOpen(false);
-                            }}
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
-                        {/* Booking Comparison - Side by Side */}
-                        <div className="mb-6">
-                          <h4 className="font-medium text-gray-900 mb-4">
-                            Booking Timeline Comparison
-                          </h4>
-                          {/* Your New Booking - Always First */}
-                          <div className="mb-4">
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                              <div className="text-center">
-                                <h5 className="font-medium text-blue-900 text-start ">
-                                  Your New Booking
-                                </h5>
-                              </div>
-                              <div>
-                                <div className="text-sm text-blue-700">
-                                  {/* Extract pavilion from selected pavilion ID */}
-                                  {pavilions.find(p => p.id === selectedPavilionId)?.name ||
-                                    "Selected Pavilion"}
-                                </div>
-                                <div className="text-sm text-blue-700">
-                                  {format(conflictData.selectedStartDate, "MMM dd, h:mm a")} -{" "}
-                                  {format(conflictData.selectedEndDate, "h:mm a")}
-                                </div>
-                                <div className="text-sm font-medium text-blue-900">
-                                  Needs: {conflictData.requestedQuantity} items
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Conflicting Bookings Grid */}
-                          <div
-                            className={`grid gap-2 ${conflictData.conflictingBookings.length === 1 ? "grid-cols-1 mx-auto" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"}`}
-                          >
-                            {conflictData.conflictingBookings.map((booking, index) => {
-                              // Calculate time gap between bookings
-                              const newBookingEnd = conflictData.selectedEndDate;
-                              const newBookingStart = conflictData.selectedStartDate;
-                              const conflictEnd = booking.endAt;
-                              const conflictStart = booking.startAt;
-
-                              let timeGap = "";
-                              let gapDirection = "";
-
-                              if (conflictEnd <= newBookingStart) {
-                                // Conflict ends before new booking starts
-                                const hoursApart = Math.round(
-                                  (newBookingStart.getTime() - conflictEnd.getTime()) /
-                                    (1000 * 60 * 60)
-                                );
-                                timeGap = `${hoursApart} hours apart`;
-                                gapDirection = "before";
-                              } else if (newBookingEnd <= conflictStart) {
-                                // New booking ends before conflict starts
-                                const hoursApart = Math.round(
-                                  (conflictStart.getTime() - newBookingEnd.getTime()) /
-                                    (1000 * 60 * 60)
-                                );
-                                timeGap = `${hoursApart} hours apart`;
-                                gapDirection = "after";
-                              } else {
-                                // Overlapping
-                                timeGap = "Overlapping";
-                                gapDirection = "overlap";
-                              }
-
-                              return (
-                                <div
-                                  key={index}
-                                  className="bg-red-50 border border-red-200 rounded-lg p-4 w-full"
-                                >
-                                  <div className="text-center flex gap-2 items-center">
-                                    <h5 className="font-medium text-red-900 text-start">
-                                      Conflicting Booking
-                                    </h5>
-                                    {timeGap && (
-                                      <div
-                                        className={`text-xs px-2 py-1 rounded-full inline-block ${
-                                          gapDirection === "overlap"
-                                            ? "bg-red-200 text-red-800"
-                                            : "bg-yellow-200 text-yellow-800"
-                                        }`}
-                                      >
-                                        {timeGap}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div>
-                                    <div className="font-medium text-red-900">
-                                      {booking.eventName}
-                                    </div>
-                                    <div className="text-sm text-red-700">
-                                      {booking.pavilionName}
-                                    </div>
-                                    <div className="text-sm text-red-700">
-                                      {format(booking.startAt, "MMM dd, h:mm a")} -{" "}
-                                      {format(booking.endAt, "h:mm a")}
-                                    </div>
-                                    <div className="text-sm font-medium text-red-900">
-                                      Using: {booking.quantity} items
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Summary & Analysis */}
-                        <div className="bg-gray-50 border rounded-lg p-4">
-                          <h4 className="font-medium text-gray-900 mb-3">Analysis</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <div className="font-medium text-gray-700">Total Inventory</div>
-                              <div className="text-2xl font-bold text-gray-900">
-                                {conflictData.inventoryItem.quantity}
-                              </div>
-                              <div className="text-xs text-gray-500">Available items</div>
-                            </div>
-                            <div>
-                              <div className="font-medium text-gray-700">Currently Used</div>
-                              <div className="text-2xl font-bold text-red-600">
-                                {conflictData.conflictingBookings.reduce(
-                                  (sum, booking) => sum + booking.quantity,
-                                  0
-                                )}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                On{" "}
-                                {conflictData.conflictingBookings.map(b => b.eventName).join(", ")}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="font-medium text-gray-700">Remaining</div>
-                              <div className="text-2xl font-bold text-green-600">
-                                {conflictData.inventoryItem.quantity -
-                                  conflictData.conflictingBookings.reduce(
-                                    (sum, booking) => sum + booking.quantity,
-                                    0
-                                  )}
-                              </div>
-                              <div className="text-xs text-gray-500">Available for booking</div>
-                            </div>
-                          </div>
-
-                          {conflictData.requestedQuantity >
-                            conflictData.inventoryItem.quantity -
-                              conflictData.conflictingBookings.reduce(
-                                (sum, booking) => sum + booking.quantity,
-                                0
-                              ) && (
-                            <div className="mt-4 p-3 bg-red-100 border border-red-300 rounded-md">
-                              <div className="text-sm text-red-800">
-                                <strong>Cannot proceed:</strong> You requested{" "}
-                                {conflictData.requestedQuantity} items, but only{" "}
-                                {conflictData.inventoryItem.quantity -
-                                  conflictData.conflictingBookings.reduce(
-                                    (sum, booking) => sum + booking.quantity,
-                                    0
-                                  )}{" "}
-                                items are available on the selected dates.
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="border-t px-6 py-4 bg-gray-50">
-                        <div className="flex justify-end gap-3">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={e => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setIsConflictDialogOpen(false);
-                            }}
-                          >
-                            Close
-                          </Button>
-                          <Button
-                            type="button"
-                            onClick={e => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setIsConflictDialogOpen(false);
-                              // Could add logic to auto-adjust quantity or dates
-                            }}
-                          >
-                            Understood
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Display Selected Inventory Items */}
-                <div className="border rounded-md mt-4">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-white z-10">
-                      <TableRow>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Quantity</TableHead>
-                        <TableHead className="w-20">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-
-                    <TableBody>
-                      {selectedInventoryItems.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center text-muted-foreground">
-                            No items selected
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        selectedInventoryItems.map(selectedItem => {
-                          const item = inventoryItems.find(inv => inv.id === selectedItem.id);
-                          const category = inventoryCategoriesData?.find(
-                            (c: any) => c.id === item?.categoryId
-                          );
-                          const conflicts = getInventoryConflicts(
-                            selectedItem.id,
-                            selectedItem.quantity
-                          );
-
-                          return (
-                            <>
-                              <TableRow key={selectedItem.id}>
-                                <TableCell className="font-medium flex-1 grow">
-                                  {item?.name || "Unknown Item"}
-                                </TableCell>
-                                <TableCell>{category?.name || "—"}</TableCell>
-                                <TableCell>{selectedItem.quantity}</TableCell>
-                                <TableCell>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-red-600"
-                                    onClick={() => removeInventoryItem(selectedItem.id)}
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                              {/* Warnings Row */}
-                              {conflicts.warnings.length > 0 && (
-                                <TableRow key={`${selectedItem.id}-warnings`}>
-                                  <TableCell
-                                    colSpan={4}
-                                    className="bg-orange-50 text-orange-600 text-xs py-2"
-                                  >
-                                    {conflicts.warnings.map((warning, idx) => (
-                                      <div key={idx} className="py-1">
-                                        {warning}
-                                      </div>
-                                    ))}
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                              {/* Conflicts Row */}
-                              {conflicts.conflicts.length > 0 && (
-                                <TableRow key={`${selectedItem.id}-conflicts`}>
-                                  <TableCell
-                                    colSpan={4}
-                                    className="bg-red-50 text-red-600 text-xs py-2"
-                                  >
-                                    {conflicts.conflicts.map((conflict, idx) => (
-                                      <div key={idx} className="py-1">
-                                        <button
-                                          type="button"
-                                          onClick={e => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            handleConflictClick(
-                                              selectedItem.id,
-                                              selectedItem.quantity
-                                            );
-                                          }}
-                                          className="text-left hover:underline"
-                                        >
-                                          🚫 {conflict}
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                            </>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
                 </div>
               </div>
             </div>
@@ -3562,6 +1862,1632 @@ const AddBookingsPageClient = (props: {
             </div>
           </div>
 
+          {/* === DATE AND TIME BLOCK === */}
+          <div
+            id="date_and_time"
+            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+          >
+            <p className="font-bold text-lg">Date and Time</p>
+            <div className="flex w-full">
+              <div className="w-full">
+                <div className="grid grid-cols-2 gap-4 w-full ">
+                  <div className="mr-4 flex-grow w-full">
+                    <StartDatePickerForm
+                      startDateOnChange={setStartDate}
+                      initialDate={startDate}
+                      disabledDates={bookedDaySet}
+                    />
+                  </div>
+                  <div className="flex-grow w-full">
+                    <EndDatePickerForm
+                      endDateOnChange={setEndDate}
+                      initialDate={
+                        preSelectedEndDate ? new Date(preSelectedEndDate) : startDate || undefined
+                      }
+                      disabledDates={bookedDaySet}
+                      minDate={startDate}
+                    />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="grid grid-cols-2 gap-4 w-full ">
+                    <div className="flex-grow">
+                      <TimeStartPickerCreateBookingComponent startTimeOnChange={setStartTime} />
+                    </div>
+                    <div className="flex-grow">
+                      <TimeEndPickerCreateBookingComponent endTimeOnChange={setEndTime} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="ml-4"></div>
+            </div>
+          </div>
+          {/* === EVENT DETAILS BLOCK === */}
+          <div
+            id="event_details"
+            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+          >
+            <p className="font-bold text-lg">Event Details</p>
+            <div className="flex">
+              <div className="mt-2 *:not-first:mt-2 flex-1">
+                <Label className="text-foreground/50 font-normal">Event Name</Label>
+                <Input name="eventName" placeholder="Chris' Birthday Party" type="text" />
+              </div>
+              <div className="mt-2 *:not-first:mt-2 flex-1 ml-4">
+                <Label className="text-foreground/50 font-normal">No. of pax</Label>
+                <Input
+                  name="numPax"
+                  placeholder="200"
+                  type="text"
+                  value={numPax}
+                  onChange={e => setNumPax(e.currentTarget.value)}
+                />
+              </div>
+            </div>
+            <div className="mt-4 *:not-first:mt-2">
+              <Label className="text-foreground/50 font-normal">Event type</Label>
+
+              <Select name="eventType">
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {eventTypes.map(eventType => (
+                    <SelectItem value={`${eventType.id}`} key={eventType.id}>
+                      {eventType.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* === CATERING BLOCK === */}
+          <div
+            id="catering"
+            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+          >
+            <div className="flex justify-between items-center">
+              <p className="font-bold text-lg">Catering</p>
+
+              <div className="flex gap-2">
+                {selectedCatering === "1" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsDishesDialogOpen(true)}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Manage Dishes
+                  </Button>
+                )}
+
+                {selectedCatering === "1" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsInventoryDialogOpen(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Select Items
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="">
+              <div className="mt-2">
+                <div>
+                  <RadioGroup
+                    className="grid grid-cols-4 "
+                    defaultValue="4"
+                    orientation="horizontal"
+                    name="catering"
+                    onValueChange={setSelectedCatering}
+                  >
+                    {/* Radio card #1 */}
+                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none min-h-[100px]">
+                      <RadioGroupItem
+                        value="1"
+                        id={`${id}-1`}
+                        aria-describedby={`${id}-2-description`}
+                        className="order-1 after:absolute after:inset-0"
+                      />
+                      <div className="flex flex-col grow gap-2 justify-start items-baseline">
+                        <Label htmlFor={`${id}-1`} className="flex items-center">
+                          <Users className="mr-1" size={20} />
+                          {"Susing and Rufins Catering"}
+                          <span className="text-muted-foreground text-xs leading-[inherit] font-normal"></span>
+                        </Label>
+                        <div id={`${id}-1-description`} className="text-muted-foreground text-xs">
+                          <ul className="list-disc list-inside space-y-1 mb-2">
+                            <li>Use the in-house catering.</li>
+                            <li>Menu, staff, and setup are handled internally.</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Radio card #2 */}
+
+                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
+                      <RadioGroupItem
+                        value="2"
+                        id={`${id}-2`}
+                        aria-describedby={`${id}-2-description`}
+                        className="order-1 after:absolute after:inset-0"
+                      />
+                      <div className="flex flex-col grow gap-2 justify-start items-baseline">
+                        <Label htmlFor={`${id}-2`} className="flex items-center">
+                          <Truck className="mr-1" size={20} />
+                          {"3rd Party Catering"}
+                          <span className=" ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
+                        </Label>
+                        <div id={`${id}-2-description`} className="text-muted-foreground text-xs">
+                          <ul className="list-disc list-inside space-y-1 mb-2">
+                            <li>Client brings an external caterer.</li>
+                            <li>All food, equipment, and utensils are provided by the caterer.</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Radio card #3 */}
+                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
+                      <RadioGroupItem
+                        value="3"
+                        id={`${id}-3`}
+                        aria-describedby={`${id}-2-description`}
+                        className="order-1 after:absolute after:inset-0"
+                      />
+                      <div className="flex flex-col grow gap-2">
+                        <Label htmlFor={`${id}-2`} className="flex items-center">
+                          <Layers className="mr-1" size={20} />
+                          {"Hybrid Service"}
+                          <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
+                        </Label>
+                        <div id={`${id}-2-description`} className="text-muted-foreground text-xs">
+                          <ul className="list-disc list-inside space-y-1 mb-2">
+                            <li>Client provides an external caterer.</li>
+                            <li>
+                              Susing and Rufins staff handle serving, table setup, and cleanup.
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Radio card #3 */}
+                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
+                      <RadioGroupItem
+                        value="4"
+                        id={`${id}-4`}
+                        aria-describedby={`${id}-4-description`}
+                        className="order-1 after:absolute after:inset-0"
+                      />
+                      <div className="flex flex-col grow gap-2">
+                        <Label htmlFor={`${id}-4`} className="flex items-center">
+                          <MinusCircle className="mr-1" size={20} />
+                          {"None"}
+                          <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
+                        </Label>
+                        <div id={`${id}-4-description`} className="text-muted-foreground text-xs">
+                          <ul className="list-disc list-inside space-y-1 mb-2">
+                            <li>No catering service included.</li>
+                            <li>No food or beverage arrangements are needed.</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </RadioGroup>
+                </div>
+              </div>
+              {selectedCatering === "1" && (
+                <div className="w-full h-fit mt-4">
+                  <div className="grid grid-cols-2 gap-2 mt-4">
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm text-foreground/50">Pax</p>
+                      <InputGroup>
+                        <InputGroupInput
+                          placeholder="200"
+                          value={cateringPax}
+                          onChange={e => setCateringPax(e.target.value)}
+                          type="number"
+                          min="0"
+                        />
+                        <InputGroupAddon>
+                          <Users />
+                        </InputGroupAddon>
+                      </InputGroup>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm text-foreground/50">Price per pax</p>
+                      <InputGroup>
+                        <InputGroupInput
+                          placeholder="200"
+                          value={pricePerPax}
+                          onChange={e => setPricePerPax(e.target.value)}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                        />
+                        <InputGroupAddon>
+                          <Banknote />
+                        </InputGroupAddon>
+                      </InputGroup>
+                    </div>
+                  </div>
+
+                  <div className="border rounded-md mt-4">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-white z-10">
+                        <TableRow>
+                          <TableHead>Dish</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead className="w-20">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+
+                      <TableBody>
+                        {selectedDishes.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={3} className="text-center text-muted-foreground">
+                              No dishes selected
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          selectedDishes.map(dish => {
+                            const category = categoriesSource?.find(c => c.id === dish.categoryId);
+                            const dishNameWithQuantity =
+                              dish.quantity > 1 ? `${dish.name} x${dish.quantity}` : dish.name;
+                            return (
+                              <TableRow key={dish.id}>
+                                <TableCell className="font-medium flex-1 grow">
+                                  {dishNameWithQuantity}
+                                </TableCell>
+                                <TableCell>{category?.name || "—"}</TableCell>
+                                <TableCell>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-red-600"
+                                    onClick={() => removeDish(dish.id)}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div id="inventory" className="w-full h-fit border-t-1 pt-6 mt-8">
+                    <div className="mb-2">
+                      <p className="">Inventory Items</p>
+                    </div>
+
+                    <div className="">
+                      <div className="">
+                        {/* Inventory Selection Dialog - Reusable Component */}
+                        <InventorySelectionDialog
+                          isOpen={isInventoryDialogOpen}
+                          onClose={() => setIsInventoryDialogOpen(false)}
+                          selectedItems={selectedInventoryItems}
+                          onSave={setSelectedInventoryItems}
+                          startDate={startDate}
+                          endDate={endDate}
+                        />
+
+                        {/* Inventory Conflict Dialog */}
+                        {isConflictDialogOpen && conflictData && (
+                          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
+                              <div className="border-b px-6 py-4">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h3 className="text-lg font-semibold text-gray-900">
+                                      Inventory Conflict Details
+                                    </h3>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                      {conflictData.inventoryItem.name} - Requested:{" "}
+                                      {conflictData.requestedQuantity} items
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={e => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setIsConflictDialogOpen(false);
+                                    }}
+                                    className="text-gray-400 hover:text-gray-600"
+                                  >
+                                    <X className="w-5 h-5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+                                {/* Booking Comparison - Side by Side */}
+                                <div className="mb-6">
+                                  <h4 className="font-medium text-gray-900 mb-4">
+                                    Booking Timeline Comparison
+                                  </h4>
+                                  {/* Your New Booking - Always First */}
+                                  <div className="mb-4">
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                      <div className="text-center">
+                                        <h5 className="font-medium text-blue-900 text-start ">
+                                          Your New Booking
+                                        </h5>
+                                      </div>
+                                      <div>
+                                        <div className="text-sm text-blue-700">
+                                          {/* Extract pavilion from selected pavilion ID */}
+                                          {pavilions.find(p => p.id === selectedPavilionId)?.name ||
+                                            "Selected Pavilion"}
+                                        </div>
+                                        <div className="text-sm text-blue-700">
+                                          {format(conflictData.selectedStartDate, "MMM dd, h:mm a")}{" "}
+                                          - {format(conflictData.selectedEndDate, "h:mm a")}
+                                        </div>
+                                        <div className="text-sm font-medium text-blue-900">
+                                          Needs: {conflictData.requestedQuantity} items
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Conflicting Bookings Grid */}
+                                  <div
+                                    className={`grid gap-2 ${conflictData.conflictingBookings.length === 1 ? "grid-cols-1 mx-auto" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"}`}
+                                  >
+                                    {conflictData.conflictingBookings.map((booking, index) => {
+                                      // Calculate time gap between bookings
+                                      const newBookingEnd = conflictData.selectedEndDate;
+                                      const newBookingStart = conflictData.selectedStartDate;
+                                      const conflictEnd = booking.endAt;
+                                      const conflictStart = booking.startAt;
+
+                                      let timeGap = "";
+                                      let gapDirection = "";
+
+                                      if (conflictEnd <= newBookingStart) {
+                                        // Conflict ends before new booking starts
+                                        const hoursApart = Math.round(
+                                          (newBookingStart.getTime() - conflictEnd.getTime()) /
+                                            (1000 * 60 * 60)
+                                        );
+                                        timeGap = `${hoursApart} hours apart`;
+                                        gapDirection = "before";
+                                      } else if (newBookingEnd <= conflictStart) {
+                                        // New booking ends before conflict starts
+                                        const hoursApart = Math.round(
+                                          (conflictStart.getTime() - newBookingEnd.getTime()) /
+                                            (1000 * 60 * 60)
+                                        );
+                                        timeGap = `${hoursApart} hours apart`;
+                                        gapDirection = "after";
+                                      } else {
+                                        // Overlapping
+                                        timeGap = "Overlapping";
+                                        gapDirection = "overlap";
+                                      }
+
+                                      return (
+                                        <div
+                                          key={index}
+                                          className="bg-red-50 border border-red-200 rounded-lg p-4 w-full"
+                                        >
+                                          <div className="text-center flex gap-2 items-center">
+                                            <h5 className="font-medium text-red-900 text-start">
+                                              Conflicting Booking
+                                            </h5>
+                                            {timeGap && (
+                                              <div
+                                                className={`text-xs px-2 py-1 rounded-full inline-block ${
+                                                  gapDirection === "overlap"
+                                                    ? "bg-red-200 text-red-800"
+                                                    : "bg-yellow-200 text-yellow-800"
+                                                }`}
+                                              >
+                                                {timeGap}
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div>
+                                            <div className="font-medium text-red-900">
+                                              {booking.eventName}
+                                            </div>
+                                            <div className="text-sm text-red-700">
+                                              {booking.pavilionName}
+                                            </div>
+                                            <div className="text-sm text-red-700">
+                                              {format(booking.startAt, "MMM dd, h:mm a")} -{" "}
+                                              {format(booking.endAt, "h:mm a")}
+                                            </div>
+                                            <div className="text-sm font-medium text-red-900">
+                                              Using: {booking.quantity} items
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* Summary & Analysis */}
+                                <div className="bg-gray-50 border rounded-lg p-4">
+                                  <h4 className="font-medium text-gray-900 mb-3">Analysis</h4>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                    <div>
+                                      <div className="font-medium text-gray-700">
+                                        Total Inventory
+                                      </div>
+                                      <div className="text-2xl font-bold text-gray-900">
+                                        {conflictData.inventoryItem.quantity}
+                                      </div>
+                                      <div className="text-xs text-gray-500">Available items</div>
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-gray-700">
+                                        Currently Used
+                                      </div>
+                                      <div className="text-2xl font-bold text-red-600">
+                                        {conflictData.conflictingBookings.reduce(
+                                          (sum, booking) => sum + booking.quantity,
+                                          0
+                                        )}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        On{" "}
+                                        {conflictData.conflictingBookings
+                                          .map(b => b.eventName)
+                                          .join(", ")}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-gray-700">Remaining</div>
+                                      <div className="text-2xl font-bold text-green-600">
+                                        {conflictData.inventoryItem.quantity -
+                                          conflictData.conflictingBookings.reduce(
+                                            (sum, booking) => sum + booking.quantity,
+                                            0
+                                          )}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        Available for booking
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {conflictData.requestedQuantity >
+                                    conflictData.inventoryItem.quantity -
+                                      conflictData.conflictingBookings.reduce(
+                                        (sum, booking) => sum + booking.quantity,
+                                        0
+                                      ) && (
+                                    <div className="mt-4 p-3 bg-red-100 border border-red-300 rounded-md">
+                                      <div className="text-sm text-red-800">
+                                        <strong>Cannot proceed:</strong> You requested{" "}
+                                        {conflictData.requestedQuantity} items, but only{" "}
+                                        {conflictData.inventoryItem.quantity -
+                                          conflictData.conflictingBookings.reduce(
+                                            (sum, booking) => sum + booking.quantity,
+                                            0
+                                          )}{" "}
+                                        items are available on the selected dates.
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="border-t px-6 py-4 bg-gray-50">
+                                <div className="flex justify-end gap-3">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={e => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setIsConflictDialogOpen(false);
+                                    }}
+                                  >
+                                    Close
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    onClick={e => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setIsConflictDialogOpen(false);
+                                      // Could add logic to auto-adjust quantity or dates
+                                    }}
+                                  >
+                                    Understood
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Display Selected Inventory Items */}
+                        <div className="border rounded-md mt-4">
+                          <Table>
+                            <TableHeader className="sticky top-0 bg-white z-10">
+                              <TableRow>
+                                <TableHead>Item</TableHead>
+                                <TableHead>Category</TableHead>
+                                <TableHead>Quantity</TableHead>
+                                <TableHead className="w-20">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+
+                            <TableBody>
+                              {selectedInventoryItems.length === 0 ? (
+                                <TableRow>
+                                  <TableCell
+                                    colSpan={4}
+                                    className="text-center text-muted-foreground"
+                                  >
+                                    No items selected
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                selectedInventoryItems.map(selectedItem => {
+                                  const item = inventoryItems.find(
+                                    inv => inv.id === selectedItem.id
+                                  );
+                                  const category = inventoryCategoriesData?.find(
+                                    (c: any) => c.id === item?.categoryId
+                                  );
+                                  const conflicts = getInventoryConflicts(
+                                    selectedItem.id,
+                                    selectedItem.quantity
+                                  );
+
+                                  return (
+                                    <>
+                                      <TableRow key={selectedItem.id}>
+                                        <TableCell className="font-medium flex-1 grow">
+                                          {item?.name || "Unknown Item"}
+                                        </TableCell>
+                                        <TableCell>{category?.name || "—"}</TableCell>
+                                        <TableCell>{selectedItem.quantity}</TableCell>
+                                        <TableCell>
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-red-600"
+                                            onClick={() => removeInventoryItem(selectedItem.id)}
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                      {/* Warnings Row */}
+                                      {conflicts.warnings.length > 0 && (
+                                        <TableRow key={`${selectedItem.id}-warnings`}>
+                                          <TableCell
+                                            colSpan={4}
+                                            className="bg-orange-50 text-orange-600 text-xs py-2"
+                                          >
+                                            {conflicts.warnings.map((warning, idx) => (
+                                              <div key={idx} className="py-1">
+                                                {warning}
+                                              </div>
+                                            ))}
+                                          </TableCell>
+                                        </TableRow>
+                                      )}
+                                      {/* Conflicts Row */}
+                                      {conflicts.conflicts.length > 0 && (
+                                        <TableRow key={`${selectedItem.id}-conflicts`}>
+                                          <TableCell
+                                            colSpan={4}
+                                            className="bg-red-50 text-red-600 text-xs py-2"
+                                          >
+                                            {conflicts.conflicts.map((conflict, idx) => (
+                                              <div key={idx} className="py-1">
+                                                <button
+                                                  type="button"
+                                                  onClick={e => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    handleConflictClick(
+                                                      selectedItem.id,
+                                                      selectedItem.quantity
+                                                    );
+                                                  }}
+                                                  className="text-left hover:underline"
+                                                >
+                                                  🚫 {conflict}
+                                                </button>
+                                              </div>
+                                            ))}
+                                          </TableCell>
+                                        </TableRow>
+                                      )}
+                                    </>
+                                  );
+                                })
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Custom Manage Dishes Modal */}
+                  {isDishesDialogOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 bg-black/60 z-[200]"
+                        onClick={() => setIsDishesDialogOpen(false)}
+                      />
+                      <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl shadow-xl w-full max-w-[1400px] max-h-[90vh] overflow-auto p-6">
+                          {/* Header */}
+                          <div className="flex items-start justify-between mb-6">
+                            <div>
+                              <h2 className="text-xl font-semibold">Manage Dishes</h2>
+                              <p className="text-sm text-muted-foreground">
+                                Add, edit, or remove dishes from your menu.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              className="text-foreground hover:text-foreground/70 transition-all"
+                              variant="link"
+                              onClick={() => setIsDishesDialogOpen(false)}
+                            >
+                              <X />
+                            </Button>
+                          </div>
+
+                          {/* 2-Column Layout */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* LEFT COLUMN - Current Selected Dishes */}
+                            <div className="space-y-6">
+                              {/* Current Selected Dishes */}
+                              <div>
+                                <div className="flex items-center justify-between mb-3">
+                                  <h3 className="text-lg font-medium">
+                                    Selected Dishes for this Booking
+                                  </h3>
+                                  <span className="text-sm text-muted-foreground">
+                                    {filteredSelectedDishes.length} of {selectedDishes.length}{" "}
+                                    dishes
+                                  </span>
+                                </div>
+
+                                {/* Filter and Search Controls for Selected Dishes */}
+                                <div className="flex gap-2 mb-2">
+                                  <Select
+                                    value={selectedDishesCategoryFilter}
+                                    onValueChange={setSelectedDishesCategoryFilter}
+                                  >
+                                    <SelectTrigger className="w-[200px]">
+                                      <SelectValue placeholder="Category" />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-[400]">
+                                      <SelectItem value="all">All Categories</SelectItem>
+                                      {categoriesSource?.map(
+                                        (category: { id: number; name: string }) => (
+                                          <SelectItem
+                                            key={category.id}
+                                            value={category.id.toString()}
+                                          >
+                                            {category.name}
+                                          </SelectItem>
+                                        )
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+
+                                  <InputGroup className="mb-2">
+                                    <InputGroupInput
+                                      placeholder="Search selected dishes..."
+                                      value={selectedDishesSearchQuery}
+                                      onChange={e => setSelectedDishesSearchQuery(e.target.value)}
+                                    />
+                                    <InputGroupAddon>
+                                      <SearchIcon />
+                                    </InputGroupAddon>
+                                    <InputGroupAddon align="inline-end">
+                                      <InputGroupButton
+                                        type="button"
+                                        onClick={resetSelectedDishesFilters}
+                                      >
+                                        Clear All
+                                      </InputGroupButton>
+                                    </InputGroupAddon>
+                                  </InputGroup>
+                                </div>
+                                <div className="border rounded-md max-h-[70vh] overflow-y-auto">
+                                  <ScrollArea className="h-[200px] w-full flex flex-1 grow">
+                                    <Table>
+                                      <TableHeader className="sticky top-0 bg-white z-10">
+                                        <TableRow>
+                                          <TableHead>Dish Name</TableHead>
+                                          <TableHead>Category</TableHead>
+                                          <TableHead className="w-20">Actions</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+
+                                      <TableBody>
+                                        {selectedDishes.length === 0 ? (
+                                          <TableRow>
+                                            <TableCell
+                                              colSpan={3}
+                                              className="text-center text-muted-foreground"
+                                            >
+                                              No dishes selected for this booking
+                                            </TableCell>
+                                          </TableRow>
+                                        ) : filteredSelectedDishes.length === 0 ? (
+                                          <TableRow>
+                                            <TableCell
+                                              colSpan={3}
+                                              className="text-center text-muted-foreground"
+                                            >
+                                              {selectedDishesSearchQuery.trim() !== "" ||
+                                              selectedDishesCategoryFilter !== "all"
+                                                ? `No selected dishes found matching your filters. ${selectedDishesSearchQuery.trim() !== "" ? `Search: ${selectedDishesSearchQuery}` : ""} ${selectedDishesCategoryFilter !== "all" ? `Category: ${categoriesSource?.find(c => c.id.toString() === selectedDishesCategoryFilter)?.name}` : ""}`
+                                                : "No dishes selected for this booking"}
+                                            </TableCell>
+                                          </TableRow>
+                                        ) : (
+                                          filteredSelectedDishes.map(dish => {
+                                            const category = categoriesSource?.find(
+                                              (c: { id: number; name: string }) =>
+                                                c.id === dish.categoryId
+                                            );
+                                            const dishNameWithQuantity =
+                                              dish.quantity > 1
+                                                ? `${dish.name} x${dish.quantity}`
+                                                : dish.name;
+                                            return (
+                                              <TableRow key={dish.id}>
+                                                <TableCell className="font-medium flex-1 grow">
+                                                  {dishNameWithQuantity}
+                                                </TableCell>
+                                                <TableCell>{category?.name ?? "—"}</TableCell>
+                                                <TableCell>
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-red-600"
+                                                    onClick={() => removeDish(dish.id)}
+                                                  >
+                                                    <Trash2 className="w-3 h-3" />
+                                                  </Button>
+                                                </TableCell>
+                                              </TableRow>
+                                            );
+                                          })
+                                        )}
+                                      </TableBody>
+                                    </Table>
+                                  </ScrollArea>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* RIGHT COLUMN - All Available Dishes */}
+                            <div>
+                              <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-lg font-medium">All Available Dishes</h3>
+                                <span className="text-sm text-muted-foreground">
+                                  {filteredDishes.length} of {dishesSource?.length || 0} dishes
+                                  {allDishesQuery.isLoading && " (Loading...)"}
+                                  {allDishesQuery.error && " (Error loading)"}
+                                </span>
+                              </div>
+                              <div className="flex gap-2 mb-2">
+                                <Select
+                                  value={selectedDishCategoryFilter}
+                                  onValueChange={setSelectedDishCategoryFilter}
+                                >
+                                  <SelectTrigger className="w-[200px]">
+                                    <SelectValue placeholder="Category" />
+                                  </SelectTrigger>
+                                  <SelectContent className="z-[400]">
+                                    <SelectItem value="all">All Categories</SelectItem>
+                                    {categoriesSource?.map(
+                                      (category: { id: number; name: string }) => (
+                                        <SelectItem
+                                          key={category.id}
+                                          value={category.id.toString()}
+                                        >
+                                          {category.name}
+                                        </SelectItem>
+                                      )
+                                    )}
+                                  </SelectContent>
+                                </Select>
+
+                                <InputGroup className="mb-2">
+                                  <InputGroupInput
+                                    placeholder="Search dishes..."
+                                    value={dishSearchQuery}
+                                    onChange={e => setDishSearchQuery(e.target.value)}
+                                  />
+                                  <InputGroupAddon>
+                                    <SearchIcon />
+                                  </InputGroupAddon>
+                                  <InputGroupAddon align="inline-end">
+                                    <InputGroupButton type="button" onClick={resetDishFilters}>
+                                      Clear All
+                                    </InputGroupButton>
+                                  </InputGroupAddon>
+                                </InputGroup>
+                              </div>
+
+                              <div className="border rounded-md max-h-[70vh] overflow-y-auto">
+                                <ScrollArea className="h-[400px] w-full flex flex-1 grow">
+                                  <Table>
+                                    <TableHeader className="sticky top-0 bg-white">
+                                      <TableRow>
+                                        <TableHead>Dish Name</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead className="w-24">Actions</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {allDishesQuery.isLoading ? (
+                                        <TableRow>
+                                          <TableCell colSpan={3} className="text-center py-8">
+                                            Loading dishes...
+                                          </TableCell>
+                                        </TableRow>
+                                      ) : allDishesQuery.error ? (
+                                        <TableRow>
+                                          <TableCell
+                                            colSpan={3}
+                                            className="text-center py-8 text-red-600"
+                                          >
+                                            Error loading dishes: {allDishesQuery.error?.message}
+                                          </TableCell>
+                                        </TableRow>
+                                      ) : filteredDishes.length > 0 ? (
+                                        filteredDishes.map((dish: any) => {
+                                          const category = categoriesSource?.find(
+                                            (c: { id: number; name: string }) =>
+                                              c.id === dish.categoryId
+                                          );
+                                          const isSelected = selectedDishes.some(
+                                            sd => sd.id === dish.id
+                                          );
+
+                                          return (
+                                            <TableRow
+                                              key={dish.id}
+                                              className={isSelected ? "bg-green-50" : ""}
+                                            >
+                                              <TableCell className="font-medium">
+                                                {dish.name}
+                                              </TableCell>
+                                              <TableCell>{category?.name ?? "—"}</TableCell>
+                                              <TableCell>
+                                                <div className="flex gap-1">
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => addDish(dish)}
+                                                  >
+                                                    <Plus className="w-3 h-3" />
+                                                  </Button>
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setEditingDish(dish)}
+                                                  >
+                                                    <Pencil className="w-3 h-3" />
+                                                  </Button>
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-red-600"
+                                                    onClick={() =>
+                                                      deleteDishMutation.mutate(dish.id)
+                                                    }
+                                                    disabled={deleteDishMutation.isPending}
+                                                  >
+                                                    <Trash2 className="w-3 h-3" />
+                                                  </Button>
+                                                </div>
+                                              </TableCell>
+                                            </TableRow>
+                                          );
+                                        })
+                                      ) : (
+                                        <TableRow>
+                                          <TableCell
+                                            colSpan={3}
+                                            className="text-center py-8 text-muted-foreground"
+                                          >
+                                            {dishSearchQuery.trim() !== "" ||
+                                            selectedDishCategoryFilter !== "all"
+                                              ? `No dishes found matching your filters. ${dishSearchQuery.trim() !== "" ? `Search: ${dishSearchQuery}` : ""} ${selectedDishCategoryFilter !== "all" ? `Category: ${categoriesSource?.find(c => c.id.toString() === selectedDishCategoryFilter)?.name}` : ""}`
+                                              : "No dishes available."}
+                                          </TableCell>
+                                        </TableRow>
+                                      )}
+                                    </TableBody>
+                                  </Table>
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Nested Edit Dish Modal */}
+                        {editingDish && (
+                          <>
+                            <div
+                              className="fixed inset-0 bg-black/60 z-[209]"
+                              onClick={() => setEditingDish(null)}
+                            />
+                            <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
+                              <div className="bg-white rounded-xl shadow-xl w-full max-w-[600px] max-h-[80vh] overflow-auto p-6">
+                                <div className="flex items-start justify-between mb-4">
+                                  <h3 className="text-lg font-semibold">Edit Dish</h3>
+                                  <Button
+                                    type="button"
+                                    variant="link"
+                                    onClick={() => setEditingDish(null)}
+                                    className="text-foreground hover:text-foreground/80 transition-all"
+                                  >
+                                    <X />
+                                  </Button>
+                                </div>
+
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label htmlFor="edit-dish-name">Dish Name</Label>
+                                    <Input
+                                      id="edit-dish-name"
+                                      defaultValue={editingDish.name}
+                                      placeholder="Enter dish name"
+                                      onChange={e =>
+                                        setEditingDish({
+                                          ...editingDish,
+                                          name: e.target.value,
+                                        })
+                                      }
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor="edit-dish-category">Category</Label>
+                                    <Select
+                                      value={editingDish.categoryId?.toString() || ""}
+                                      onValueChange={value => {
+                                        setEditingDish({
+                                          ...editingDish,
+                                          categoryId: Number(value),
+                                        });
+                                      }}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="z-[400]">
+                                        {categoriesSource?.map(
+                                          (category: { id: number; name: string }) => (
+                                            <SelectItem
+                                              key={category.id}
+                                              value={category.id.toString()}
+                                            >
+                                              {category.name}
+                                            </SelectItem>
+                                          )
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="flex gap-2 justify-end pt-4">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => setEditingDish(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      onClick={() => {
+                                        updateDishMutation.mutate(
+                                          {
+                                            dishId: editingDish.id,
+                                            name: editingDish.name,
+                                            categoryId: editingDish.categoryId || 1,
+                                          },
+                                          {
+                                            onSuccess: () => {
+                                              setEditingDish(null);
+                                            },
+                                          }
+                                        );
+                                      }}
+                                      disabled={updateDishMutation.isPending}
+                                    >
+                                      {updateDishMutation.isPending ? "Saving..." : "Save Changes"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* === INVENTORY BLOCK === */}
+
+          {/* === SELECT SERVICES BLOCK === */}
+          <div
+            id="services"
+            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-bold text-lg">3rd Party Services</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddServiceDialogOpen(true)}
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Manage Services
+              </Button>
+            </div>
+
+            {/* Services Summary Table */}
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Service Name</TableHead>
+                    <TableHead>Category</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(() => {
+                    const allSelectedServices = Object.values(selectedServiceIdsByCategory)
+                      .flat()
+                      .map(id => allServices.find(s => s.id === id))
+                      .filter(Boolean);
+
+                    return allSelectedServices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
+                          No services selected. Click "Manage Services" to add services.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      allSelectedServices.map(service => {
+                        if (!service) return null;
+                        const category = servicesCategory.find(c => c.id === service.categoryId);
+                        return (
+                          <TableRow key={service.id}>
+                            <TableCell className="font-medium">{service.name}</TableCell>
+                            <TableCell>{category?.name || "—"}</TableCell>
+                          </TableRow>
+                        );
+                      })
+                    );
+                  })()}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Manage Services Dialog */}
+          {isAddServiceDialogOpen && (
+            <>
+              <div
+                className="fixed inset-0 bg-black/60 z-[200]"
+                onClick={() => setIsAddServiceDialogOpen(false)}
+              />
+              <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-xl w-full max-w-[1400px] max-h-[90vh] overflow-auto p-6">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-6">
+                    <div>
+                      <h2 className="text-xl font-semibold">Manage Services</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Add or remove services for this booking.
+                      </p>
+                    </div>
+                    <Button
+                      className="text-foreground hover:text-foreground/70 transition-all"
+                      variant="link"
+                      onClick={() => setIsAddServiceDialogOpen(false)}
+                    >
+                      <X />
+                    </Button>
+                  </div>
+
+                  {/* 2-Column Layout */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* LEFT COLUMN - Selected Services */}
+                    <div className="space-y-6">
+                      <div>
+                        <h3 className="text-lg font-medium mb-3">Selected Services</h3>
+                        <div className="border rounded-md max-h-[70vh] overflow-y-auto">
+                          <ScrollArea className="h-[300px] w-full">
+                            <Table>
+                              <TableHeader className="sticky top-0 bg-white z-10">
+                                <TableRow>
+                                  <TableHead>Service Name</TableHead>
+                                  <TableHead>Category</TableHead>
+                                  <TableHead className="w-20">Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {(() => {
+                                  const allSelectedServices = Object.entries(
+                                    selectedServiceIdsByCategory
+                                  )
+                                    .flatMap(([catId, serviceIds]) =>
+                                      serviceIds.map(id => ({
+                                        service: allServices.find(s => s.id === id),
+                                        categoryId: Number(catId),
+                                      }))
+                                    )
+                                    .filter(item => item.service);
+
+                                  return allSelectedServices.length === 0 ? (
+                                    <TableRow>
+                                      <TableCell
+                                        colSpan={3}
+                                        className="text-center text-muted-foreground"
+                                      >
+                                        No services selected
+                                      </TableCell>
+                                    </TableRow>
+                                  ) : (
+                                    allSelectedServices.map(({ service, categoryId }) => {
+                                      if (!service) return null;
+                                      const category = servicesCategory.find(
+                                        c => c.id === categoryId
+                                      );
+                                      return (
+                                        <TableRow key={service.id}>
+                                          <TableCell className="font-medium">
+                                            {service.name}
+                                          </TableCell>
+                                          <TableCell>{category?.name || "—"}</TableCell>
+                                          <TableCell>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="text-red-600"
+                                              onClick={() => {
+                                                setSelectedServiceIdsByCategory(prev => ({
+                                                  ...prev,
+                                                  [categoryId]: (prev[categoryId] || []).filter(
+                                                    id => id !== service.id
+                                                  ),
+                                                }));
+                                              }}
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </Button>
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })
+                                  );
+                                })()}
+                              </TableBody>
+                            </Table>
+                          </ScrollArea>
+                        </div>
+                      </div>
+
+                      {/* Add New Service */}
+                      <div>
+                        <h3 className="text-lg font-medium mb-3">Add New Service</h3>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="service-name">Service Name</Label>
+                            <Input
+                              id="service-name"
+                              value={newServiceName}
+                              onChange={e => setNewServiceName(e.target.value)}
+                              placeholder="Enter service name"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="service-category">Category</Label>
+                            <Select
+                              value={newServiceCategory}
+                              onValueChange={setNewServiceCategory}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select category" />
+                              </SelectTrigger>
+                              <SelectContent className="z-[400]">
+                                {servicesCategory?.map(category => (
+                                  <SelectItem key={category.id} value={category.id.toString()}>
+                                    {category.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button
+                            type="button"
+                            onClick={handleCreateService}
+                            disabled={
+                              !newServiceName.trim() ||
+                              !newServiceCategory ||
+                              createServiceMutation.isPending
+                            }
+                            className="w-full"
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            {createServiceMutation.isPending ? "Adding..." : "Add Service"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* RIGHT COLUMN - All Available Services */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-medium">All Available Services</h3>
+                      </div>
+                      <div className="flex gap-2 mb-4">
+                        <Select
+                          value={selectedCategoryFilter}
+                          onValueChange={setSelectedCategoryFilter}
+                        >
+                          <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Category" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[400]">
+                            <SelectItem value="all">All Categories</SelectItem>
+                            {servicesCategory?.map(category => (
+                              <SelectItem key={category.id} value={category.id.toString()}>
+                                {category.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Input
+                          placeholder="Search services..."
+                          value={searchQuery}
+                          onChange={e => setSearchQuery(e.target.value)}
+                          className="flex-1"
+                        />
+                      </div>
+
+                      <div className="border rounded-md max-h-[70vh] overflow-y-auto">
+                        <ScrollArea className="h-[400px] w-full">
+                          <Table>
+                            <TableHeader className="sticky top-0 bg-white">
+                              <TableRow>
+                                <TableHead>Service Name</TableHead>
+                                <TableHead>Category</TableHead>
+                                <TableHead className="w-24">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {(() => {
+                                const filteredServices = allServices.filter(service => {
+                                  if (!service.categoryId) return false;
+                                  const matchesCategory =
+                                    selectedCategoryFilter === "all" ||
+                                    service.categoryId.toString() === selectedCategoryFilter;
+                                  const matchesSearch =
+                                    searchQuery.trim() === "" ||
+                                    service.name?.toLowerCase().includes(searchQuery.toLowerCase());
+                                  return matchesCategory && matchesSearch;
+                                });
+
+                                return filteredServices.length > 0 ? (
+                                  filteredServices.map(service => {
+                                    const category = servicesCategory.find(
+                                      c => c.id === service.categoryId
+                                    );
+                                    const isSelected = (
+                                      selectedServiceIdsByCategory[service.categoryId || 0] || []
+                                    ).includes(service.id);
+
+                                    return (
+                                      <TableRow
+                                        key={service.id}
+                                        className={isSelected ? "bg-green-50" : ""}
+                                      >
+                                        <TableCell className="font-medium">
+                                          {service.name}
+                                        </TableCell>
+                                        <TableCell>{category?.name ?? "—"}</TableCell>
+                                        <TableCell>
+                                          <Button
+                                            variant={isSelected ? "secondary" : "outline"}
+                                            size="sm"
+                                            disabled={isSelected}
+                                            onClick={() => {
+                                              if (!service.categoryId) return;
+                                              setSelectedServiceIdsByCategory(prev => ({
+                                                ...prev,
+                                                [service.categoryId!]: [
+                                                  ...(prev[service.categoryId!] || []),
+                                                  service.id,
+                                                ],
+                                              }));
+                                            }}
+                                          >
+                                            {isSelected ? "Selected" : "Add"}
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    );
+                                  })
+                                ) : (
+                                  <TableRow>
+                                    <TableCell
+                                      colSpan={3}
+                                      className="text-center py-8 text-muted-foreground"
+                                    >
+                                      No services found
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })()}
+                            </TableBody>
+                          </Table>
+                        </ScrollArea>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex justify-between items-center mt-6 pt-4 border-t">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsServiceCategoryDialogOpen(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Manage Categories
+                    </Button>
+                    <Button type="button" onClick={() => setIsAddServiceDialogOpen(false)}>
+                      Done
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Add Service Category Modal */}
+          {isServiceCategoryDialogOpen && (
+            <>
+              <div
+                className="fixed inset-0 bg-black/60 z-[200]"
+                onClick={() => setIsServiceCategoryDialogOpen(false)}
+              />
+              <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-xl w-full max-w-[1000px] max-h-[90vh] overflow-auto p-6">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-6">
+                    <div>
+                      <h2 className="text-xl font-semibold">Manage Service Categories</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Add, edit, or remove service categories.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      className="text-foreground hover:text-foreground/70 transition-all"
+                      variant="link"
+                      onClick={() => setIsServiceCategoryDialogOpen(false)}
+                    >
+                      <X />
+                    </Button>
+                  </div>
+
+                  {/* 2-Column Layout */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* LEFT COLUMN - Existing Categories */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-medium">Existing Categories</h3>
+                        <span className="text-sm text-muted-foreground">
+                          {servicesCategory.length}{" "}
+                          {servicesCategory.length === 1 ? "category" : "categories"}
+                        </span>
+                      </div>
+
+                      <div className="border rounded-md">
+                        <ScrollArea className="h-[400px] w-full">
+                          <Table>
+                            <TableHeader className="sticky top-0 bg-white z-10">
+                              <TableRow>
+                                <TableHead>Category Name</TableHead>
+                                <TableHead className="w-24">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {servicesCategory.length === 0 ? (
+                                <TableRow>
+                                  <TableCell
+                                    colSpan={2}
+                                    className="text-center text-muted-foreground py-8"
+                                  >
+                                    No categories yet. Create one using the form.
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                servicesCategory.map(category => (
+                                  <TableRow key={category.id}>
+                                    <TableCell>
+                                      {editingCategoryId === category.id ? (
+                                        <Input
+                                          value={editingCategoryName}
+                                          onChange={e => setEditingCategoryName(e.target.value)}
+                                          className="h-8"
+                                          autoFocus
+                                        />
+                                      ) : (
+                                        <span className="font-medium">{category.name}</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex gap-1">
+                                        {editingCategoryId === category.id ? (
+                                          <>
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => {
+                                                if (editingCategoryName.trim()) {
+                                                  updateServiceCategoryMutation.mutate({
+                                                    categoryId: category.id,
+                                                    categoryName: editingCategoryName.trim(),
+                                                  });
+                                                }
+                                              }}
+                                              disabled={
+                                                !editingCategoryName.trim() ||
+                                                updateServiceCategoryMutation.isPending
+                                              }
+                                            >
+                                              <Check className="w-3 h-3" />
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => {
+                                                setEditingCategoryId(null);
+                                                setEditingCategoryName("");
+                                              }}
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </Button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => {
+                                                setEditingCategoryId(category.id);
+                                                setEditingCategoryName(category.name);
+                                              }}
+                                            >
+                                              <Pencil className="w-3 h-3" />
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              size="sm"
+                                              className="text-red-600"
+                                              onClick={() => {
+                                                if (
+                                                  confirm(
+                                                    `Are you sure you want to delete "${category.name}"? This will also delete all services in this category.`
+                                                  )
+                                                ) {
+                                                  deleteServiceCategoryMutation.mutate(category.id);
+                                                }
+                                              }}
+                                              disabled={deleteServiceCategoryMutation.isPending}
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </Button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              )}
+                            </TableBody>
+                          </Table>
+                        </ScrollArea>
+                      </div>
+                    </div>
+
+                    {/* RIGHT COLUMN - Add New Category */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium mb-3">Add New Category</h3>
+
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="service-category-name">Category Name</Label>
+                          <Input
+                            id="service-category-name"
+                            value={newServiceCategoryName}
+                            onChange={e => setNewServiceCategoryName(e.target.value)}
+                            placeholder="Enter category name (e.g., Photography, Catering, Entertainment)"
+                          />
+                        </div>
+                        <div className="flex gap-2 pt-4">
+                          <Button
+                            type="button"
+                            className="w-full"
+                            onClick={() => {
+                              if (newServiceCategoryName.trim()) {
+                                createServiceCategoryMutation.mutate(newServiceCategoryName.trim());
+                              }
+                            }}
+                            disabled={
+                              !newServiceCategoryName.trim() ||
+                              createServiceCategoryMutation.isPending
+                            }
+                          >
+                            {createServiceCategoryMutation.isPending
+                              ? "Creating..."
+                              : "Create Category"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsServiceCategoryDialogOpen(false)}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* === DISCOUNT BLOCK === */}
           <div
             id="discount"
@@ -3769,123 +3695,6 @@ const AddBookingsPageClient = (props: {
               </div>
             </div>
           </div>
-
-          {/* === PAYMENT BLOCK === */}
-          <div
-            id="discount"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
-          >
-            <p className="font-bold text-lg">Payment</p>
-            <div className="mt-5 grid grid-cols-2 gap-4">
-              <div className="gap-2 flex flex-col">
-                <Label className="font-normal text-foreground/50">Mode of payment *</Label>
-                <Select value={paymentModeOfPayment} onValueChange={setPaymentModeOfPayment}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Mode of payment" />
-                  </SelectTrigger>
-                  <SelectContent className="z-[201]">
-                    {modeOfPayments.map(mop => (
-                      <SelectItem key={mop.id} value={mop.id.toString()}>
-                        {mop.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="gap-2 flex flex-col">
-                <Label className="font-normal text-foreground/50">Amount *</Label>
-                <InputGroup>
-                  <InputGroupAddon>
-                    <InputGroupText>₱</InputGroupText>
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    value={paymentAmount}
-                    onChange={e => setPaymentAmount(e.target.value)}
-                    onKeyDown={e => {
-                      if (
-                        [8, 9, 27, 13, 46].indexOf(e.keyCode) !== -1 ||
-                        // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
-                        (e.keyCode === 65 && e.ctrlKey === true) ||
-                        (e.keyCode === 67 && e.ctrlKey === true) ||
-                        (e.keyCode === 86 && e.ctrlKey === true) ||
-                        (e.keyCode === 88 && e.ctrlKey === true)
-                      ) {
-                        return;
-                      }
-
-                      if (
-                        (e.shiftKey || e.keyCode < 48 || e.keyCode > 57) &&
-                        (e.keyCode < 96 || e.keyCode > 105) &&
-                        e.keyCode !== 190 &&
-                        e.keyCode !== 110
-                      ) {
-                        e.preventDefault();
-                      }
-                    }}
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupText>PHP</InputGroupText>
-                  </InputGroupAddon>
-                </InputGroup>
-              </div>
-
-              <div className="gap-2 flex flex-col">
-                <Label className="font-normal text-foreground/50">OR Number</Label>
-                <Input
-                  placeholder="Official Receipt Number"
-                  value={paymentORNumber}
-                  onChange={e => setPaymentORNumber(e.target.value)}
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label className="font-normal text-foreground/50">Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !paymentDate && "text-muted-foreground"
-                      )}
-                    >
-                      {paymentDate ? format(paymentDate, "PPP") : <span>Pick a date</span>}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={paymentDate}
-                      onSelect={(date?: Date) => setPaymentDate(date)}
-                      disabled={(date: Date) => {
-                        // Disable future dates for payment date
-                        const today = new Date();
-                        today.setHours(23, 59, 59, 999);
-                        return date > today;
-                      }}
-                      captionLayout="dropdown"
-                      fromYear={new Date().getFullYear() - 5}
-                      toYear={new Date().getFullYear()}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="col-span-2 gap-2 flex flex-col">
-                <Label className="font-normal text-foreground/50">Payment Notes</Label>
-                <Textarea
-                  placeholder="Optional notes about this payment..."
-                  value={paymentNotes}
-                  onChange={e => setPaymentNotes(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
         </div>
         {/* === RIGHT COLUMN (SUMMARY) === */}
         <div className="sticky top-0 h-screen mt-8">
@@ -4046,22 +3855,25 @@ const AddBookingsPageClient = (props: {
         </div>
       </div>
 
-      {/* Payment Confirmation Dialog */}
-      <AlertDialog open={showPaymentConfirmDialog} onOpenChange={setShowPaymentConfirmDialog}>
+      {/* Booking Success Dialog */}
+      <AlertDialog open={showBookingSuccessDialog} onOpenChange={setShowBookingSuccessDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Create Booking Without Payment?</AlertDialogTitle>
+            <AlertDialogTitle>Booking Created Successfully!</AlertDialogTitle>
             <AlertDialogDescription>
-              You haven&apos;t filled in the payment details. Do you want to create this booking
-              without payment information? You can add payment details later.
+              Your booking has been created successfully. You can now add payment details later from
+              the bookings page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowPaymentConfirmDialog(false)}>
-              Add Payment Details
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleCreateBookingWithoutPayment}>
-              Create Without Payment
+            <AlertDialogAction
+              onClick={() => {
+                setShowBookingSuccessDialog(false);
+                // Optionally redirect to bookings page or reset form
+                window.location.href = "/bookings";
+              }}
+            >
+              Go to Bookings
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

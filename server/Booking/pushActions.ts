@@ -1,5 +1,6 @@
 "use server";
 import { prisma } from "../db";
+import { calculateBookingStatus } from "./helpers";
 
 export async function createBooking(
   eventName: string,
@@ -161,6 +162,109 @@ export async function updateBooking(
     return data;
   } catch (error) {
     console.error("Failed to update booking", error);
+    throw error;
+  }
+}
+
+export async function updateBookingStatus(bookingId: number) {
+  try {
+    // Fetch booking with billing and payments
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        billing: {
+          include: {
+            payments: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new Error("Booking not found");
+    }
+
+    if (!booking.startAt || !booking.endAt) {
+      throw new Error("Booking must have start and end dates");
+    }
+
+    // Calculate payment status
+    const billing = booking.billing; // This is now an object, not an array
+    const hasPayments = billing?.payments && billing.payments.length > 0;
+    const totalPaid = billing?.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0;
+    const isFullyPaid = billing ? totalPaid >= billing.discountedPrice : false;
+
+    // Calculate new status
+    const newStatus = calculateBookingStatus({
+      hasPayments: hasPayments || false,
+      isFullyPaid,
+      eventStartDate: booking.startAt,
+      eventEndDate: booking.endAt,
+      currentStatus: booking.status, // Preserve manual statuses
+    });
+
+    // Update booking status if it changed
+    if (booking.status !== newStatus) {
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: { status: newStatus },
+      });
+    }
+
+    return newStatus;
+  } catch (error) {
+    console.error("Failed to update booking status", error);
+    throw error;
+  }
+}
+
+export async function updateAllBookingStatuses() {
+  try {
+    // Fetch all bookings with billing and payments
+    const bookings = await prisma.booking.findMany({
+      where: {
+        startAt: { not: null },
+        endAt: { not: null },
+      },
+      include: {
+        billing: {
+          include: {
+            payments: true,
+          },
+        },
+      },
+    });
+
+    let updatedCount = 0;
+
+    for (const booking of bookings) {
+      if (!booking.startAt || !booking.endAt) continue;
+
+      const billing = booking.billing;
+      const hasPayments = billing?.payments && billing.payments.length > 0;
+      const totalPaid = billing?.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0;
+      const isFullyPaid = billing ? totalPaid >= billing.discountedPrice : false;
+
+      const newStatus = calculateBookingStatus({
+        hasPayments: hasPayments || false,
+        isFullyPaid,
+        eventStartDate: booking.startAt,
+        eventEndDate: booking.endAt,
+        currentStatus: booking.status, // Preserve manual statuses
+      });
+
+      if (booking.status !== newStatus) {
+        await prisma.booking.update({
+          where: { id: booking.id },
+          data: { status: newStatus },
+        });
+        updatedCount++;
+      }
+    }
+
+    return { success: true, updatedCount };
+  } catch (error) {
+    console.error("Failed to update all booking statuses", error);
     throw error;
   }
 }

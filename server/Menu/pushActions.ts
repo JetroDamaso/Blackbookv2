@@ -1,6 +1,18 @@
 "use server";
 import { prisma } from "../db";
 
+export async function createMenu(bookingId: number) {
+  try {
+    const menu = await prisma.menu.create({
+      data: { bookingId },
+    });
+    return menu;
+  } catch (error) {
+    console.error("Failed to create menu", error);
+    throw error;
+  }
+}
+
 export async function createMenuWithDishes(bookingId: number, dishIds: number[]) {
   try {
     const counts = dishIds.reduce<Record<number, number>>((acc, id) => {

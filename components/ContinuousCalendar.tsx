@@ -1,6 +1,6 @@
 "use client";
 
-import { Inbox, MoveLeft, MoveRight, X } from "lucide-react";
+import { Inbox, MoveLeft, MoveRight, X, CalendarClock } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { Booking, Pavilion } from "@/generated/prisma";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +8,12 @@ import { getAllPavilions } from "@/server/Pavilions/Actions/pullActions";
 import { Button } from "./ui/button";
 import CheckScheduleDialog from "./modules/checkScheduleDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "./ui/context-menu";
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthNames = [
@@ -37,6 +43,7 @@ interface ContinuousCalendarProps {
   onDatesChange?: (dates: Date[], range?: { start: Date; end: Date }) => void;
   onNoDateAlert?: () => void;
   onNoPavilionAlert?: () => void;
+  statusFilter?: React.ReactNode; // New prop for status filter component
 }
 
 export interface selected {
@@ -61,6 +68,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
   onDatesChange,
   onNoDateAlert,
   onNoPavilionAlert,
+  statusFilter, // Add statusFilter prop
 }) => {
   const [selectedDate, setSelectedDate] = useState<selected | undefined>(undefined);
   const [selectedDates, setSelectedDates] = useState<selected[]>([]);
@@ -70,6 +78,10 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
   const [selectedMonth, setSelectedMonth] = useState<number>(
     externalMonth ?? new Date().getMonth()
   );
+
+  // Reschedule state
+  const [reschedulingBookingId, setReschedulingBookingId] = useState<number | null>(null);
+  const [reschedulingBooking, setReschedulingBooking] = useState<Booking | null>(null);
 
   // Sync with external state
   useEffect(() => {
@@ -420,7 +432,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
             <div
               key={`${cellYear}-${month}-${day}`}
               onClick={() => handleDayClick(day, month, cellYear)}
-              className={`relative z-10 m-[-0.5px] group flex-1 w-full h-full min-h-[175px] border-1 font-medium transition-all cursor-pointer ${
+              className={`relative m-[-0.5px] group flex-1 w-full h-full min-h-[175px] border-1 font-medium transition-all cursor-pointer ${
                 isSelected
                   ? "bg-red-500/30"
                   : isPartOfSelection || isInRange
@@ -439,40 +451,99 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
                 <div className="absolute top-1 w-full h-fit text-start mt-6 space-y-1 px-1">
                   {items.slice(0, 4).map((n, i) => {
                     const rawColorToken = n.pavilionId ? pavilionColorMap[n.pavilionId] : undefined;
-                    // Expecting pavilion.color like 'red', 'emerald', 'slate', etc.
-                    // Sanitize to avoid breaking Tailwind class name generation.
+
+                    // Convert Tailwind color names to hex values
+                    const colorMap: Record<string, string> = {
+                      red: "#ef4444",
+                      green: "#22c55e",
+                      emerald: "#10b981",
+                      pink: "#ec4899",
+                      blue: "#3b82f6",
+                      yellow: "#eab308",
+                      purple: "#a855f7",
+                      orange: "#f97316",
+                      indigo: "#6366f1",
+                      cyan: "#06b6d4",
+                      teal: "#14b8a6",
+                      slate: "#64748b",
+                      amber: "#f59e0b",
+                      lime: "#84cc16",
+                      sky: "#0ea5e9",
+                      violet: "#8b5cf6",
+                      fuchsia: "#d946ef",
+                      rose: "#f43f5e",
+                    };
+
+                    // Get the hex color
+                    let backgroundColor = "#ef4444"; // default red
+                    if (rawColorToken) {
+                      const sanitized = rawColorToken
+                        .toLowerCase()
+                        .replace(/[^a-z0-9-]/g, "")
+                        .split(/-+/)[0];
+                      backgroundColor = colorMap[sanitized] || rawColorToken; // Use colorMap or direct value if it's already hex
+                    }
+
+                    // Determine text color based on background brightness
+                    const lightColors = new Set(["yellow", "amber", "lime"]);
                     const sanitized = rawColorToken
                       ?.toLowerCase()
                       .replace(/[^a-z0-9-]/g, "")
                       .split(/-+/)[0];
-                    const tailwindColor = sanitized ? `bg-${sanitized}-500` : "bg-red-400";
-                    // Basic contrast assumption: mid-scale colors -> white text; adjust light tones if needed.
-                    const lightColors = new Set(["yellow", "amber", "lime"]); // could expand
-                    const textClass =
-                      sanitized && lightColors.has(sanitized) ? "text-slate-900" : "text-white";
+                    const textColor =
+                      sanitized && lightColors.has(sanitized) ? "#0f172a" : "#ffffff";
+
+                    const isRescheduling = reschedulingBookingId === n.id;
+
                     return (
-                      <div
-                        key={`${dateKey}-${i}`}
-                        className={`text-[10px] font-normal rounded-sm h-fit cursor-pointer transition-colors ${tailwindColor} ${textClass} hover:brightness-110`}
-                        title={n.name}
-                        onClick={e => {
-                          e.stopPropagation();
-                          handleDayClick(day, month, cellYear, n.id);
-                        }}
-                      >
-                        <div className="flex line-clamp-1 gap-1 items-center">
-                          {(n.startTime || n.endTime) && (
-                            <div className="bg-neutral-800/70 rounded-l-sm px-1 py-0.5">
-                              <p className="font-normal whitespace-nowrap">
-                                {n.startTime && n.endTime
-                                  ? `${n.startTime} - ${n.endTime}`
-                                  : (n.startTime ?? n.endTime)}
-                              </p>
+                      <ContextMenu key={`${dateKey}-${i}`}>
+                        <ContextMenuTrigger asChild>
+                          <div
+                            className={`text-[10px] font-normal rounded-sm h-fit cursor-pointer transition-all hover:brightness-110 ${
+                              isRescheduling ? "opacity-50 ring-2 ring-blue-500" : ""
+                            }`}
+                            style={{
+                              backgroundColor: backgroundColor,
+                              color: textColor,
+                            }}
+                            title={n.name}
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (!isRescheduling) {
+                                handleDayClick(day, month, cellYear, n.id);
+                              }
+                            }}
+                          >
+                            <div className="flex line-clamp-1 gap-1 items-center">
+                              {(n.startTime || n.endTime) && (
+                                <div className="bg-neutral-800/70 rounded-l-sm px-1 py-0.5">
+                                  <p className="font-normal whitespace-nowrap">
+                                    {n.startTime && n.endTime
+                                      ? `${n.startTime} - ${n.endTime}`
+                                      : (n.startTime ?? n.endTime)}
+                                  </p>
+                                </div>
+                              )}
+                              <p className="font-normal truncate grow pr-1">{n.name}</p>
                             </div>
-                          )}
-                          <p className="font-normal truncate grow pr-1">{n.name}</p>
-                        </div>
-                      </div>
+                          </div>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-48">
+                          <ContextMenuItem
+                            onClick={e => {
+                              e.stopPropagation();
+                              const fullBooking = getAllBookings?.find(b => b.id === n.id);
+                              if (fullBooking) {
+                                setReschedulingBookingId(n.id);
+                                setReschedulingBooking(fullBooking);
+                              }
+                            }}
+                          >
+                            <CalendarClock className="mr-2 h-4 w-4" />
+                            Reschedule
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
                     );
                   })}
                   {items.length > 3 && (
@@ -493,7 +564,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
 
   return (
     <div className="flex flex-col h-full w-full text-slate-800 text-sm">
-      <div className="sticky top-0 z-[100] w-full bg-white px-5 pt-7 pb-2 flex-shrink-0 border-gray-200">
+      <div className="sticky top-0 z-10 w-full bg-white px-5 pt-7 pb-2 flex-shrink-0 border-gray-200">
         <div className="mb-4 flex w-full flex-wrap items-center justify-between gap-6">
           <div className="flex gap-2 items-center">
             <button
@@ -506,7 +577,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
               <SelectTrigger className="w-[140px] ">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="z-100">
+              <SelectContent className="z-[40]">
                 {monthOptions.map(month => (
                   <SelectItem key={month.value} value={month.value}>
                     {month.name}
@@ -524,7 +595,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
               <SelectTrigger className="w-[100px]">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="z-100">
+              <SelectContent className="z-[40]">
                 {yearOptions.map(year => (
                   <SelectItem key={year.value} value={year.value}>
                     {year.name}
@@ -539,6 +610,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
             >
               Today
             </button>
+            {statusFilter && <div className="ml-2">{statusFilter}</div>}
           </div>
 
           <div className="flex items-center justify-between gap-2">
@@ -555,9 +627,33 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
               bookings={getAllBookings}
               onNoDateAlert={onNoDateAlert}
               onNoPavilionAlert={onNoPavilionAlert}
+              reschedulingBooking={reschedulingBooking}
+              onRescheduleComplete={() => {
+                setReschedulingBookingId(null);
+                setReschedulingBooking(null);
+                setSelectedDate(undefined);
+                setSelectedDates([]);
+                setDateRange(undefined);
+              }}
             />
 
-            {(selectedDate || dateRange) && (
+            {reschedulingBookingId && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setReschedulingBookingId(null);
+                  setReschedulingBooking(null);
+                  setSelectedDate(undefined);
+                  setSelectedDates([]);
+                  setDateRange(undefined);
+                }}
+              >
+                <X size={16} className="opacity-60 sm:-ms-1" />
+                Cancel
+              </Button>
+            )}
+
+            {(selectedDate || dateRange) && !reschedulingBookingId && (
               <Button
                 variant={"outline"}
                 className="items-center"

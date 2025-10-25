@@ -91,3 +91,30 @@ export async function createServiceCategory(categoryName: string) {
     throw error;
   }
 }
+
+export async function updateServiceCategory(categoryId: number, categoryName: string) {
+  try {
+    const data = await prisma.otherServiceCategory.update({
+      where: { id: categoryId },
+      data: {
+        name: categoryName,
+      },
+    });
+    return data;
+  } catch (error) {
+    console.error("Error updating service category:", error);
+    throw error;
+  }
+}
+
+export async function deleteServiceCategory(categoryId: number) {
+  try {
+    const data = await prisma.otherServiceCategory.delete({
+      where: { id: categoryId },
+    });
+    return data;
+  } catch (error) {
+    console.error("Error deleting service category:", error);
+    throw error;
+  }
+}
