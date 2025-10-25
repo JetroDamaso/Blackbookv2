@@ -3,6 +3,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   Banknote,
   CalendarIcon,
@@ -82,6 +84,8 @@ import { createClient } from "@/server/clients/pushActions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { EndDatePickerForm } from "./TimeDatePicker/endDatePicker";
 import { StartDatePickerForm } from "./TimeDatePicker/startDatePicker";
+import { FileUpload } from "@/components/(Manage)/FileUpload";
+import { FileUploadSimple } from "@/components/(Manage)/FileUploadSimple";
 // import MultipleSelector from "@/components/ui/multiselect";
 import {
   createNewService,
@@ -148,6 +152,7 @@ const AddBookingsPageClient = (props: {
   bookings?: { startAt: Date; endAt: Date; pavilionId: number | null }[];
 }) => {
   const id = useId();
+  const router = useRouter();
 
   // Enable inventory-related props for inventory block
   const allInventory = props.allInventory ?? [];
@@ -440,6 +445,12 @@ const AddBookingsPageClient = (props: {
 
   // Dialog state for booking success
   const [showBookingSuccessDialog, setShowBookingSuccessDialog] = useState<boolean>(false);
+  const [createdBookingId, setCreatedBookingId] = useState<number | null>(null);
+  const [isCreatingBooking, setIsCreatingBooking] = useState<boolean>(false);
+
+  // File upload state
+  const [selectedBookingFiles, setSelectedBookingFiles] = useState<File[]>([]);
+  const [bookingFileResetTrigger, setBookingFileResetTrigger] = useState(0);
 
   // Pre-compute a set of booked calendar days (date-only) for quick disable lookup
   const bookedDaySet = React.useMemo(() => {
@@ -1009,262 +1020,313 @@ const AddBookingsPageClient = (props: {
   };
 
   const handleCreateBooking = async (e: React.FormEvent<HTMLFormElement>) => {
-    const formData = new FormData(e.currentTarget);
-    const eventName = formData.get("eventName");
-    const numberOfPax = formData.get("numPax");
-    const eventType = formData.get("eventType");
-    const firstName = formData.get("firstName");
-    const lastName = formData.get("lastName");
-    const phoneNumber = formData.get("phoneNumber");
-    const email = formData.get("email");
-    const modeOfPayment = formData.get("modeOfPayment");
-    const downpayment = formData.get("downpayment");
-    const discount = formData.get("discount");
-    const notes = formData.get("notes");
+    setIsCreatingBooking(true);
 
-    const selectedModeOfPaymentId = Number(modeOfPayment);
-    const selectedModeOfPayment = modeOfPayments.find(m => m.id === selectedModeOfPaymentId);
+    try {
+      const formData = new FormData(e.currentTarget);
+      const eventName = formData.get("eventName");
+      const numberOfPax = formData.get("numPax");
+      const eventType = formData.get("eventType");
+      const firstName = formData.get("firstName");
+      const lastName = formData.get("lastName");
+      const phoneNumber = formData.get("phoneNumber");
+      const email = formData.get("email");
+      const modeOfPayment = formData.get("modeOfPayment");
+      const downpayment = formData.get("downpayment");
+      const discount = formData.get("discount");
+      const notes = formData.get("notes");
 
-    const discountIdNum = Number(discount);
-    if (!isNaN(discountIdNum) && discountIdNum > 0) {
-      setSelectedDiscountId(discountIdNum);
-    } else {
-      setSelectedDiscountId(null);
-    }
-    // Merge any form-provided selections with state selections
-    const mergedServiceIdsByCategory: Record<number, number[]> = {
-      ...selectedServiceIdsByCategory,
-    };
-    for (const cat of servicesCategory) {
-      const values = formData.getAll(`services[${cat.id}][]`).map(v => Number(v));
-      if (values.length) {
-        mergedServiceIdsByCategory[cat.id] = Array.from(
-          new Set([...(mergedServiceIdsByCategory[cat.id] ?? []), ...values])
-        );
-        continue;
+      const selectedModeOfPaymentId = Number(modeOfPayment);
+      const selectedModeOfPayment = modeOfPayments.find(m => m.id === selectedModeOfPaymentId);
+
+      const discountIdNum = Number(discount);
+      if (!isNaN(discountIdNum) && discountIdNum > 0) {
+        setSelectedDiscountId(discountIdNum);
+      } else {
+        setSelectedDiscountId(null);
       }
-
-      // If no IDs selected for this category but user typed something, create or reuse existing
-      const typed = typedServiceByCategory[cat.id]?.trim();
-      if (typed) {
-        const existing = allServices.find(
-          s => s.categoryId === cat.id && (s.name?.toLowerCase() ?? "") === typed.toLowerCase()
-        );
-        if (existing) {
+      // Merge any form-provided selections with state selections
+      const mergedServiceIdsByCategory: Record<number, number[]> = {
+        ...selectedServiceIdsByCategory,
+      };
+      for (const cat of servicesCategory) {
+        const values = formData.getAll(`services[${cat.id}][]`).map(v => Number(v));
+        if (values.length) {
           mergedServiceIdsByCategory[cat.id] = Array.from(
-            new Set([...(mergedServiceIdsByCategory[cat.id] ?? []), existing.id])
+            new Set([...(mergedServiceIdsByCategory[cat.id] ?? []), ...values])
           );
-        } else {
-          try {
-            const created = await createServiceMutation.mutateAsync({
-              serviceName: typed,
-              categoryId: cat.id,
-            });
-            if (created?.id) {
-              mergedServiceIdsByCategory[cat.id] = Array.from(
-                new Set([...(mergedServiceIdsByCategory[cat.id] ?? []), created.id])
-              );
+          continue;
+        }
+
+        // If no IDs selected for this category but user typed something, create or reuse existing
+        const typed = typedServiceByCategory[cat.id]?.trim();
+        if (typed) {
+          const existing = allServices.find(
+            s => s.categoryId === cat.id && (s.name?.toLowerCase() ?? "") === typed.toLowerCase()
+          );
+          if (existing) {
+            mergedServiceIdsByCategory[cat.id] = Array.from(
+              new Set([...(mergedServiceIdsByCategory[cat.id] ?? []), existing.id])
+            );
+          } else {
+            try {
+              const created = await createServiceMutation.mutateAsync({
+                serviceName: typed,
+                categoryId: cat.id,
+              });
+              if (created?.id) {
+                mergedServiceIdsByCategory[cat.id] = Array.from(
+                  new Set([...(mergedServiceIdsByCategory[cat.id] ?? []), created.id])
+                );
+              }
+            } catch (err) {
+              // Failed to create service on submit
             }
-          } catch (err) {
-            // Failed to create service on submit
           }
         }
       }
-    }
 
-    let clientID: number;
+      let clientID: number;
 
-    if (clientSelectionMode === "existing" && selectedClientId) {
-      // Use existing client
-      clientID = selectedClientId;
-    } else {
-      // Create new client
-      const client = await createClientMutation.mutateAsync({
-        firstName: String(firstName ?? ""),
-        lastName: String(lastName ?? ""),
-        phoneNumber: String(phoneNumber ?? ""),
-        email: String(email ?? ""),
-        province: province ?? "",
-        region: region ?? "",
-        municipality: municipality ?? "",
-        barangay: barangay ?? "",
-      });
+      if (clientSelectionMode === "existing" && selectedClientId) {
+        // Use existing client
+        clientID = selectedClientId;
+      } else {
+        // Create new client
+        const client = await createClientMutation.mutateAsync({
+          firstName: String(firstName ?? ""),
+          lastName: String(lastName ?? ""),
+          phoneNumber: String(phoneNumber ?? ""),
+          email: String(email ?? ""),
+          province: province ?? "",
+          region: region ?? "",
+          municipality: municipality ?? "",
+          barangay: barangay ?? "",
+        });
 
-      clientID = Number(client?.id);
+        clientID = Number(client?.id);
 
-      if (!clientID || isNaN(clientID)) {
-        throw new Error("Failed to create client or invalid client ID");
-      }
-    }
-
-    const serviceIdsFlat = Object.values(mergedServiceIdsByCategory).flat();
-
-    // Validate dates
-    const validStartAt = startAt && !isNaN(startAt.getTime()) ? startAt : new Date();
-    const validEndAt = endAt && !isNaN(endAt.getTime()) ? endAt : new Date();
-
-    const booking = await createBookingMutation.mutateAsync({
-      eventName: String(eventName ?? ""),
-      clientID: clientID,
-      pavilionID: String(selectedPavilionId),
-      pax: String(numberOfPax ?? ""),
-      eventType: Number(eventType ?? 0),
-      notes: String(notes ?? ""),
-      startAt: validStartAt,
-      endAt: validEndAt,
-      serviceIds: serviceIdsFlat.length ? serviceIdsFlat : undefined,
-      packageId: selectedPackageId || undefined,
-      catering: selectedCatering ? Number(selectedCatering) : undefined,
-    });
-
-    const bookingId = (booking as any)?.id ? Number((booking as any).id) : 0;
-
-    // If in-house catering selected (value "1"), create a menu with selected dishes & their quantities
-    if (selectedCatering === "1" && bookingId) {
-      try {
-        const dishIds = selectedDishes.flatMap(d => Array(d.quantity).fill(d.id));
-        await createMenuWithDishes(bookingId, dishIds);
-      } catch (err) {
-        console.error("Error creating menu:", err);
-      }
-    }
-
-    // Create inventory status entries for selected inventory items
-    if (selectedInventoryItems.length > 0 && bookingId) {
-      console.log("Creating inventory statuses for booking:", bookingId);
-      console.log("Selected inventory items:", selectedInventoryItems);
-      console.log("Selected pavilion ID:", selectedPavilionId);
-      try {
-        for (const item of selectedInventoryItems) {
-          console.log(
-            `Creating inventory status: Item ${item.id}, Quantity ${item.quantity}, Pavilion ${selectedPavilionId}, Booking ${bookingId}`
-          );
-          const result = await createInventoryStatus(
-            item.id,
-            selectedPavilionId,
-            bookingId,
-            item.quantity
-          );
-          console.log("Inventory status created:", result);
+        if (!clientID || isNaN(clientID)) {
+          throw new Error("Failed to create client or invalid client ID");
         }
-        // Invalidate inventory status query to refresh the data immediately
-        queryClient.invalidateQueries({ queryKey: ["inventoryStatus"] });
-
-        // Force refetch after a small delay to ensure data is saved
-        setTimeout(() => {
-          queryClient.refetchQueries({ queryKey: ["inventoryStatus"] });
-          console.log("Forced refetch of inventory status data");
-        }, 500);
-
-        console.log("Inventory status query invalidated - should refresh data");
-      } catch (err) {
-        console.error("Error creating inventory status:", err);
       }
-    } else {
-      console.log("No inventory items to create status for:", {
-        selectedInventoryItemsLength: selectedInventoryItems.length,
-        bookingId,
+
+      const serviceIdsFlat = Object.values(mergedServiceIdsByCategory).flat();
+
+      // Validate dates
+      const validStartAt = startAt && !isNaN(startAt.getTime()) ? startAt : new Date();
+      const validEndAt = endAt && !isNaN(endAt.getTime()) ? endAt : new Date();
+
+      const booking = await createBookingMutation.mutateAsync({
+        eventName: String(eventName ?? ""),
+        clientID: clientID,
+        pavilionID: String(selectedPavilionId),
+        pax: String(numberOfPax ?? ""),
+        eventType: Number(eventType ?? 0),
+        notes: String(notes ?? ""),
+        startAt: validStartAt,
+        endAt: validEndAt,
+        serviceIds: serviceIdsFlat.length ? serviceIdsFlat : undefined,
+        packageId: selectedPackageId || undefined,
+        catering: selectedCatering ? Number(selectedCatering) : undefined,
       });
-    }
 
-    // Calculate original price for discount calculations
-    const selectedPackage = selectedPackageId
-      ? packages.find(p => p.id === selectedPackageId)
-      : null;
-    const basePackagePrice = selectedPackage?.price ?? 0;
-    const hoursCount =
-      startAt && endAt ? Math.round((endAt.getTime() - startAt.getTime()) / (60 * 60 * 1000)) : 0;
-    const extraHours = Math.max(0, hoursCount - 5);
-    const extraHoursFee = extraHours * 2000;
+      const bookingId = (booking as any)?.id ? Number((booking as any).id) : 0;
 
-    // Calculate catering cost if in-house catering is selected
-    const cateringCost =
-      selectedCatering === "1" && cateringPax && pricePerPax
-        ? parseFloat(cateringPax) * parseFloat(pricePerPax)
-        : 0;
+      // Store booking ID for document uploads
+      if (bookingId) {
+        setCreatedBookingId(bookingId);
+      }
 
-    const originalPrice = basePackagePrice + extraHoursFee + cateringCost;
+      // If in-house catering selected (value "1"), create a menu with selected dishes & their quantities
+      if (selectedCatering === "1" && bookingId) {
+        try {
+          const dishIds = selectedDishes.flatMap(d => Array(d.quantity).fill(d.id));
+          await createMenuWithDishes(bookingId, dishIds);
+        } catch (err) {
+          console.error("Error creating menu:", err);
+        }
+      }
 
-    // Handle discount creation and calculation
-    let finalDiscountId = selectedDiscountId;
-    let finalDiscountType = "";
-    let finalDiscountPercentage = 0;
-    let finalDiscountAmount = 0;
-    let finalIsCustomDiscount = false;
+      // Create inventory status entries for selected inventory items
+      if (selectedInventoryItems.length > 0 && bookingId) {
+        console.log("Creating inventory statuses for booking:", bookingId);
+        console.log("Selected inventory items:", selectedInventoryItems);
+        console.log("Selected pavilion ID:", selectedPavilionId);
+        try {
+          for (const item of selectedInventoryItems) {
+            console.log(
+              `Creating inventory status: Item ${item.id}, Quantity ${item.quantity}, Pavilion ${selectedPavilionId}, Booking ${bookingId}`
+            );
+            const result = await createInventoryStatus(
+              item.id,
+              selectedPavilionId,
+              bookingId,
+              item.quantity
+            );
+            console.log("Inventory status created:", result);
+          }
+          // Invalidate inventory status query to refresh the data immediately
+          queryClient.invalidateQueries({ queryKey: ["inventoryStatus"] });
 
-    // Calculate discount based on current state
-    if (discountType === "predefined" && selectedDiscountId) {
-      const selectedDiscount = discounts.find(d => d.id === selectedDiscountId);
-      if (selectedDiscount) {
-        finalDiscountType = selectedDiscount.name || "";
-        if (selectedDiscount.percent) {
-          finalDiscountPercentage = selectedDiscount.percent;
-          finalDiscountAmount = originalPrice * (selectedDiscount.percent / 100);
-        } else if (selectedDiscount.amount) {
-          finalDiscountAmount = Math.min(selectedDiscount.amount, originalPrice);
+          // Force refetch after a small delay to ensure data is saved
+          setTimeout(() => {
+            queryClient.refetchQueries({ queryKey: ["inventoryStatus"] });
+            console.log("Forced refetch of inventory status data");
+          }, 500);
+
+          console.log("Inventory status query invalidated - should refresh data");
+        } catch (err) {
+          console.error("Error creating inventory status:", err);
+        }
+      } else {
+        console.log("No inventory items to create status for:", {
+          selectedInventoryItemsLength: selectedInventoryItems.length,
+          bookingId,
+        });
+      }
+
+      // Calculate original price for discount calculations
+      const selectedPackage = selectedPackageId
+        ? packages.find(p => p.id === selectedPackageId)
+        : null;
+      const basePackagePrice = selectedPackage?.price ?? 0;
+      const hoursCount =
+        startAt && endAt ? Math.round((endAt.getTime() - startAt.getTime()) / (60 * 60 * 1000)) : 0;
+      const extraHours = Math.max(0, hoursCount - 5);
+      const extraHoursFee = extraHours * 2000;
+
+      // Calculate catering cost if in-house catering is selected
+      const cateringCost =
+        selectedCatering === "1" && cateringPax && pricePerPax
+          ? parseFloat(cateringPax) * parseFloat(pricePerPax)
+          : 0;
+
+      const originalPrice = basePackagePrice + extraHoursFee + cateringCost;
+
+      // Handle discount creation and calculation
+      let finalDiscountId = selectedDiscountId;
+      let finalDiscountType = "";
+      let finalDiscountPercentage = 0;
+      let finalDiscountAmount = 0;
+      let finalIsCustomDiscount = false;
+
+      // Calculate discount based on current state
+      if (discountType === "predefined" && selectedDiscountId) {
+        const selectedDiscount = discounts.find(d => d.id === selectedDiscountId);
+        if (selectedDiscount) {
+          finalDiscountType = selectedDiscount.name || "";
+          if (selectedDiscount.percent) {
+            finalDiscountPercentage = selectedDiscount.percent;
+            finalDiscountAmount = originalPrice * (selectedDiscount.percent / 100);
+          } else if (selectedDiscount.amount) {
+            finalDiscountAmount = Math.min(selectedDiscount.amount, originalPrice);
+            finalDiscountPercentage =
+              originalPrice > 0 ? (finalDiscountAmount / originalPrice) * 100 : 0;
+          }
+        }
+      } else if (discountType === "custom" && customDiscountValue > 0) {
+        finalDiscountType = customDiscountName;
+        if (customDiscountType === "percent") {
+          finalDiscountPercentage = customDiscountValue;
+          finalDiscountAmount = originalPrice * (customDiscountValue / 100);
+        } else {
+          finalDiscountAmount = Math.min(customDiscountValue, originalPrice);
           finalDiscountPercentage =
             originalPrice > 0 ? (finalDiscountAmount / originalPrice) * 100 : 0;
         }
       }
-    } else if (discountType === "custom" && customDiscountValue > 0) {
-      finalDiscountType = customDiscountName;
-      if (customDiscountType === "percent") {
-        finalDiscountPercentage = customDiscountValue;
-        finalDiscountAmount = originalPrice * (customDiscountValue / 100);
-      } else {
-        finalDiscountAmount = Math.min(customDiscountValue, originalPrice);
-        finalDiscountPercentage =
-          originalPrice > 0 ? (finalDiscountAmount / originalPrice) * 100 : 0;
-      }
-    }
 
-    // If custom discount is selected, create it first in the database
-    if (discountType === "custom" && customDiscountName && customDiscountValue > 0) {
-      try {
-        const customDiscount = await createDiscount({
-          name: customDiscountName,
-          percent: customDiscountType === "percent" ? customDiscountValue : undefined,
-          amount: customDiscountType === "amount" ? customDiscountValue : undefined,
-          description: customDiscountDescription || undefined,
-          isActive: true,
-        });
+      // If custom discount is selected, create it first in the database
+      if (discountType === "custom" && customDiscountName && customDiscountValue > 0) {
+        try {
+          const customDiscount = await createDiscount({
+            name: customDiscountName,
+            percent: customDiscountType === "percent" ? customDiscountValue : undefined,
+            amount: customDiscountType === "amount" ? customDiscountValue : undefined,
+            description: customDiscountDescription || undefined,
+            isActive: true,
+          });
 
-        if (customDiscount?.id) {
-          finalDiscountId = customDiscount.id;
-          finalIsCustomDiscount = true;
+          if (customDiscount?.id) {
+            finalDiscountId = customDiscount.id;
+            finalIsCustomDiscount = true;
+          }
+        } catch (err) {
+          // Continue with no discount if creation fails
+          finalDiscountId = null;
+          finalDiscountType = "";
+          finalDiscountPercentage = 0;
+          finalDiscountAmount = 0;
         }
-      } catch (err) {
-        // Continue with no discount if creation fails
-        finalDiscountId = null;
-        finalDiscountType = "";
-        finalDiscountPercentage = 0;
-        finalDiscountAmount = 0;
       }
+
+      // Calculate final discounted price
+      const finalDiscountedPrice = Math.max(0, originalPrice - finalDiscountAmount);
+
+      const billing = await createBillingMutation.mutateAsync({
+        bookingId: Number(bookingId ?? 0),
+        originalPrice: Number(originalPrice || 0),
+        discountedPrice: finalDiscountedPrice,
+        discountType: finalDiscountType,
+        discountPercentage: Number(finalDiscountPercentage),
+        balance: Number(finalDiscountedPrice),
+        modeOfPayment: selectedModeOfPayment?.name ?? "",
+        deposit: Number(downpayment || 0),
+        status: 1,
+        discountAmount: finalDiscountAmount,
+        discountId: finalDiscountId || undefined,
+        isCustomDiscount: finalIsCustomDiscount,
+        catering: selectedCatering === "1" && cateringCost > 0 ? cateringCost : undefined,
+        cateringPerPaxAmount:
+          selectedCatering === "1" && pricePerPax ? parseFloat(pricePerPax) : undefined,
+      });
+
+      // Upload all documents if any (client IDs, contracts, etc.)
+      if (selectedBookingFiles.length > 0 && bookingId) {
+        try {
+          for (const file of selectedBookingFiles) {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const uploadResponse = await fetch("/api/upload", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (uploadResponse.ok) {
+              const { path } = await uploadResponse.json();
+
+              // Link documents to both booking and client
+              await fetch("/api/documents/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  name: file.name,
+                  file: path,
+                  bookingId: Number(bookingId),
+                  clientId: clientID,
+                }),
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error uploading documents:", error);
+        }
+      }
+
+      // Reset file states
+      setSelectedBookingFiles([]);
+      setBookingFileResetTrigger(prev => prev + 1);
+
+      // Show success dialog
+      setShowBookingSuccessDialog(true);
+    } catch (error) {
+      console.error("Error creating booking:", error);
+      toast.error("Failed to create booking. Please try again.");
+    } finally {
+      setIsCreatingBooking(false);
     }
-
-    // Calculate final discounted price
-    const finalDiscountedPrice = Math.max(0, originalPrice - finalDiscountAmount);
-
-    const billing = await createBillingMutation.mutateAsync({
-      bookingId: Number(bookingId ?? 0),
-      originalPrice: Number(originalPrice || 0),
-      discountedPrice: finalDiscountedPrice,
-      discountType: finalDiscountType,
-      discountPercentage: Number(finalDiscountPercentage),
-      balance: Number(finalDiscountedPrice),
-      modeOfPayment: selectedModeOfPayment?.name ?? "",
-      deposit: Number(downpayment || 0),
-      status: 1,
-      discountAmount: finalDiscountAmount,
-      discountId: finalDiscountId || undefined,
-      isCustomDiscount: finalIsCustomDiscount,
-      catering: selectedCatering === "1" && cateringCost > 0 ? cateringCost : undefined,
-      cateringPerPaxAmount:
-        selectedCatering === "1" && pricePerPax ? parseFloat(pricePerPax) : undefined,
-    });
-
-    // Show success dialog
-    setShowBookingSuccessDialog(true);
   };
 
   const handlePavilionSelect = (e: string) => {
@@ -3695,6 +3757,32 @@ const AddBookingsPageClient = (props: {
               </div>
             </div>
           </div>
+
+          {/* === DOCUMENTS BLOCK === */}
+          <div
+            id="documents"
+            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-bold text-lg">Documents</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => document.getElementById("fileUploadSimple")?.click()}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Documents
+              </Button>
+            </div>
+
+            <FileUploadSimple
+              onFilesChange={files => {
+                setSelectedBookingFiles(files);
+              }}
+              resetTrigger={bookingFileResetTrigger}
+            />
+          </div>
         </div>
         {/* === RIGHT COLUMN (SUMMARY) === */}
         <div className="sticky top-0 h-screen mt-8">
@@ -3847,8 +3935,17 @@ const AddBookingsPageClient = (props: {
             </div>
 
             <div className="w-full flex flex-col justify-end gap-2 mt-2">
-              <Button type="submit" className="items-center flex">
-                <CalendarPlus /> Create Booking{" "}
+              <Button type="submit" className="items-center flex" disabled={isCreatingBooking}>
+                {isCreatingBooking ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                    Creating Booking...
+                  </>
+                ) : (
+                  <>
+                    <CalendarPlus className="mr-2" /> Create Booking
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -3859,21 +3956,19 @@ const AddBookingsPageClient = (props: {
       <AlertDialog open={showBookingSuccessDialog} onOpenChange={setShowBookingSuccessDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Booking Created Successfully!</AlertDialogTitle>
+            <AlertDialogTitle>Booking has been successfully created</AlertDialogTitle>
             <AlertDialogDescription>
-              Your booking has been created successfully. You can now add payment details later from
-              the bookings page.
+              Your booking has been created successfully. Redirecting to calendar...
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction
               onClick={() => {
                 setShowBookingSuccessDialog(false);
-                // Optionally redirect to bookings page or reset form
-                window.location.href = "/bookings";
+                router.push("/event_calendar");
               }}
             >
-              Go to Bookings
+              Go to Calendar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

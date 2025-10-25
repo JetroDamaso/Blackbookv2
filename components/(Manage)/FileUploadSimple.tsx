@@ -1,7 +1,6 @@
 import { ChangeEvent, useRef, useState, useEffect } from "react";
 import { Input } from "react-aria-components";
-import { Label } from "../ui/label";
-import { File, FileAudio, FileIcon, FileImage, FileText, FileVideo, Plus, X } from "lucide-react";
+import { File, FileAudio, FileIcon, FileImage, FileText, FileVideo, X } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
 
 type FileWithPreview = {
@@ -9,24 +8,23 @@ type FileWithPreview = {
   file: File;
 };
 
-type FileUploadProps = {
-  title?: string;
+type FileUploadSimpleProps = {
   onFilesChange?: (files: File[]) => void;
   disabled?: boolean;
-  resetTrigger?: number; // Used to reset the component from parent
+  resetTrigger?: number;
+  onAddClick?: () => void; // Exposed to parent for custom button
 };
 
-export function FileUpload({
-  title = "Documents",
+export function FileUploadSimple({
   onFilesChange,
   disabled = false,
   resetTrigger = 0,
-}: FileUploadProps) {
+  onAddClick,
+}: FileUploadSimpleProps) {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
-
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Reset files when resetTrigger changes (after successful form submission)
+  // Reset files when resetTrigger changes
   useEffect(() => {
     if (resetTrigger > 0) {
       setFiles([]);
@@ -49,7 +47,6 @@ export function FileUpload({
     const updatedFiles = [...files, ...newFiles];
     setFiles(updatedFiles);
 
-    // Notify parent component of file changes
     if (onFilesChange) {
       onFilesChange(updatedFiles.map(f => f.file));
     }
@@ -63,55 +60,43 @@ export function FileUpload({
     const updatedFiles = files.filter(file => file.id !== id);
     setFiles(updatedFiles);
 
-    // Notify parent component of file changes
     if (onFilesChange) {
       onFilesChange(updatedFiles.map(f => f.file));
     }
   }
 
+  // Expose click handler to parent
+  useEffect(() => {
+    if (onAddClick && inputRef.current) {
+      const handleClick = () => inputRef.current?.click();
+      // Store reference for cleanup
+      const currentRef = inputRef.current;
+      return () => {
+        // Cleanup if needed
+      };
+    }
+  }, [onAddClick]);
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">{title}</h2>
-      </div>
-      <div>
-        <FileInput inputRef={inputRef} disabled={disabled} onFileSelect={handleFileSelect} />
-      </div>
+      <Input
+        type="file"
+        ref={inputRef}
+        onChange={handleFileSelect}
+        multiple
+        className="hidden"
+        id="fileUploadSimple"
+        disabled={disabled}
+      />
+
       <FileList files={files} onRemove={removeFile} disabled={disabled} />
     </div>
   );
 }
 
-type FileInputProps = {
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  disabled: boolean;
-  onFileSelect: (e: ChangeEvent<HTMLInputElement>) => void;
-};
-
-function FileInput({ inputRef, disabled, onFileSelect }: FileInputProps) {
-  return (
-    <>
-      <Input
-        type="file"
-        ref={inputRef}
-        onChange={onFileSelect}
-        multiple
-        className={"hidden"}
-        id="fileUpload"
-        disabled={disabled}
-      />
-
-      <Label
-        htmlFor="fileUpload"
-        className={`border-1 rounded-md px-4 py-2 bg-primary text-white hover:bg-primary/90 flex gap-2 w-fit items-center text-xs cursor-pointer ${
-          disabled ? "opacity-50 cursor-not-allowed" : ""
-        }`}
-      >
-        <Plus size={16} />
-        Add attachments
-      </Label>
-    </>
-  );
+// Export a function to trigger file input from parent
+export function createFileInputTrigger(inputRef: React.RefObject<HTMLInputElement>) {
+  return () => inputRef.current?.click();
 }
 
 type FileListProps = {
@@ -122,12 +107,16 @@ type FileListProps = {
 
 function FileList({ files, onRemove, disabled }: FileListProps) {
   if (files.length === 0) {
-    return null;
+    return (
+      <p className="text-sm text-muted-foreground">
+        No documents attached. Click "Add Attachments" to upload files.
+      </p>
+    );
   }
 
   return (
     <div className="space-y-2">
-      <h3 className="font-semibold">Files to upload:</h3>
+      <h3 className="font-semibold text-sm">Files:</h3>
       <ScrollArea className="h-[200px]">
         <div className="space-y-2">
           {files.map(file => (
@@ -149,10 +138,10 @@ function FileItem({ file, onRemove, disabled }: FileItemProps) {
   const Icon = getFileIcon(file.file.type);
 
   return (
-    <div className="space-y-2 rounded-md bg-grayscale-700 p-4">
+    <div className="space-y-2 rounded-md bg-grayscale-700 p-2">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <Icon size={40} className="text-primary-500" />
+          <Icon size={25} className="text-primary-500" />
           <div className="flex flex-col max-w-70 min-w-0 flex-1">
             <span className="font-medium truncate">{file.file.name}</span>
             <div className="flex items-center gap-2 text-xs text-grayscale-400">

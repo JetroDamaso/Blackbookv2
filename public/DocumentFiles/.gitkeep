@@ -1,0 +1,2 @@
+# This file ensures the DocumentFiles directory is tracked by git
+# while ignoring all uploaded files within it.

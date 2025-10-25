@@ -63,3 +63,7 @@ yarn-error.log*
 next-env.d.ts
 
 /generated/prisma
+
+# Uploaded documents (user-generated files)
+/public/DocumentFiles/*
+!/public/DocumentFiles/.gitkeep

@@ -20,17 +20,16 @@ import {
 
 export const description = "A simple pie chart";
 
-const chartData = [
-  { browser: "chrome", visitors: 275, fill: "var(--color-chrome)" },
-  { browser: "safari", visitors: 200, fill: "var(--color-safari)" },
-  { browser: "firefox", visitors: 187, fill: "var(--color-firefox)" },
-  { browser: "edge", visitors: 173, fill: "var(--color-edge)" },
-  { browser: "other", visitors: 90, fill: "var(--color-other)" },
+// Default fallback data
+const defaultChartData = [
+  { eventType: "chrome", count: 275, fill: "var(--color-chrome)" },
+  { eventType: "safari", count: 200, fill: "var(--color-safari)" },
+  { eventType: "firefox", count: 187, fill: "var(--color-firefox)" },
 ];
 
-const chartConfig = {
-  visitors: {
-    label: "Visitors",
+const defaultChartConfig = {
+  count: {
+    label: "Bookings",
   },
   chrome: {
     label: "Chrome",
@@ -44,23 +43,50 @@ const chartConfig = {
     label: "Firefox",
     color: "var(--chart-3)",
   },
-  edge: {
-    label: "Edge",
-    color: "var(--chart-4)",
-  },
-  other: {
-    label: "Other",
-    color: "var(--chart-5)",
-  },
 } satisfies ChartConfig;
 
-export function ChartPieSimple() {
+interface ChartPieSimpleProps {
+  data?: Array<{
+    eventType: string;
+    count: number;
+    fill?: string;
+  }>;
+}
+
+export function ChartPieSimple({ data }: ChartPieSimpleProps) {
+  // Use provided data or fallback to default
+  const chartData = data && data.length > 0 ? data : defaultChartData;
+
+  // Generate chart config dynamically
+  const chartConfig: ChartConfig = {
+    count: {
+      label: "Bookings",
+    },
+    ...chartData.reduce(
+      (acc, item, index) => {
+        const key = item.eventType.toLowerCase().replace(/\s+/g, "_");
+        acc[key] = {
+          label: item.eventType,
+          color: `var(--chart-${(index % 5) + 1})`,
+        };
+        return acc;
+      },
+      {} as Record<string, { label: string; color: string }>
+    ),
+  };
+
+  // Add fill colors to chart data if not provided
+  const dataWithColors = chartData.map((item, index) => ({
+    ...item,
+    fill: item.fill || `var(--chart-${(index % 5) + 1})`,
+  }));
+
   return (
     <div>
       <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-[200px] -my-2">
         <PieChart>
           <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-          <Pie data={chartData} dataKey="visitors" nameKey="browser" />
+          <Pie data={dataWithColors} dataKey="count" nameKey="eventType" />
         </PieChart>
       </ChartContainer>
     </div>

@@ -9,18 +9,19 @@ datasource db {
 }
 
 model Client {
-    id           Int       @id @default(autoincrement())
-    firstName    String
-    lastName     String
-    region       String
-    province     String
-    municipality String
-    barangay     String
-    phoneNumber  String
-    email        String    @unique
-    dateCreated  DateTime  @default(now())
-    bookings     Booking[]
-    payments     Payment[]
+    id               Int               @id @default(autoincrement())
+    firstName        String
+    lastName         String
+    region           String
+    province         String
+    municipality     String
+    barangay         String
+    phoneNumber      String
+    email            String            @unique
+    dateCreated      DateTime          @default(now())
+    bookings         Booking[]
+    payments         Payment[]
+    scannedDocuments ScannedDocument[]
 }
 
 model Role {
@@ -246,16 +247,17 @@ model ModeOfPayment {
 }
 
 model Payment {
-    id        Int      @id @default(autoincrement())
-    billingId Int?
-    clientId  Int?
-    orNumber  String? // Official Receipt Number
-    notes     String?
-    amount    Float
-    date      DateTime @default(now())
-    status    String
-    client    Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
-    billing   Billing? @relation(fields: [billingId], references: [id], onDelete: SetNull)
+    id               Int               @id @default(autoincrement())
+    billingId        Int?
+    clientId         Int?
+    orNumber         String? // Official Receipt Number
+    notes            String?
+    amount           Float
+    date             DateTime          @default(now())
+    status           String
+    client           Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+    billing          Billing?          @relation(fields: [billingId], references: [id], onDelete: SetNull)
+    scannedDocuments ScannedDocument[]
 }
 
 model ScannedDocumentCategory {
@@ -267,12 +269,16 @@ model ScannedDocumentCategory {
 model ScannedDocument {
     id         Int                      @id @default(autoincrement())
     bookingId  Int?
+    clientId   Int?
+    paymentId  Int?
     name       String
     categoryId Int?
     date       DateTime                 @default(now())
     file       String
     category   ScannedDocumentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
     booking    Booking?                 @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+    client     Client?                  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+    payment    Payment?                 @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 }
 
 model Discount {

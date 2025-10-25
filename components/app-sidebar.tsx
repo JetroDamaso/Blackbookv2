@@ -161,6 +161,73 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
+  const { data: session, status } = useSession();
+
+  // Show sidebar only for authenticated users
+  if (status === "unauthenticated" || !session?.user) {
+    return null;
+  }
+
+  // Filter navigation based on user role
+  const getFilteredNavigation = () => {
+    const userRole = session.user.role;
+
+    // Owner sees everything
+    if (userRole === "Owner") {
+      return data.navMain;
+    }
+
+    // Manager sees everything (no restrictions based on requirements)
+    if (userRole === "Manager") {
+      return data.navMain;
+    }
+
+    // Front Desk sees limited items
+    if (userRole === "Front Desk") {
+      return data.navMain
+        .filter(section => {
+          // Exclude "Staff & Roles" section entirely
+          if (section.title === "Staff & Roles") {
+            return false;
+          }
+          // Exclude "Reports & Settings" section (we'll add Settings separately)
+          if (section.title === "Reports & Settings") {
+            return false;
+          }
+          return true;
+        })
+        .map(section => {
+          // Filter out "Discounts" from Finance & Payments section
+          if (section.title === "Finance & Payments") {
+            return {
+              ...section,
+              items: section.items.filter(item => item.title !== "Discounts"),
+            };
+          }
+          return section;
+        })
+        .concat([
+          // Add Settings section for Front Desk
+          {
+            title: "Settings",
+            url: "#",
+            icon: Settings2,
+            items: [
+              {
+                title: "Settings",
+                url: "/settings",
+                icon: Settings2,
+              },
+            ],
+          },
+        ]);
+    }
+
+    // Default: show everything for unknown roles
+    return data.navMain;
+  };
+
+  const filteredNavigation = getFilteredNavigation();
 
   return (
     <Sidebar {...props}>
@@ -176,7 +243,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         {/* We create a SidebarGroup for each parent. */}
-        {data.navMain.map(item => (
+        {filteredNavigation.map(item => (
           <SidebarGroup key={item.title}>
             <SidebarGroupLabel>{item.title}</SidebarGroupLabel>
             <SidebarGroupContent>

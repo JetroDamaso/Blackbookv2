@@ -3,11 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { getAllModeOfPayments } from "@/server/modeofpayment/pullActions";
 import { CreditCard, Banknote, Smartphone } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useSession } from "next-auth/react";
 import { DataTable } from "./data-table";
 import { columns } from "./columns";
 import { Button } from "@/components/ui/button";
 
 export default function ManageModeOfPayment() {
+  const { data: session } = useSession();
   const { isPending, error, data } = useQuery({
     queryKey: ["allModeOfPayments"],
     queryFn: () => getAllModeOfPayments(),
@@ -31,6 +33,21 @@ export default function ManageModeOfPayment() {
     );
   }
 
+  const renderWidgets = () => {
+    if (session?.user?.role === "Owner") {
+      return (
+        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
+          <div className="flex flex-col">
+            <p className="text-md">Payment Methods</p>
+            <p className="text-4xl font-semibold">{data?.length || 0}</p>
+            <p className="text-xs">Available options</p>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <>
       <header className="bg-white mb-4 border-b-1 overflow-hidden flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
@@ -44,43 +61,7 @@ export default function ManageModeOfPayment() {
       </header>
 
       <div className="bg-muted flex flex-wrap gap-2 px-4 pb-2 overflow-x-auto">
-        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
-          <div className="flex flex-col">
-            <p className="text-md">Payment Methods</p>
-            <p className="text-4xl font-semibold">{data?.length || 0}</p>
-            <p className="text-xs">Available options</p>
-          </div>
-        </div>
-
-        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
-          <div className="flex flex-col">
-            <p className="text-md flex items-center gap-1">
-              <CreditCard size={16} /> Card Payments
-            </p>
-            <p className="text-2xl font-semibold">Available</p>
-            <p className="text-xs">Credit/Debit cards</p>
-          </div>
-        </div>
-
-        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
-          <div className="flex flex-col">
-            <p className="text-md flex items-center gap-1">
-              <Banknote size={16} /> Cash
-            </p>
-            <p className="text-2xl font-semibold">Accepted</p>
-            <p className="text-xs">Physical currency</p>
-          </div>
-        </div>
-
-        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
-          <div className="flex flex-col">
-            <p className="text-md flex items-center gap-1">
-              <Smartphone size={16} /> Digital
-            </p>
-            <p className="text-2xl font-semibold">GCash/Maya</p>
-            <p className="text-xs">Mobile wallets</p>
-          </div>
-        </div>
+        {renderWidgets()}
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">

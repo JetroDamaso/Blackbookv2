@@ -26,15 +26,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { getBillingSummary, getModeOfPayments } from "@/server/Billing & Payments/pullActions";
 import { createPayment } from "@/server/Billing & Payments/pushActions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { CalendarIcon, HandCoins } from "lucide-react";
+import { HandCoins } from "lucide-react";
 import React, { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "../ui/button";
-import { Calendar } from "../ui/calendar";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { FileUpload } from "../(Manage)/FileUpload";
 
 type AddPaymentDialogProps = {
   billingId: number;
@@ -46,9 +44,10 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
   const [modeOfPayment, setModeOfPayment] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [orNumber, setOrNumber] = useState<string>("");
-  const [date, setDate] = useState<Date>(new Date());
   const [notes, setNotes] = useState<string>("");
-  const [status, setStatus] = useState<string>("pending");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [fileResetTrigger, setFileResetTrigger] = useState(0);
 
   const queryClient = useQueryClient();
 
@@ -82,8 +81,78 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
         paymentData.notes,
         paymentData.orNumber
       ),
-    onSuccess: () => {
-      toast.success("Payment added successfully!");
+    onSuccess: async data => {
+      console.log("Payment created, data:", data);
+      console.log("Selected files:", selectedFiles);
+
+      // Upload files if any were selected
+      if (selectedFiles.length > 0 && data && typeof data === "object" && "id" in data) {
+        setIsUploading(true);
+        const paymentId = (data as { id: number }).id;
+        console.log("Payment ID:", paymentId);
+
+        try {
+          // Upload each file
+          for (const file of selectedFiles) {
+            console.log("Uploading file:", file.name);
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const uploadResponse = await fetch("/api/upload", {
+              method: "POST",
+              body: formData,
+            });
+
+            console.log("Upload response status:", uploadResponse.status);
+
+            if (uploadResponse.ok) {
+              const uploadData = await uploadResponse.json();
+              console.log("Upload response data:", uploadData);
+              const { path } = uploadData;
+
+              // Save to database
+              console.log("Creating document record with:", {
+                name: file.name,
+                file: path,
+                paymentId,
+                clientId,
+              });
+
+              const createResponse = await fetch("/api/documents/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  name: file.name,
+                  file: path,
+                  paymentId,
+                  clientId,
+                }),
+              });
+
+              const createData = await createResponse.json();
+              console.log("Create document response:", createData);
+
+              if (!createResponse.ok) {
+                console.error("Failed to create document:", createData);
+              }
+            } else {
+              const errorData = await uploadResponse.json();
+              console.error("Upload failed:", errorData);
+            }
+          }
+
+          toast.success("Payment and receipts added successfully!");
+        } catch (error) {
+          console.error("Error uploading files:", error);
+          toast.warning("Payment added but some files failed to upload");
+        } finally {
+          setIsUploading(false);
+        }
+      } else {
+        console.log("No files to upload or invalid payment data");
+        toast.success("Payment added successfully!");
+      }
+
       // Invalidate all payment-related queries
       queryClient.invalidateQueries({ queryKey: ["allPayments"] });
       queryClient.invalidateQueries({
@@ -94,6 +163,7 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
       });
       // Also invalidate billing data to update totals in BookingDialog
       queryClient.invalidateQueries({ queryKey: ["billing"] });
+
       handleClose();
     },
     onError: (error: Error) => {
@@ -135,8 +205,8 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
       clientId,
       amount: numericAmount,
       orNumber: orNumber.trim() || undefined,
-      status,
-      date,
+      status: "completed",
+      date: new Date(),
       notes: notes.trim() || undefined,
     });
   };
@@ -146,9 +216,9 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
     setModeOfPayment("");
     setAmount("");
     setOrNumber("");
-    setDate(new Date());
     setNotes("");
-    setStatus("pending");
+    setSelectedFiles([]);
+    setFileResetTrigger(prev => prev + 1);
   };
 
   return (
@@ -252,50 +322,21 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                   />
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <Label className="font-normal">Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarIcon />
-                        {format(date, "PPP")}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[201]">
-                      <Calendar
-                        mode="single"
-                        selected={date}
-                        onSelect={selectedDate => setDate(selectedDate || new Date())}
-                        required
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <Label className="font-normal">Status</Label>
-                  <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Payment status" />
-                    </SelectTrigger>
-                    <SelectContent className="z-[201]">
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 <div className="col-span-2 gap-2 flex flex-col">
                   <Label className="font-normal">Notes</Label>
                   <Textarea
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
                     placeholder="Optional notes about this payment..."
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <FileUpload
+                    title="Receipt Attachments"
+                    onFilesChange={setSelectedFiles}
+                    disabled={createPaymentMutation.isPending || isUploading}
+                    resetTrigger={fileResetTrigger}
                   />
                 </div>
               </DialogDescription>
@@ -308,10 +349,11 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                 type="submit"
                 disabled={
                   createPaymentMutation.isPending ||
+                  isUploading ||
                   Boolean(billingSummary && amount && parseFloat(amount) > billingSummary.balance)
                 }
               >
-                {createPaymentMutation.isPending ? "Adding..." : "Add Payment"}
+                {createPaymentMutation.isPending || isUploading ? "Adding..." : "Add Payment"}
               </Button>
             </DialogFooter>
           </form>

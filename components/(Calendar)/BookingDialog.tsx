@@ -80,6 +80,7 @@ import TimeEndPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/Tim
 import TimeStartPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeStartPicker";
 import AddPaymentDialog from "../(Payments)/AddPaymentDialog";
 import ViewPaymentDialog from "../(Payments)/ViewPaymentDialog";
+import { ViewDocumentsDialog } from "./ViewDocumentsDialog";
 import {
   InputGroup,
   InputGroupAddon,
@@ -2696,7 +2697,7 @@ export default function BookingDialogComponent({
               <div className="mt-4">
                 <div className="grid grid-cols-2 mt-2 divide-x divide-neutral-200">
                   <div className="w-full px-2">
-                    <p className="text-md font-medium mb-2">Billing Info: </p>
+                    <p className="text-md font-medium mb-2">Tools: </p>
                     <div className="gap-2 flex flex-col">
                       <div className="w-full grow flex-1">
                         <ViewPaymentDialog
@@ -2708,6 +2709,13 @@ export default function BookingDialogComponent({
                         <AddPaymentDialog
                           billingId={billing?.id || 0}
                           clientId={booking?.clientId || 0}
+                        />
+                      </div>
+                      <div className="w-full grow flex-1">
+                        <ViewDocumentsDialog
+                          bookingId={bookingId}
+                          clientId={booking?.clientId ?? undefined}
+                          billingId={billing?.id}
                         />
                       </div>
                     </div>
