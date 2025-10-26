@@ -120,6 +120,7 @@ export async function getPaymentsByBilling(billingId: number) {
         billing: {
           select: {
             id: true,
+            modeOfPayment: true,
             booking: {
               select: {
                 eventName: true,
