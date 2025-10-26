@@ -70,7 +70,7 @@ import {
   updateService,
 } from "@/server/Services/pushActions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit, Pencil, Plus, SearchIcon, Trash2, X } from "lucide-react";
+import { Edit, Pencil, Plus, SearchIcon, Trash2, X, Printer } from "lucide-react";
 import React, { useId, useState } from "react";
 import { toast } from "sonner";
 import RegionComboBoxComponent from "../(Bookings)/(AddBookings)/ComboBox/RegionComboBox";
@@ -81,6 +81,7 @@ import TimeStartPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/T
 import AddPaymentDialog from "../(Payments)/AddPaymentDialog";
 import ViewPaymentDialog from "../(Payments)/ViewPaymentDialog";
 import { ViewDocumentsDialog } from "./ViewDocumentsDialog";
+import PrintBooking from "../(Print)/PrintBooking";
 import {
   InputGroup,
   InputGroupAddon,
@@ -150,6 +151,16 @@ export default function BookingDialogComponent({
   const { data: billingSummary, isPending: billingLoading } = useQuery({
     queryKey: ["billingSummary", billing?.id],
     queryFn: () => getBillingSummary(Number(billing?.id)),
+    enabled: !!billing?.id,
+  });
+
+  // Get payments for the billing
+  const { data: paymentsData } = useQuery({
+    queryKey: ["payments", billing?.id],
+    queryFn: async () => {
+      const { getPaymentsByBilling } = await import("@/server/Billing & Payments/pullActions");
+      return getPaymentsByBilling(Number(billing?.id));
+    },
     enabled: !!billing?.id,
   });
 
@@ -293,6 +304,9 @@ export default function BookingDialogComponent({
   // Filter and search state for Dishes
   const [selectedDishCategoryFilter, setSelectedDishCategoryFilter] = useState<string>("all");
   const [dishSearchQuery, setDishSearchQuery] = useState("");
+
+  // Print dialog state
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
 
   // Reset filters when dialog opens
   const resetFilters = () => {
@@ -759,6 +773,58 @@ export default function BookingDialogComponent({
     } catch (error) {
       toast.error("Failed to update inventory");
       console.error(error);
+    }
+  };
+
+  // Print handler - prints the preview area only by injecting print-only styles
+  const handlePrint = () => {
+    try {
+      // Create print style that hides everything except the print area
+      const printStyle = document.createElement("style");
+      printStyle.setAttribute("id", "bb-print-style");
+      printStyle.innerHTML = `
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          .bb-print-area, .bb-print-area * {
+            visibility: visible !important;
+          }
+          .bb-print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+          @page {
+            margin: 0.5in;
+          }
+          * {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          }
+          html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+          }
+        }`;
+      document.head.appendChild(printStyle);
+
+      const cleanup = () => {
+        const s = document.getElementById("bb-print-style");
+        if (s && s.parentNode) s.parentNode.removeChild(s);
+        window.removeEventListener("afterprint", cleanup);
+      };
+
+      window.addEventListener("afterprint", cleanup);
+
+      // Trigger browser print dialog
+      window.print();
+    } catch (err) {
+      console.error("Print failed", err);
     }
   };
 
@@ -2503,7 +2569,75 @@ export default function BookingDialogComponent({
                                         const category = inventoryCategoriesData?.find(
                                           (c: any) => c.id === item.categoryId
                                         );
-                                        const availableQuantity = item.quantity - (item.out || 0);
+
+                                        // Calculate available quantity considering ALL overlapping bookings
+                                        // BUT use the CURRENT selectedInventoryItems state for real-time updates
+                                        const totalUsedByOtherBookings = (inventoryStatusData || [])
+                                          .filter((status: any) => {
+                                            // Exclude current booking - we'll use selectedInventoryItems instead
+                                            if (status.bookingId === booking?.id) return false;
+                                            // Only count this inventory item
+                                            if (status.inventoryId !== item.id) return false;
+                                            // Exclude if no booking dates
+                                            if (!status.booking?.startAt || !status.booking?.endAt)
+                                              return false;
+                                            // Exclude canceled (6) and archived (7) bookings
+                                            if (
+                                              status.booking.status === 6 ||
+                                              status.booking.status === 7
+                                            )
+                                              return false;
+
+                                            // Check for date overlap with current booking dates
+                                            if (!booking?.startAt || !booking?.endAt) return false;
+
+                                            const bookingStart = new Date(status.booking.startAt);
+                                            const bookingEnd = new Date(status.booking.endAt);
+                                            const currentStart = new Date(booking.startAt);
+                                            const currentEnd = new Date(booking.endAt);
+
+                                            // Normalize to start of day for comparison
+                                            const normalizedBookingStart = new Date(
+                                              bookingStart.getFullYear(),
+                                              bookingStart.getMonth(),
+                                              bookingStart.getDate()
+                                            );
+                                            const normalizedBookingEnd = new Date(
+                                              bookingEnd.getFullYear(),
+                                              bookingEnd.getMonth(),
+                                              bookingEnd.getDate()
+                                            );
+                                            const normalizedCurrentStart = new Date(
+                                              currentStart.getFullYear(),
+                                              currentStart.getMonth(),
+                                              currentStart.getDate()
+                                            );
+                                            const normalizedCurrentEnd = new Date(
+                                              currentEnd.getFullYear(),
+                                              currentEnd.getMonth(),
+                                              currentEnd.getDate()
+                                            );
+
+                                            // Check for overlap
+                                            const hasOverlap =
+                                              normalizedBookingStart <= normalizedCurrentEnd &&
+                                              normalizedBookingEnd >= normalizedCurrentStart;
+
+                                            return hasOverlap;
+                                          })
+                                          .reduce(
+                                            (sum: number, status: any) =>
+                                              sum + (status.quantity || 0),
+                                            0
+                                          );
+
+                                        // Available = Total - Out - Used by other bookings - Currently selected by THIS booking
+                                        // This gives real-time updates as the user adjusts quantities
+                                        const availableQuantity =
+                                          item.quantity -
+                                          (item.out || 0) -
+                                          totalUsedByOtherBookings -
+                                          selectedQuantity;
 
                                         return (
                                           <TableRow
@@ -2609,7 +2743,6 @@ export default function BookingDialogComponent({
                               e.stopPropagation();
                               saveInventoryChanges();
                             }}
-                            disabled={selectedInventoryItems.length === 0}
                           >
                             Save ({selectedInventoryItems.length})
                           </Button>
@@ -2620,6 +2753,59 @@ export default function BookingDialogComponent({
                 </>
               )}
             </div>
+            {/* Print Preview Dialog */}
+            {isPrintDialogOpen && (
+              <>
+                <div
+                  className="fixed inset-0 bg-black/60 z-[220]"
+                  onClick={() => setIsPrintDialogOpen(false)}
+                />
+                <div className="fixed inset-0 z-[221] flex items-center justify-center p-4">
+                  <div
+                    className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto p-6"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h2 className="text-xl font-semibold">Print Preview</h2>
+                        <p className="text-sm text-muted-foreground">
+                          Preview the booking before printing. Page size and copies can be set in the print dialog.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" onClick={() => setIsPrintDialogOpen(false)}>
+                          Close
+                        </Button>
+                        <Button onClick={() => handlePrint()}>
+                          <Printer className="w-4 h-4 mr-2" />
+                          Print
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="border rounded-md h-[70vh] overflow-auto bg-gray-50">
+                      <div className="bb-print-area">
+                        {/* Render the print layout component with actual data */}
+                        <PrintBooking
+                          bookingId={bookingId}
+                          booking={booking}
+                          client={clientData}
+                          pavilion={pavilion}
+                          package={packages}
+                          eventType={eventType}
+                          billingSummary={billingSummary}
+                          menuDishes={dishesJoined}
+                          bookingInventory={bookingInventory}
+                          bookingServices={bookingOtherServices}
+                          payments={paymentsData}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className="flex flex-col border-1 p-4 rounded-md bg-white">
               <p className="text-md font-medium">Client Info: </p>
               <div className="flex gap-2 mt-4">
@@ -2717,6 +2903,18 @@ export default function BookingDialogComponent({
                           clientId={booking?.clientId ?? undefined}
                           billingId={billing?.id}
                         />
+                      </div>
+                      <div className="w-full grow flex-1">
+                        <div className="w-full h-full flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => setIsPrintDialogOpen(true)}
+                            className="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground w-full"
+                          >
+                            <Printer className="w-4 h-4" />
+                            Print
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
