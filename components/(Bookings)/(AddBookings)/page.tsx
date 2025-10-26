@@ -291,6 +291,9 @@ const AddBookingsPageClient = (props: {
 
   // Removed unused pavilion/hour pricing interim states (reintroduce if needed)
   const [selectedCatering, setSelectedCatering] = useState<string>("4");
+  
+  // Rooms selection state
+  const [selectedRoomIds, setSelectedRoomIds] = useState<number[]>([]);
 
   // Queries for dish management using custom hooks
   const allDishesQuery = useAllDishes();
@@ -311,6 +314,15 @@ const AddBookingsPageClient = (props: {
   const { data: inventoryCategoriesData = [] } = useQuery({
     queryKey: ["inventoryCategories"],
     queryFn: () => getInventoryCategories(),
+  });
+
+  // Query for all rooms
+  const { data: allRooms = [] } = useQuery({
+    queryKey: ["allRooms"],
+    queryFn: async () => {
+      const { getAllRooms } = await import("@/server/rooms/pullActions");
+      return getAllRooms();
+    },
   });
 
   // State declarations first
@@ -1184,6 +1196,17 @@ const AddBookingsPageClient = (props: {
           selectedInventoryItemsLength: selectedInventoryItems.length,
           bookingId,
         });
+      }
+
+      // Add selected rooms to booking
+      if (selectedRoomIds.length > 0 && bookingId) {
+        try {
+          const { setBookingRooms } = await import("@/server/rooms/pushActions");
+          await setBookingRooms(bookingId, selectedRoomIds);
+          console.log("Rooms added to booking successfully");
+        } catch (err) {
+          console.error("Error adding rooms to booking:", err);
+        }
       }
 
       // Calculate original price for discount calculations
@@ -3034,6 +3057,63 @@ const AddBookingsPageClient = (props: {
           </div>
 
           {/* === INVENTORY BLOCK === */}
+
+          {/* === ROOMS BLOCK === */}
+          <div
+            id="rooms"
+            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <p className="font-bold text-lg">Rooms</p>
+              <p className="text-sm text-muted-foreground">
+                {selectedRoomIds.length} room{selectedRoomIds.length !== 1 ? "s" : ""} selected
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {allRooms.map(room => {
+                const isSelected = selectedRoomIds.includes(room.id);
+                return (
+                  <div
+                    key={room.id}
+                    onClick={() => {
+                      setSelectedRoomIds(prev =>
+                        isSelected
+                          ? prev.filter(id => id !== room.id)
+                          : [...prev, room.id]
+                      );
+                    }}
+                    className={`
+                      relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all
+                      ${
+                        isSelected
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/50 hover:bg-accent"
+                      }
+                    `}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-2 right-2">
+                        <div className="bg-primary text-primary-foreground rounded-full p-1">
+                          <Check className="w-3 h-3" />
+                        </div>
+                      </div>
+                    )}
+                    <div className="font-medium text-sm">{room.name}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Capacity: {room.capacity}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {allRooms.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No rooms available</p>
+              </div>
+            )}
+          </div>
 
           {/* === SELECT SERVICES BLOCK === */}
           <div

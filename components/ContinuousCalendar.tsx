@@ -311,17 +311,24 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
 
     let missingDateCount = 0;
     for (const b of list) {
-      const rawDate = b.startAt ?? b.foodTastingAt ?? b.endAt;
-      if (!rawDate) {
+      const rawStartDate = b.startAt ?? b.foodTastingAt ?? b.endAt;
+      const rawEndDate = b.endAt ?? b.startAt ?? b.foodTastingAt;
+
+      if (!rawStartDate) {
         missingDateCount++;
         continue;
       }
-      const dt = new Date(rawDate as unknown as string | number | Date);
-      if (isNaN(dt.getTime())) {
+
+      const startDt = new Date(rawStartDate as unknown as string | number | Date);
+      if (isNaN(startDt.getTime())) {
         missingDateCount++;
         continue;
       }
-      const key = `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
+
+      const endDt = rawEndDate
+        ? new Date(rawEndDate as unknown as string | number | Date)
+        : startDt;
+
       const name = b.eventName ?? `Booking #${b.id}`;
       const fmt = (d?: Date | string | null): string | undefined => {
         if (!d) return undefined;
@@ -336,14 +343,29 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
       const endTime = fmt(b.endAt);
       const tastingTime = fmt(b.foodTastingAt);
       const displayStart = startTime ?? tastingTime;
-      if (!map[key]) map[key] = [];
-      map[key].push({
-        id: b.id,
-        name,
-        startTime: displayStart,
-        endTime,
-        pavilionId: (b as unknown as { pavilionId?: number | null }).pavilionId ?? undefined,
-      });
+
+      // For multi-day bookings, add the booking to every day in the range
+      const currentDate = new Date(startDt);
+      currentDate.setHours(0, 0, 0, 0); // Reset to start of day
+
+      const finalEndDate = new Date(endDt);
+      finalEndDate.setHours(0, 0, 0, 0); // Reset to start of day
+
+      while (currentDate <= finalEndDate) {
+        const key = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentDate.getDate()}`;
+
+        if (!map[key]) map[key] = [];
+        map[key].push({
+          id: b.id,
+          name,
+          startTime: displayStart,
+          endTime,
+          pavilionId: (b as unknown as { pavilionId?: number | null }).pavilionId ?? undefined,
+        });
+
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
     }
     if (
       process.env.NODE_ENV !== "production" &&
