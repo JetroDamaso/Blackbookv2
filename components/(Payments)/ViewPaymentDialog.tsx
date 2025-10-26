@@ -173,6 +173,22 @@ const ViewPaymentDialog = ({ billingId, clientId }: ViewPaymentDialogProps) => {
                     <p className="text-lg font-medium">{billingSummary?.discountType}</p>
                   </div>
                 </div>
+                {(billingSummary?.additionalCharges || 0) > 0 && (
+                  <>
+                    <div className="h-full py-4 border-l-1"></div>
+                    <div className="flex justify-center flex-1">
+                      <div className="gap-1 flex flex-col justify-center items-center">
+                        <p className="text-sm text-foreground/50">Additional Charges</p>
+                        <p className="text-lg font-medium text-orange-600">
+                          ₱
+                          {(billingSummary?.additionalCharges || 0).toLocaleString("en-PH", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="h-full py-4 border-l-1"></div>
                 <div className="flex justify-center flex-1">
                   <div className="gap-1 flex flex-col justify-center items-center">

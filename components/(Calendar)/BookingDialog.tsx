@@ -70,9 +70,22 @@ import {
   updateService,
 } from "@/server/Services/pushActions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit, Pencil, Plus, SearchIcon, Trash2, X, Printer } from "lucide-react";
+import {
+  Edit,
+  Pencil,
+  Plus,
+  SearchIcon,
+  Trash2,
+  X,
+  Printer,
+  Users,
+  Truck,
+  Layers,
+  MinusCircle,
+} from "lucide-react";
 import React, { useId, useState } from "react";
 import { toast } from "sonner";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import RegionComboBoxComponent from "../(Bookings)/(AddBookings)/ComboBox/RegionComboBox";
 import { EndDatePickerForm } from "../(Bookings)/(AddBookings)/TimeDatePicker/endDatePicker";
 import { StartDatePickerForm } from "../(Bookings)/(AddBookings)/TimeDatePicker/startDatePicker";
@@ -80,6 +93,7 @@ import TimeEndPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/Tim
 import TimeStartPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeStartPicker";
 import AddPaymentDialog from "../(Payments)/AddPaymentDialog";
 import ViewPaymentDialog from "../(Payments)/ViewPaymentDialog";
+import AdditionalChargesDialog from "./AdditionalChargesDialog";
 import { ViewDocumentsDialog } from "./ViewDocumentsDialog";
 import PrintBooking from "../(Print)/PrintBooking";
 import {
@@ -187,14 +201,22 @@ export default function BookingDialogComponent({
     name: string;
     categoryName: string;
     quantity: number;
+    allergens?: string;
   }
 
   const dishesJoined: DishRow[] = (menuDishes || []).map(
-    (dish: { id: number; name: string; categoryName?: string; quantity: number }) => ({
+    (dish: {
+      id: number;
+      name: string;
+      categoryName?: string;
+      quantity: number;
+      allergens?: string;
+    }) => ({
       id: dish.id,
       name: dish.name,
       categoryName: dish.categoryName ?? "—",
       quantity: dish.quantity ?? 1,
+      allergens: dish.allergens,
     })
   );
 
@@ -272,6 +294,22 @@ export default function BookingDialogComponent({
     return status ? status.color : "text-gray-600";
   };
 
+  const getCateringProviderLabel = (cateringValue: number | null | undefined) => {
+    if (!cateringValue) return "None";
+    switch (cateringValue) {
+      case 1:
+        return "Susing and Rufins Catering";
+      case 2:
+        return "3rd Party Catering";
+      case 3:
+        return "Hybrid Service";
+      case 4:
+        return "None";
+      default:
+        return "None";
+    }
+  };
+
   // Other Services Dialog State
   const [isOtherServicesDialogOpen, setIsOtherServicesDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<OtherServiceRow | null>(null);
@@ -284,6 +322,7 @@ export default function BookingDialogComponent({
   const [newDishName, setNewDishName] = useState("");
   const [newDishCategory, setNewDishCategory] = useState("");
   const [newDishDescription, setNewDishDescription] = useState("");
+  const [newDishAllergens, setNewDishAllergens] = useState("");
 
   // Inventory Dialog State
   const [isInventoryDialogOpen, setIsInventoryDialogOpen] = useState(false);
@@ -307,6 +346,18 @@ export default function BookingDialogComponent({
 
   // Print dialog state
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+
+  // Catering provider state
+  const [selectedCatering, setSelectedCatering] = useState<string>(
+    booking?.catering?.toString() || "4"
+  );
+
+  // Update selectedCatering when booking changes
+  React.useEffect(() => {
+    if (booking?.catering) {
+      setSelectedCatering(booking.catering.toString());
+    }
+  }, [booking?.catering]);
 
   // Reset filters when dialog opens
   const resetFilters = () => {
@@ -589,17 +640,20 @@ export default function BookingDialogComponent({
       name,
       categoryId,
       description,
+      allergens,
     }: {
       name: string;
       categoryId: number;
       description?: string;
-    }) => createDish(name, categoryId, description),
+      allergens?: string;
+    }) => createDish(name, categoryId, description, allergens),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allDishes"] });
       queryClient.invalidateQueries({ queryKey: ["menuDishes"] });
       setNewDishName("");
       setNewDishCategory("");
       setNewDishDescription("");
+      setNewDishAllergens("");
       toast.success("Dish created successfully!");
     },
     onError: () => {
@@ -842,7 +896,8 @@ export default function BookingDialogComponent({
         data.endAt,
         parseInt(data.status),
         undefined,
-        data.packageId
+        data.packageId,
+        data.catering
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["booking", bookingId] });
@@ -878,6 +933,25 @@ export default function BookingDialogComponent({
     },
   });
 
+  // Handler for catering provider changes
+  const handleCateringChange = (value: string) => {
+    setSelectedCatering(value);
+
+    // Update booking with new catering value
+    updateBookingMutation.mutate({
+      eventName: booking?.eventName,
+      pavilionId: booking?.pavilionId?.toString(),
+      totalPax: booking?.totalPax?.toString(),
+      eventType: booking?.eventType,
+      notes: booking?.notes,
+      startAt: booking?.startAt,
+      endAt: booking?.endAt,
+      status: booking?.status,
+      packageId: booking?.packageId?.toString(),
+      catering: parseInt(value),
+    });
+  };
+
   const handleCreateService = () => {
     if (newServiceName.trim() && newServiceCategory) {
       createServiceMutation.mutate({
@@ -893,6 +967,7 @@ export default function BookingDialogComponent({
         name: newDishName.trim(),
         categoryId: parseInt(newDishCategory),
         description: newDishDescription.trim() || undefined,
+        allergens: newDishAllergens.trim() || undefined,
       });
     }
   };
@@ -1082,10 +1157,10 @@ export default function BookingDialogComponent({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[100]">
-      <div className="fixed inset-0 bg-black/80" onClick={handleClose} />
+    <div className="fixed inset-0 flex items-center justify-center z-[10000]">
+      <div className="fixed inset-0 bg-black/80 z-[10000]" onClick={handleClose} />
       <div
-        className="relative w-auto min-h-0 max-w-[calc(100%-2rem)] sm:max-w-[calc(100%-3rem)] md:max-w-[calc(100%-5rem)] max-h-[calc(100%-2rem)] sm:max-h-[calc(100%-3rem)] md:max-h-[calc(100%-5rem)] rounded-xl border bg-neutral-100 p-3 sm:p-4 shadow-lg overflow-auto"
+        className="relative z-[10001] w-auto min-h-0 max-w-[calc(100%-2rem)] sm:max-w-[calc(100%-3rem)] md:max-w-[calc(100%-5rem)] max-h-[calc(100%-2rem)] sm:max-h-[calc(100%-3rem)] md:max-h-[calc(100%-5rem)] rounded-xl border bg-neutral-100 p-3 sm:p-4 shadow-lg overflow-auto"
         data-booking-id={String(bookingId)}
       >
         {clientLoading ||
@@ -1109,7 +1184,7 @@ export default function BookingDialogComponent({
                     <SelectTrigger className="mt-2">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[300]">
+                    <SelectContent className="z-[10100]">
                       {statusOptions.map(status => (
                         <SelectItem key={status.value} value={status.value}>
                           <span className={status.color}>{status.label}</span>
@@ -1196,7 +1271,7 @@ export default function BookingDialogComponent({
                       <SelectTrigger className="mt-2">
                         <SelectValue placeholder="Select event type" />
                       </SelectTrigger>
-                      <SelectContent className="z-[300]">
+                      <SelectContent className="z-[10100]">
                         {allEventTypesData?.map((eventType: { id: number; name: string }) => (
                           <SelectItem key={eventType.id} value={eventType.id.toString()}>
                             {eventType.name}
@@ -1227,6 +1302,7 @@ export default function BookingDialogComponent({
                   />
                 </div>
               </div>
+
               <div className="mt-5">
                 <Label className="font-normal">Notes</Label>
                 <div className="*:not-first:mt-2">
@@ -1257,7 +1333,7 @@ export default function BookingDialogComponent({
                         <SelectTrigger className="mt-2">
                           <SelectValue placeholder="Select pavilion" />
                         </SelectTrigger>
-                        <SelectContent className="z-[300]">
+                        <SelectContent className="z-[10100]">
                           {allPavilionsData?.map((pavilion: { id: number; name: string }) => (
                             <SelectItem key={pavilion.id} value={pavilion.id.toString()}>
                               {pavilion.name}
@@ -1312,7 +1388,7 @@ export default function BookingDialogComponent({
                             }
                           />
                         </SelectTrigger>
-                        <SelectContent className="z-[300]">
+                        <SelectContent className="z-[10100]">
                           {pavilionPackagesData && pavilionPackagesData.length > 0 ? (
                             pavilionPackagesData.map((pkg: { id: number; name: string }) => (
                               <SelectItem key={pkg.id} value={pkg.id.toString()}>
@@ -1337,6 +1413,95 @@ export default function BookingDialogComponent({
                     )}
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-4">
+                <Label className="font-normal">Catering Provider</Label>
+                {isEditMode ? (
+                  <div className="mt-2">
+                    <RadioGroup
+                      className="grid grid-cols-4 gap-2"
+                      value={selectedCatering}
+                      orientation="horizontal"
+                      name="catering"
+                      onValueChange={handleCateringChange}
+                    >
+                      {/* Radio card #1 - Susing and Rufins */}
+                      <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 items-start gap-2 rounded-md border p-3 shadow-xs outline-none min-h-[90px]">
+                        <RadioGroupItem
+                          value="1"
+                          id="catering-1"
+                          className="order-1 after:absolute after:inset-0"
+                        />
+                        <div className="flex flex-col grow gap-1 justify-start items-baseline">
+                          <Label htmlFor="catering-1" className="flex items-center text-sm">
+                            <Users className="mr-1" size={16} />
+                            Susing and Rufins
+                          </Label>
+                          <div className="text-muted-foreground text-xs">
+                            In-house catering service
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Radio card #2 - 3rd Party */}
+                      <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 items-start gap-2 rounded-md border p-3 shadow-xs outline-none min-h-[90px]">
+                        <RadioGroupItem
+                          value="2"
+                          id="catering-2"
+                          className="order-1 after:absolute after:inset-0"
+                        />
+                        <div className="flex flex-col grow gap-1 justify-start items-baseline">
+                          <Label htmlFor="catering-2" className="flex items-center text-sm">
+                            <Truck className="mr-1" size={16} />
+                            3rd Party
+                          </Label>
+                          <div className="text-muted-foreground text-xs">External caterer</div>
+                        </div>
+                      </div>
+
+                      {/* Radio card #3 - Hybrid Service */}
+                      <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 items-start gap-2 rounded-md border p-3 shadow-xs outline-none min-h-[90px]">
+                        <RadioGroupItem
+                          value="3"
+                          id="catering-3"
+                          className="order-1 after:absolute after:inset-0"
+                        />
+                        <div className="flex flex-col grow gap-1 justify-start items-baseline">
+                          <Label htmlFor="catering-3" className="flex items-center text-sm">
+                            <Layers className="mr-1" size={16} />
+                            Hybrid Service
+                          </Label>
+                          <div className="text-muted-foreground text-xs">Client + our staff</div>
+                        </div>
+                      </div>
+
+                      {/* Radio card #4 - None */}
+                      <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 items-start gap-2 rounded-md border p-3 shadow-xs outline-none min-h-[90px]">
+                        <RadioGroupItem
+                          value="4"
+                          id="catering-4"
+                          className="order-1 after:absolute after:inset-0"
+                        />
+                        <div className="flex flex-col grow gap-1 justify-start items-baseline">
+                          <Label htmlFor="catering-4" className="flex items-center text-sm">
+                            <MinusCircle className="mr-1" size={16} />
+                            None
+                          </Label>
+                          <div className="text-muted-foreground text-xs">No catering needed</div>
+                        </div>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                ) : (
+                  <Input
+                    className="mt-2"
+                    placeholder="Catering Provider"
+                    type="text"
+                    value={getCateringProviderLabel(booking?.catering)}
+                    disabled
+                  />
+                )}
               </div>
 
               {/* Accordion for Dishes, Inventory, Catering, and Other Services */}
@@ -1384,12 +1549,13 @@ export default function BookingDialogComponent({
                               <TableRow className="hover:bg-transparent">
                                 <TableHead>Dish</TableHead>
                                 <TableHead>Category</TableHead>
+                                <TableHead>Allergens</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {dishesJoined.length === 0 && (
                                 <TableRow>
-                                  <TableCell colSpan={2} className="">
+                                  <TableCell colSpan={3} className="">
                                     No dishes recorded
                                   </TableCell>
                                 </TableRow>
@@ -1403,6 +1569,9 @@ export default function BookingDialogComponent({
                                       {dishNameWithQuantity}
                                     </TableCell>
                                     <TableCell>{dish.categoryName}</TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {dish.allergens || "—"}
+                                    </TableCell>
                                   </TableRow>
                                 );
                               })}
@@ -1596,10 +1765,10 @@ export default function BookingDialogComponent({
               {isDishesDialogOpen && (
                 <>
                   <div
-                    className="fixed inset-0 bg-black/60 z-[200]"
+                    className="fixed inset-0 bg-black/60 z-[10100]"
                     onClick={() => setIsDishesDialogOpen(false)}
                   />
-                  <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
+                  <div className="fixed inset-0 z-[10101] flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-[1400px] max-h-[90vh] overflow-auto p-6">
                       {/* Header */}
                       <div className="flex items-start justify-between mb-6">
@@ -1630,6 +1799,7 @@ export default function BookingDialogComponent({
                                   <TableRow className="hover:bg-transparent">
                                     <TableHead>Dish</TableHead>
                                     <TableHead>Category</TableHead>
+                                    <TableHead>Allergens</TableHead>
                                     <TableHead className="w-24">Quantity</TableHead>
                                     <TableHead className="w-16">Action</TableHead>
                                   </TableRow>
@@ -1638,7 +1808,7 @@ export default function BookingDialogComponent({
                                   {dishesJoined.length === 0 && (
                                     <TableRow>
                                       <TableCell
-                                        colSpan={4}
+                                        colSpan={5}
                                         className="text-center text-muted-foreground"
                                       >
                                         No dishes in menu yet
@@ -1656,6 +1826,9 @@ export default function BookingDialogComponent({
                                           {dishNameWithQuantity}
                                         </TableCell>
                                         <TableCell>{dish.categoryName}</TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">
+                                          {dish.allergens || "—"}
+                                        </TableCell>
                                         <TableCell>
                                           <Input
                                             type="number"
@@ -1714,7 +1887,7 @@ export default function BookingDialogComponent({
                                   <SelectTrigger className="mt-1">
                                     <SelectValue placeholder="Select category" />
                                   </SelectTrigger>
-                                  <SelectContent className="z-[300]">
+                                  <SelectContent className="z-[10100]">
                                     {dishCategoriesData?.map(
                                       (cat: { id: number; name: string }) => (
                                         <SelectItem key={cat.id} value={cat.id.toString()}>
@@ -1731,6 +1904,15 @@ export default function BookingDialogComponent({
                                   value={newDishDescription}
                                   onChange={e => setNewDishDescription(e.target.value)}
                                   placeholder="Enter dish description"
+                                  className="mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label>Allergens (Optional)</Label>
+                                <Input
+                                  value={newDishAllergens}
+                                  onChange={e => setNewDishAllergens(e.target.value)}
+                                  placeholder="e.g., Peanuts, Dairy, Shellfish"
                                   className="mt-1"
                                 />
                               </div>
@@ -1764,7 +1946,7 @@ export default function BookingDialogComponent({
                                 <SelectTrigger className="mt-1">
                                   <SelectValue placeholder="All categories" />
                                 </SelectTrigger>
-                                <SelectContent className="z-[300]">
+                                <SelectContent className="z-[10100]">
                                   <SelectItem value="all">All Categories</SelectItem>
                                   {dishCategoriesData?.map((cat: { id: number; name: string }) => (
                                     <SelectItem key={cat.id} value={cat.id.toString()}>
@@ -1791,6 +1973,7 @@ export default function BookingDialogComponent({
                                 <TableRow className="hover:bg-transparent">
                                   <TableHead>Dish</TableHead>
                                   <TableHead>Category</TableHead>
+                                  <TableHead>Allergens</TableHead>
                                   <TableHead className="w-32">Actions</TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -1798,7 +1981,7 @@ export default function BookingDialogComponent({
                                 {filteredDishes.length === 0 && (
                                   <TableRow>
                                     <TableCell
-                                      colSpan={3}
+                                      colSpan={4}
                                       className="text-center text-muted-foreground"
                                     >
                                       No dishes found
@@ -1822,6 +2005,9 @@ export default function BookingDialogComponent({
                                         )}
                                       </TableCell>
                                       <TableCell>{category?.name || "—"}</TableCell>
+                                      <TableCell className="text-sm text-muted-foreground">
+                                        {dish.allergens || "—"}
+                                      </TableCell>
                                       <TableCell>
                                         <div className="flex gap-1">
                                           {!isInMenu && (
@@ -1878,10 +2064,10 @@ export default function BookingDialogComponent({
                     {editingDish && (
                       <>
                         <div
-                          className="fixed inset-0 bg-black/60 z-[209]"
+                          className="fixed inset-0 bg-black/60 z-[10109]"
                           onClick={() => setEditingDish(null)}
                         />
-                        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
+                        <div className="fixed inset-0 z-[10110] flex items-center justify-center p-4">
                           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
                             <div className="flex items-start justify-between mb-6">
                               <div>
@@ -1921,7 +2107,7 @@ export default function BookingDialogComponent({
                                   <SelectTrigger className="mt-1">
                                     <SelectValue />
                                   </SelectTrigger>
-                                  <SelectContent className="z-[300]">
+                                  <SelectContent className="z-[10100]">
                                     {dishCategoriesData?.map(
                                       (cat: { id: number; name: string }) => (
                                         <SelectItem key={cat.id} value={cat.id.toString()}>
@@ -1932,12 +2118,24 @@ export default function BookingDialogComponent({
                                   </SelectContent>
                                 </Select>
                               </div>
+                              <div>
+                                <Label>Allergens (Optional)</Label>
+                                <Input
+                                  value={editingDish.allergens || ""}
+                                  onChange={e =>
+                                    setEditingDish({ ...editingDish, allergens: e.target.value })
+                                  }
+                                  placeholder="e.g., Peanuts, Dairy, Shellfish"
+                                  className="mt-1"
+                                />
+                              </div>
                               <Button
                                 onClick={() => {
                                   updateDishMutation.mutate({
                                     dishId: editingDish.id,
                                     name: editingDish.name,
                                     categoryId: parseInt(editingDish.categoryName),
+                                    allergens: editingDish.allergens || undefined,
                                   });
                                 }}
                                 disabled={updateDishMutation.isPending}
@@ -1958,10 +2156,10 @@ export default function BookingDialogComponent({
               {isOtherServicesDialogOpen && (
                 <>
                   <div
-                    className="fixed inset-0 bg-black/60 z-[200]"
+                    className="fixed inset-0 bg-black/60 z-[10100]"
                     onClick={() => setIsOtherServicesDialogOpen(false)}
                   />
-                  <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
+                  <div className="fixed inset-0 z-[10101] flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-[1400px] max-h-[90vh] overflow-auto p-6">
                       {/* Header */}
                       <div className="flex items-start justify-between mb-6">
@@ -2232,10 +2430,10 @@ export default function BookingDialogComponent({
                     {editingService && (
                       <>
                         <div
-                          className="fixed inset-0 bg-black/60 z-[209]"
+                          className="fixed inset-0 bg-black/60 z-[10109]"
                           onClick={() => setEditingService(null)}
                         />
-                        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
+                        <div className="fixed inset-0 z-[10110] flex items-center justify-center p-4">
                           <div className="bg-white rounded-xl shadow-xl w-full max-w-[600px] max-h-[80vh] overflow-auto p-6">
                             <div className="flex items-start justify-between mb-4">
                               <h3 className="text-lg font-semibold">Edit Service</h3>
@@ -2336,12 +2534,12 @@ export default function BookingDialogComponent({
                 <>
                   {/* Backdrop */}
                   <div
-                    className="fixed inset-0 bg-black bg-opacity-50 z-[200]"
+                    className="fixed inset-0 bg-black bg-opacity-50 z-[10100]"
                     onClick={() => setIsInventoryDialogOpen(false)}
                   />
 
                   {/* Dialog Content */}
-                  <div className="fixed inset-0 z-[201] flex items-center justify-center p-4">
+                  <div className="fixed inset-0 z-[10101] flex items-center justify-center p-4">
                     <div
                       className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[90vh] flex flex-col transform transition-all duration-200"
                       onClick={e => e.stopPropagation()}
@@ -2386,7 +2584,7 @@ export default function BookingDialogComponent({
                                 <SelectTrigger className="w-[200px]">
                                   <SelectValue placeholder="Category" />
                                 </SelectTrigger>
-                                <SelectContent className="z-[300]">
+                                <SelectContent className="z-[10100]">
                                   <SelectItem value="all">All Categories</SelectItem>
                                   {inventoryCategoriesData?.map((category: any) => (
                                     <SelectItem key={category.id} value={category.id.toString()}>
@@ -2507,7 +2705,7 @@ export default function BookingDialogComponent({
                                 <SelectTrigger className="w-[200px]">
                                   <SelectValue placeholder="Category" />
                                 </SelectTrigger>
-                                <SelectContent className="z-[300]">
+                                <SelectContent className="z-[10100]">
                                   <SelectItem value="all">All Categories</SelectItem>
                                   {inventoryCategoriesData?.map((category: any) => (
                                     <SelectItem key={category.id} value={category.id.toString()}>
@@ -2757,10 +2955,10 @@ export default function BookingDialogComponent({
             {isPrintDialogOpen && (
               <>
                 <div
-                  className="fixed inset-0 bg-black/60 z-[220]"
+                  className="fixed inset-0 bg-black/60 z-[10120]"
                   onClick={() => setIsPrintDialogOpen(false)}
                 />
-                <div className="fixed inset-0 z-[221] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[10121] flex items-center justify-center p-4">
                   <div
                     className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto p-6"
                     onClick={e => e.stopPropagation()}
@@ -2899,23 +3097,14 @@ export default function BookingDialogComponent({
                         />
                       </div>
                       <div className="w-full grow flex-1">
+                        <AdditionalChargesDialog bookingId={bookingId} />
+                      </div>
+                      <div className="w-full grow flex-1">
                         <ViewDocumentsDialog
                           bookingId={bookingId}
                           clientId={booking?.clientId ?? undefined}
                           billingId={billing?.id}
                         />
-                      </div>
-                      <div className="w-full grow flex-1">
-                        <div className="w-full h-full flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => setIsPrintDialogOpen(true)}
-                            className="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground w-full"
-                          >
-                            <Printer className="w-4 h-4" />
-                            Print
-                          </button>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -2977,11 +3166,37 @@ export default function BookingDialogComponent({
                               placeholder="0.00"
                               value={(
                                 (billingSummary?.originalPrice || 0) -
-                                (billingSummary?.totalBilling || 0)
+                                (billingSummary?.totalBilling || 0) +
+                                (billingSummary?.additionalCharges || 0)
                               ).toLocaleString("en-US", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}
+                              readOnly
+                            />
+                            <InputGroupAddon align="inline-end">
+                              <InputGroupText>PHP</InputGroupText>
+                            </InputGroupAddon>
+                          </InputGroup>
+                        </div>
+                      )}
+
+                      {(billingSummary?.additionalCharges || 0) > 0 && (
+                        <div className="flex flex-col gap-2">
+                          <Label className="font-normal">Additional Charges:</Label>
+                          <InputGroup>
+                            <InputGroupAddon>
+                              <InputGroupText>₱</InputGroupText>
+                            </InputGroupAddon>
+                            <InputGroupInput
+                              className="text-end text-orange-600"
+                              placeholder="0.00"
+                              value={
+                                billingSummary?.additionalCharges?.toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                }) || "0.00"
+                              }
                               readOnly
                             />
                             <InputGroupAddon align="inline-end">
@@ -3065,6 +3280,15 @@ export default function BookingDialogComponent({
 
           <button
             type="button"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+            onClick={() => setIsPrintDialogOpen(true)}
+          >
+            <Printer className="w-4 h-4" />
+            Print
+          </button>
+
+          <button
+            type="button"
             onClick={isEditMode && hasChanges ? handleSaveChanges : handleClose}
             className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             disabled={isEditMode && !hasChanges}
@@ -3079,49 +3303,4 @@ export default function BookingDialogComponent({
       </div>
     </div>
   );
-}
-
-{
-  /* <fieldset className="space-y-4">
-      <legend className="text-foreground text-sm leading-none font-medium">
-        Choose a color
-      </legend>
-      <RadioGroup className="flex gap-1.5" defaultValue="blue">
-        <RadioGroupItem
-          value="blue"
-          aria-label="Blue"
-          className="size-6 border-blue-500 bg-blue-500 shadow-none data-[state=checked]:border-blue-500 data-[state=checked]:bg-blue-500"
-        />
-        <RadioGroupItem
-          value="indigo"
-          aria-label="Indigo"
-          className="size-6 border-indigo-500 bg-indigo-500 shadow-none data-[state=checked]:border-indigo-500 data-[state=checked]:bg-indigo-500"
-        />
-        <RadioGroupItem
-          value="pink"
-          aria-label="Pink"
-          className="size-6 border-pink-500 bg-pink-500 shadow-none data-[state=checked]:border-pink-500 data-[state=checked]:bg-pink-500"
-        />
-        <RadioGroupItem
-          value="red"
-          aria-label="red"
-          className="size-6 border-red-500 bg-red-500 shadow-none data-[state=checked]:border-red-500 data-[state=checked]:bg-red-500"
-        />
-        <RadioGroupItem
-          value="orange"
-          aria-label="orange"
-          className="size-6 border-orange-500 bg-orange-500 shadow-none data-[state=checked]:border-orange-500 data-[state=checked]:bg-orange-500"
-        />
-        <RadioGroupItem
-          value="amber"
-          aria-label="amber"
-          className="size-6 border-amber-500 bg-amber-500 shadow-none data-[state=checked]:border-amber-500 data-[state=checked]:bg-amber-500"
-        />
-        <RadioGroupItem
-          value="emerald"
-          aria-label="emerald"
-          className="size-6 border-emerald-500 bg-emerald-500 shadow-none data-[state=checked]:border-emerald-500 data-[state=checked]:bg-emerald-500"
-        />
-      </RadioGroup>
-    </fieldset> */
 }

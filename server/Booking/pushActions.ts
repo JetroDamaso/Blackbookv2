@@ -1,6 +1,12 @@
 "use server";
 import { prisma } from "../db";
 import { calculateBookingStatus } from "./helpers";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import {
+  scheduleBookingNotifications,
+  sendBookingCreatedNotifications,
+} from "@/lib/notification-scheduler";
 
 export async function createBooking(
   eventName: string,
@@ -17,6 +23,10 @@ export async function createBooking(
   //status: number
 ) {
   try {
+    // Get the current session to track who created the booking
+    const session = await getServerSession(authOptions);
+    const createdById = session?.user?.id || null;
+
     // Validate required parameters
     if (!eventName || eventName.trim() === "") {
       throw new Error("Event name is required");
@@ -64,6 +74,7 @@ export async function createBooking(
         notes: notes || null,
         packageId: packageId || null,
         catering: catering || null,
+        createdById: createdById,
         otherServices:
           serviceIds && serviceIds.length > 0
             ? {
@@ -72,6 +83,13 @@ export async function createBooking(
             : undefined,
       },
     });
+
+    // Schedule payment reminder notifications
+    await scheduleBookingNotifications(data.id);
+
+    // Send immediate booking creation notifications to managers and owners
+    await sendBookingCreatedNotifications(data.id);
+
     return data;
   } catch (error) {
     console.error("Failed to create booking", error);
@@ -90,7 +108,8 @@ export async function updateBooking(
   bookingEnd?: Date,
   status?: number,
   serviceIds?: number[],
-  packageId?: string
+  packageId?: string,
+  catering?: number
 ) {
   try {
     // Handle pavilionID - convert to number only if it's a valid string number
@@ -133,6 +152,7 @@ export async function updateBooking(
     if (notes !== undefined) updateData.notes = notes || null;
     if (status !== undefined) updateData.status = status;
     if (packageIdNumber !== null) updateData.packageId = packageIdNumber;
+    if (catering !== undefined) updateData.catering = catering;
 
     // Handle service connections if provided
     if (serviceIds !== undefined) {

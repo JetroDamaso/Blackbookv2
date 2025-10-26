@@ -1,6 +1,10 @@
 "use server";
 import { prisma } from "../db";
 import { updateBookingStatus } from "../Booking/pushActions";
+import {
+  sendPaymentCompletedNotifications,
+  cancelPaymentReminders,
+} from "@/lib/notification-scheduler";
 
 export async function createBilling(
   bookingId: number,
@@ -87,6 +91,8 @@ export async function createPayment(
         billing: {
           select: {
             id: true,
+            originalPrice: true,
+            discountedPrice: true,
             booking: {
               select: {
                 eventName: true,
@@ -104,6 +110,30 @@ export async function createPayment(
         await updateBookingStatus(data.billing.booking.id);
       } catch (statusError) {
         console.error("Failed to update booking status after payment:", statusError);
+        // Don't throw - payment was created successfully
+      }
+
+      // Check if payment is fully completed
+      try {
+        const billing = await prisma.billing.findUnique({
+          where: { id: billingId },
+          include: {
+            payments: true,
+          },
+        });
+
+        if (billing) {
+          const totalPaid = billing.payments.reduce((sum, p) => sum + p.amount, 0);
+          const isFullyPaid = totalPaid >= billing.discountedPrice;
+
+          // If fully paid, send payment completion notifications and cancel reminders
+          if (isFullyPaid) {
+            await sendPaymentCompletedNotifications(data.billing.booking.id, amount);
+            await cancelPaymentReminders(data.billing.booking.id);
+          }
+        }
+      } catch (notificationError) {
+        console.error("Failed to send payment notifications:", notificationError);
         // Don't throw - payment was created successfully
       }
     }

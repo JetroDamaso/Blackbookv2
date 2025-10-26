@@ -158,6 +158,14 @@ export async function getBillingSummary(billingId: number) {
                 email: true,
               },
             },
+            additionalCharges: {
+              select: {
+                id: true,
+                name: true,
+                amount: true,
+                note: true,
+              },
+            },
           },
         },
       },
@@ -182,18 +190,26 @@ export async function getBillingSummary(billingId: number) {
         payments: [],
         catering: null,
         cateringPerPaxAmount: null,
+        additionalCharges: 0,
         isDefault: true,
       };
     }
 
-    const totalPaid = billing.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
-    const balance = billing.discountedPrice - totalPaid;
+    const totalPaid =
+      billing.payments?.reduce((sum: number, payment: any) => sum + payment.amount, 0) || 0;
+    const additionalChargesTotal =
+      billing.booking?.additionalCharges?.reduce(
+        (sum: number, charge: any) => sum + charge.amount,
+        0
+      ) || 0;
+    const totalBilling = (billing.discountedPrice || 0) + additionalChargesTotal;
+    const balance = totalBilling - totalPaid;
     const clientName = billing.booking?.client
       ? `${billing.booking.client.firstName} ${billing.booking.client.lastName}`
       : "Unknown Client";
 
     return {
-      totalBilling: billing.discountedPrice || 0,
+      totalBilling,
       totalPaid,
       balance,
       originalPrice: billing.originalPrice || 0,
@@ -209,6 +225,7 @@ export async function getBillingSummary(billingId: number) {
       payments: billing.payments || [],
       catering: billing.catering || null,
       cateringPerPaxAmount: billing.cateringPerPaxAmount || null,
+      additionalCharges: additionalChargesTotal,
       isDefault: false,
     };
   } catch (error) {

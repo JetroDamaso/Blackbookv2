@@ -2,13 +2,19 @@
 import "server-only";
 import { prisma } from "../../db";
 
-export async function createDish(name: string, categoryId: number, description?: string) {
+export async function createDish(
+  name: string,
+  categoryId: number,
+  description?: string,
+  allergens?: string
+) {
   try {
     const dish = await prisma.dish.create({
       data: {
         name,
         categoryId,
         description,
+        allergens,
       },
       include: {
         category: true,
@@ -25,7 +31,8 @@ export async function updateDish(
   dishId: number,
   name: string,
   categoryId: number,
-  description?: string
+  description?: string,
+  allergens?: string
 ) {
   try {
     const dish = await prisma.dish.update({
@@ -34,6 +41,7 @@ export async function updateDish(
         name,
         categoryId,
         description,
+        allergens,
       },
       include: {
         category: true,

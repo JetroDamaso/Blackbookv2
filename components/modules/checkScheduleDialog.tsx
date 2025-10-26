@@ -596,6 +596,24 @@ const CheckScheduleDialog = (props: {
                                   </>
                                 )}
                             </p>
+                            <p className="text-sm text-gray-700">
+                              Time:{" "}
+                              {conflict.startAt.toLocaleTimeString(undefined, {
+                                hour: "numeric",
+                                minute: "2-digit",
+                                hour12: true,
+                              })}
+                              {conflict.endAt && (
+                                <>
+                                  {" - "}
+                                  {conflict.endAt.toLocaleTimeString(undefined, {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  })}
+                                </>
+                              )}
+                            </p>
                             <p className="-mt-1">
                               {pavilions.find(p => p.id === conflict.pavilionId)?.name || "Unknown"}
                             </p>

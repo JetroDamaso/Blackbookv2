@@ -37,6 +37,7 @@ export async function getDishesByMenuId(menuId: number) {
       name: r.dish?.name ?? "",
       categoryName: r.dish?.category?.name,
       quantity: r.quantity,
+      allergens: r.dish?.allergens,
     }));
   } catch (error) {
     console.error("Failed to fetch dishes by menu id", error);

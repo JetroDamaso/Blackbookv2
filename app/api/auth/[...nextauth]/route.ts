@@ -2,7 +2,7 @@ import { authenticateEmployee } from "@/server/employee/pullActions";
 import NextAuth, { type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-const authOptions: NextAuthOptions = {
+export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -47,16 +47,29 @@ const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        token.id = user.id;
         token.role = user.role;
         token.employeeId = user.employeeId;
+        console.log("JWT callback - user:", {
+          id: user.id,
+          role: user.role,
+          employeeId: user.employeeId,
+        });
       }
+      console.log("JWT callback - token:", {
+        id: token.id,
+        role: token.role,
+        employeeId: token.employeeId,
+        sub: token.sub,
+      });
       return token;
     },
     async session({ session, token }) {
       if (token) {
-        session.user.id = token.sub || "";
+        session.user.id = (token.id as string) || (token.sub as string) || "";
         session.user.role = (token.role as string) || "";
         session.user.employeeId = (token.employeeId as string) || "";
+        console.log("Session callback - session.user:", session.user);
       }
       return session;
     },

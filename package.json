@@ -15,7 +15,8 @@
     "fix-all": "npm run format && npm run lint:fix",
     "precommit": "npm run fix-all && npm run type-check",
     "delete-employees": "tsx scripts/delete-employees.ts",
-    "delete-employees-safe": "tsx scripts/delete-employees-safe.ts"
+    "delete-employees-safe": "tsx scripts/delete-employees-safe.ts",
+    "process-notifications": "tsx scripts/process-notifications.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

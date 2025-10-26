@@ -171,7 +171,7 @@ export default function RegionComboBoxComponent({
               <SelectTrigger id={id}>
                 <SelectValue placeholder="Select region" />
               </SelectTrigger>
-              <SelectContent className="z-[500]">
+              <SelectContent className="z-[10200]">
                 {allRegions.map(region => (
                   <SelectItem value={region.name} key={region.name}>
                     {region.name}
@@ -195,7 +195,7 @@ export default function RegionComboBoxComponent({
               <SelectTrigger id={provinceID}>
                 <SelectValue placeholder="Select province" />
               </SelectTrigger>
-              <SelectContent className="z-[500]">
+              <SelectContent className="z-[10200]">
                 {provincesValues?.map(province => (
                   <SelectItem value={province} key={province}>
                     {province}
@@ -221,7 +221,7 @@ export default function RegionComboBoxComponent({
               <SelectTrigger id={municipalityID}>
                 <SelectValue placeholder="Select municipality" />
               </SelectTrigger>
-              <SelectContent className="z-[500]">
+              <SelectContent className="z-[10200]">
                 {municipalitiesValues?.map(municipality => (
                   <SelectItem value={municipality} key={municipality}>
                     {municipality}
@@ -245,7 +245,7 @@ export default function RegionComboBoxComponent({
               <SelectTrigger id={barangayID}>
                 <SelectValue placeholder="Select barangay" />
               </SelectTrigger>
-              <SelectContent className="z-[500]">
+              <SelectContent className="z-[10200]">
                 {barangayValues?.map((barangay, idx) => {
                   const compositeKey = `${barangay}::${idx}`;
                   return (

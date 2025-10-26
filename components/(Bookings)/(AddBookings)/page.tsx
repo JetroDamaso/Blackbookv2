@@ -290,7 +290,7 @@ const AddBookingsPageClient = (props: {
   const [newServiceCategory, setNewServiceCategory] = useState<string>("");
 
   // Removed unused pavilion/hour pricing interim states (reintroduce if needed)
-  const [selectedCatering, setSelectedCatering] = useState<string>("1");
+  const [selectedCatering, setSelectedCatering] = useState<string>("4");
 
   // Queries for dish management using custom hooks
   const allDishesQuery = useAllDishes();
@@ -1559,6 +1559,7 @@ const AddBookingsPageClient = (props: {
                             <RadioGroup
                               name="package"
                               className="flex flex-col"
+                              value={selectedPackageId?.toString()}
                               onValueChange={val => setSelectedPackageId(Number(val))}
                             >
                               {selectedPavilionId === null && (
@@ -1762,7 +1763,7 @@ const AddBookingsPageClient = (props: {
 
                                 <div className="border rounded-md max-h-[300px] overflow-y-auto">
                                   <RadioGroup
-                                    value={selectedClientId?.toString() || ""}
+                                    value={selectedClientId?.toString()}
                                     onValueChange={val => setSelectedClientId(Number(val))}
                                     className="p-2"
                                   >
@@ -2045,7 +2046,7 @@ const AddBookingsPageClient = (props: {
                 <div>
                   <RadioGroup
                     className="grid grid-cols-4 "
-                    defaultValue="4"
+                    value={selectedCatering}
                     orientation="horizontal"
                     name="catering"
                     onValueChange={setSelectedCatering}
@@ -2187,6 +2188,7 @@ const AddBookingsPageClient = (props: {
                         <TableRow>
                           <TableHead>Dish</TableHead>
                           <TableHead>Category</TableHead>
+                          <TableHead>Allergens</TableHead>
                           <TableHead className="w-20">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -2194,7 +2196,7 @@ const AddBookingsPageClient = (props: {
                       <TableBody>
                         {selectedDishes.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={3} className="text-center text-muted-foreground">
+                            <TableCell colSpan={4} className="text-center text-muted-foreground">
                               No dishes selected
                             </TableCell>
                           </TableRow>
@@ -2209,6 +2211,9 @@ const AddBookingsPageClient = (props: {
                                   {dishNameWithQuantity}
                                 </TableCell>
                                 <TableCell>{category?.name || "—"}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {dish.allergens || "—"}
+                                </TableCell>
                                 <TableCell>
                                   <Button
                                     type="button"
@@ -2682,6 +2687,7 @@ const AddBookingsPageClient = (props: {
                                         <TableRow>
                                           <TableHead>Dish Name</TableHead>
                                           <TableHead>Category</TableHead>
+                                          <TableHead>Allergens</TableHead>
                                           <TableHead className="w-20">Actions</TableHead>
                                         </TableRow>
                                       </TableHeader>
@@ -2690,7 +2696,7 @@ const AddBookingsPageClient = (props: {
                                         {selectedDishes.length === 0 ? (
                                           <TableRow>
                                             <TableCell
-                                              colSpan={3}
+                                              colSpan={4}
                                               className="text-center text-muted-foreground"
                                             >
                                               No dishes selected for this booking
@@ -2699,7 +2705,7 @@ const AddBookingsPageClient = (props: {
                                         ) : filteredSelectedDishes.length === 0 ? (
                                           <TableRow>
                                             <TableCell
-                                              colSpan={3}
+                                              colSpan={4}
                                               className="text-center text-muted-foreground"
                                             >
                                               {selectedDishesSearchQuery.trim() !== "" ||
@@ -2724,6 +2730,9 @@ const AddBookingsPageClient = (props: {
                                                   {dishNameWithQuantity}
                                                 </TableCell>
                                                 <TableCell>{category?.name ?? "—"}</TableCell>
+                                                <TableCell className="text-sm text-muted-foreground">
+                                                  {dish.allergens || "—"}
+                                                </TableCell>
                                                 <TableCell>
                                                   <Button
                                                     type="button"
@@ -2803,20 +2812,21 @@ const AddBookingsPageClient = (props: {
                                       <TableRow>
                                         <TableHead>Dish Name</TableHead>
                                         <TableHead>Category</TableHead>
+                                        <TableHead>Allergens</TableHead>
                                         <TableHead className="w-24">Actions</TableHead>
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                       {allDishesQuery.isLoading ? (
                                         <TableRow>
-                                          <TableCell colSpan={3} className="text-center py-8">
+                                          <TableCell colSpan={4} className="text-center py-8">
                                             Loading dishes...
                                           </TableCell>
                                         </TableRow>
                                       ) : allDishesQuery.error ? (
                                         <TableRow>
                                           <TableCell
-                                            colSpan={3}
+                                            colSpan={4}
                                             className="text-center py-8 text-red-600"
                                           >
                                             Error loading dishes: {allDishesQuery.error?.message}
@@ -2841,6 +2851,9 @@ const AddBookingsPageClient = (props: {
                                                 {dish.name}
                                               </TableCell>
                                               <TableCell>{category?.name ?? "—"}</TableCell>
+                                              <TableCell className="text-sm text-muted-foreground">
+                                                {dish.allergens || "—"}
+                                              </TableCell>
                                               <TableCell>
                                                 <div className="flex gap-1">
                                                   <Button
@@ -2879,7 +2892,7 @@ const AddBookingsPageClient = (props: {
                                       ) : (
                                         <TableRow>
                                           <TableCell
-                                            colSpan={3}
+                                            colSpan={4}
                                             className="text-center py-8 text-muted-foreground"
                                           >
                                             {dishSearchQuery.trim() !== "" ||
@@ -2961,6 +2974,22 @@ const AddBookingsPageClient = (props: {
                                       </SelectContent>
                                     </Select>
                                   </div>
+                                  <div>
+                                    <Label htmlFor="edit-dish-allergens">
+                                      Allergens (Optional)
+                                    </Label>
+                                    <Input
+                                      id="edit-dish-allergens"
+                                      defaultValue={editingDish.allergens || ""}
+                                      placeholder="e.g., Peanuts, Dairy, Shellfish"
+                                      onChange={e =>
+                                        setEditingDish({
+                                          ...editingDish,
+                                          allergens: e.target.value,
+                                        })
+                                      }
+                                    />
+                                  </div>
                                   <div className="flex gap-2 justify-end pt-4">
                                     <Button
                                       type="button"
@@ -2977,6 +3006,7 @@ const AddBookingsPageClient = (props: {
                                             dishId: editingDish.id,
                                             name: editingDish.name,
                                             categoryId: editingDish.categoryId || 1,
+                                            allergens: editingDish.allergens || undefined,
                                           },
                                           {
                                             onSuccess: () => {

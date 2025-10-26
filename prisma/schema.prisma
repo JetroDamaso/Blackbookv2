@@ -22,6 +22,7 @@ model Client {
     bookings         Booking[]
     payments         Payment[]
     scannedDocuments ScannedDocument[]
+    notifications    Notification[]
 }
 
 model Role {
@@ -31,15 +32,20 @@ model Role {
 }
 
 model Employee {
-    id               String       @id @default(uuid())
-    firstName        String
-    lastName         String
-    password         String
-    roleId           Int?
-    dateOfEmployment DateTime
-    isActive         Boolean      @default(true)
-    role             Role?        @relation(fields: [roleId], references: [id], onDelete: SetNull)
-    historyLogs      HistoryLog[]
+    id                String            @id @default(uuid())
+    firstName         String
+    lastName          String
+    password          String
+    roleId            Int?
+    dateOfEmployment  DateTime
+    isActive          Boolean           @default(true)
+    lastLogin         DateTime?
+    role              Role?             @relation(fields: [roleId], references: [id], onDelete: SetNull)
+    historyLogs       HistoryLog[]
+    discountRequests  DiscountRequest[] @relation("RequestedDiscounts")
+    reviewedDiscounts DiscountRequest[] @relation("ReviewedDiscounts")
+    notifications     Notification[]
+    createdBookings   Booking[]         @relation("CreatedBookings")
 }
 
 model Pavilion {
@@ -72,36 +78,42 @@ model InventoryItem {
 }
 
 model Booking {
-    id                 Int                @id @default(autoincrement())
-    eventName          String
-    clientId           Int?
-    pavilionId         Int?
-    packageId          Int?
-    eventType          Int?
-    calendarColor      String?
-    catering           Int?
-    startAt            DateTime?
-    endAt              DateTime?
-    foodTastingAt      DateTime?
-    totalPax           Int
-    themeMotif         String?
-    status             Int
-    customDiscount     Int?
-    notes              String?
-    ref_pavilionName   String?
-    ref_clientFullName String?
-    additionalCharges  AdditionalCharge[]
-    billing            Billing?
-    pavilion           Pavilion?          @relation(fields: [pavilionId], references: [id])
-    client             Client?            @relation(fields: [clientId], references: [id])
-    category           EventTypes?        @relation(fields: [eventType], references: [id])
-    package            Package?           @relation(fields: [packageId], references: [id])
-    historyLogs        HistoryLog[]
-    inventoryStatuses  InventoryStatus[]
-    menus              Menu[]
-    scannedDocuments   ScannedDocument[]
-    otherServices      OtherService[]     @relation("BookingToOtherService")
-    rooms              Rooms[]            @relation("BookingToRooms")
+    id                     Int                     @id @default(autoincrement())
+    eventName              String
+    clientId               Int?
+    pavilionId             Int?
+    packageId              Int?
+    eventType              Int?
+    calendarColor          String?
+    catering               Int?
+    startAt                DateTime?
+    endAt                  DateTime?
+    foodTastingAt          DateTime?
+    totalPax               Int
+    themeMotif             String?
+    status                 Int
+    customDiscount         Int?
+    notes                  String?
+    ref_pavilionName       String?
+    ref_clientFullName     String?
+    createdById            String?
+    createdAt              DateTime                @default(now())
+    createdBy              Employee?               @relation("CreatedBookings", fields: [createdById], references: [id], onDelete: SetNull)
+    additionalCharges      AdditionalCharge[]
+    billing                Billing?
+    pavilion               Pavilion?               @relation(fields: [pavilionId], references: [id])
+    client                 Client?                 @relation(fields: [clientId], references: [id])
+    category               EventTypes?             @relation(fields: [eventType], references: [id])
+    package                Package?                @relation(fields: [packageId], references: [id])
+    historyLogs            HistoryLog[]
+    inventoryStatuses      InventoryStatus[]
+    menus                  Menu[]
+    scannedDocuments       ScannedDocument[]
+    otherServices          OtherService[]          @relation("BookingToOtherService")
+    rooms                  Rooms[]                 @relation("BookingToRooms")
+    discountRequests       DiscountRequest[]
+    scheduledNotifications ScheduledNotification[]
+    notifications          Notification[]
 }
 
 model Package {
@@ -211,25 +223,25 @@ model InventoryStatus {
 }
 
 model Billing {
-    id                 Int       @id @default(autoincrement())
-    bookingId          Int       @unique
-    originalPrice      Float
-    discountedPrice    Float
-    discountType       String
-    discountPercentage Float? // Made nullable
-    discountAmount     Float? // New field for fixed amount discounts
-    discountId         Int? // Reference to predefined discount
-    isCustomDiscount   Boolean   @default(false) // Track if it's a custom discount
-    balance            Float
-    catering           Float?
+    id                   Int       @id @default(autoincrement())
+    bookingId            Int       @unique
+    originalPrice        Float
+    discountedPrice      Float
+    discountType         String
+    discountPercentage   Float? // Made nullable
+    discountAmount       Float? // New field for fixed amount discounts
+    discountId           Int? // Reference to predefined discount
+    isCustomDiscount     Boolean   @default(false) // Track if it's a custom discount
+    balance              Float
+    catering             Float?
     cateringPerPaxAmount Float?
-    modeOfPayment      String
-    yve                Float     @default(0)
-    deposit            Float     @default(0)
-    status             Int
-    dateCompleted      DateTime?
-    booking            Booking   @relation(fields: [bookingId], references: [id])
-    payments           Payment[]
+    modeOfPayment        String
+    yve                  Float     @default(0)
+    deposit              Float     @default(0)
+    status               Int
+    dateCompleted        DateTime?
+    booking              Booking   @relation(fields: [bookingId], references: [id])
+    payments             Payment[]
 }
 
 model HistoryLog {
@@ -283,9 +295,73 @@ model ScannedDocument {
 
 model Discount {
     id          Int     @id @default(autoincrement())
-    name        String  @unique
-    percent     Float? // Made nullable to support amount-based discounts
-    amount      Float? // Fixed amount discount
-    isActive    Boolean @default(true) // To enable/disable discounts
-    description String? // Optional description
+    name        String
+    percent     Float?
+    amount      Float?
+    isActive    Boolean @default(true)
+    description String?
+}
+
+model DiscountRequest {
+    id             String    @id @default(cuid())
+    bookingId      Int
+    booking        Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+    requestedById  String
+    requestedBy    Employee  @relation("RequestedDiscounts", fields: [requestedById], references: [id])
+    discountType   String
+    discountValue  Float
+    discountUnit   String // "PERCENTAGE" or "FIXED"
+    justification  String
+    documents      String? // JSON string array of document URLs
+    status         String    @default("PENDING") // "PENDING", "APPROVED", "REJECTED", "MODIFIED"
+    reviewedById   String?
+    reviewedBy     Employee? @relation("ReviewedDiscounts", fields: [reviewedById], references: [id])
+    reviewNotes    String?
+    originalAmount Float?
+    finalAmount    Float?
+    requestedAt    DateTime  @default(now())
+    reviewedAt     DateTime?
+
+    @@index([bookingId])
+    @@index([requestedById])
+    @@index([status])
+    @@index([reviewedById])
+}
+
+model Notification {
+    id      String   @id @default(cuid())
+    userId  String
+    user    Employee @relation(fields: [userId], references: [id], onDelete: Cascade)
+    type    String // "DISCOUNT_REQUEST", "DISCOUNT_RESPONSE", "BOOKING", "PAYMENT", "INVENTORY", "SYSTEM"
+    title   String
+    message String
+    link    String?
+    read    Boolean  @default(false)
+
+    // Booking-related fields
+    bookingId Int?
+    booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+    clientId  Int?
+    client    Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+    createdAt DateTime @default(now())
+
+    @@index([userId])
+    @@index([read])
+    @@index([createdAt])
+    @@index([bookingId])
+}
+
+model ScheduledNotification {
+    id               String    @id @default(cuid())
+    bookingId        Int
+    booking          Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+    notificationType String // BOOKING_CREATED, PAYMENT_REMINDER_7, PAYMENT_REMINDER_3, PAYMENT_REMINDER_1, PAYMENT_OVERDUE, PAYMENT_COMPLETED
+    scheduledFor     DateTime
+    sent             Boolean   @default(false)
+    sentAt           DateTime?
+    createdAt        DateTime  @default(now())
+
+    @@index([bookingId])
+    @@index([scheduledFor, sent])
 }

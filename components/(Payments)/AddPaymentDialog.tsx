@@ -229,8 +229,8 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
         </Button>
       </DialogTrigger>
       <DialogPortal>
-        <DialogOverlay className="z-[199]" />
-        <DialogContent className="z-[200]">
+        <DialogOverlay className="z-[10099]" />
+        <DialogContent className="z-[10100]">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle className="mb-4">Add Payment</DialogTitle>
@@ -251,7 +251,7 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                     <SelectTrigger>
                       <SelectValue placeholder="Mode of payment" />
                     </SelectTrigger>
-                    <SelectContent className="z-[201]">
+                    <SelectContent className="z-[10101]">
                       {mopData?.map(mop => (
                         <SelectItem key={mop.id} value={mop.id.toString()}>
                           {mop.name}

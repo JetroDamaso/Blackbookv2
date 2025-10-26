@@ -39,8 +39,12 @@ import {
   Users,
   Wallet,
   Wine,
+  Receipt,
+  Bell,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
+import { hasPermission, type Role } from "@/lib/permissions";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 // This is sample data.
 const data = {
@@ -109,11 +113,13 @@ const data = {
           title: "Employees",
           url: "/manage/employees",
           icon: UserCheck,
+          permission: "employees:read",
         },
         {
           title: "Roles",
           url: "/manage/roles",
           icon: Shield,
+          permission: "employees:read",
         },
       ],
     },
@@ -133,6 +139,12 @@ const data = {
           icon: Percent,
         },
         {
+          title: "Discount Requests",
+          url: "/discount-requests",
+          icon: Receipt,
+          permission: "discounts:request",
+        },
+        {
           title: "Payment Methods",
           url: "/manage/mode-of-payment",
           icon: CreditCard,
@@ -148,6 +160,7 @@ const data = {
           title: "Reports",
           url: "/reports",
           icon: Notebook,
+          permission: "reports:view",
         },
         {
           title: "Settings",
@@ -168,63 +181,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return null;
   }
 
-  // Filter navigation based on user role
+  // Filter navigation based on user role and permissions
   const getFilteredNavigation = () => {
-    const userRole = session.user.role;
+    const userRole = session.user.role as Role;
 
-    // Owner sees everything
-    if (userRole === "Owner") {
-      return data.navMain;
-    }
-
-    // Manager sees everything (no restrictions based on requirements)
-    if (userRole === "Manager") {
-      return data.navMain;
-    }
-
-    // Front Desk sees limited items
-    if (userRole === "Front Desk") {
-      return data.navMain
-        .filter(section => {
-          // Exclude "Staff & Roles" section entirely
-          if (section.title === "Staff & Roles") {
-            return false;
+    return data.navMain
+      .map(section => ({
+        ...section,
+        items: section.items.filter(item => {
+          // If item has a permission requirement, check it
+          if ("permission" in item && item.permission) {
+            return hasPermission(userRole, item.permission as any);
           }
-          // Exclude "Reports & Settings" section (we'll add Settings separately)
-          if (section.title === "Reports & Settings") {
-            return false;
-          }
+          // Otherwise, allow it (backward compatibility)
           return true;
-        })
-        .map(section => {
-          // Filter out "Discounts" from Finance & Payments section
-          if (section.title === "Finance & Payments") {
-            return {
-              ...section,
-              items: section.items.filter(item => item.title !== "Discounts"),
-            };
-          }
-          return section;
-        })
-        .concat([
-          // Add Settings section for Front Desk
-          {
-            title: "Settings",
-            url: "#",
-            icon: Settings2,
-            items: [
-              {
-                title: "Settings",
-                url: "/settings",
-                icon: Settings2,
-              },
-            ],
-          },
-        ]);
-    }
-
-    // Default: show everything for unknown roles
-    return data.navMain;
+        }),
+      }))
+      .filter(section => section.items.length > 0); // Remove empty sections
   };
 
   const filteredNavigation = getFilteredNavigation();
@@ -232,13 +205,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar {...props}>
       <SidebarHeader>
-        <div className="flex gap-3 justify-start items-center py-2 px-1">
+        <div className="flex gap-3 justify-between items-center py-2 px-1">
           <Image
             src="/susings_and_rufins_logo.png"
             alt="Susings and Rufins Logo"
             width={60}
             height={60}
           />
+          <NotificationBell />
         </div>
       </SidebarHeader>
       <SidebarContent>

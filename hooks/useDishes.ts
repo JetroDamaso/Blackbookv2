@@ -22,8 +22,17 @@ export function useCreateDish() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ name, categoryId }: { name: string; categoryId: number }) =>
-      createDish(name, categoryId),
+    mutationFn: ({
+      name,
+      categoryId,
+      description,
+      allergens,
+    }: {
+      name: string;
+      categoryId: number;
+      description?: string;
+      allergens?: string;
+    }) => createDish(name, categoryId, description, allergens),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allDishes"] });
       toast.success("Dish created successfully");
@@ -43,11 +52,15 @@ export function useUpdateDish() {
       dishId,
       name,
       categoryId,
+      description,
+      allergens,
     }: {
       dishId: number;
       name: string;
       categoryId: number;
-    }) => updateDish(dishId, name, categoryId),
+      description?: string;
+      allergens?: string;
+    }) => updateDish(dishId, name, categoryId, description, allergens),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allDishes"] });
       toast.success("Dish updated successfully");
