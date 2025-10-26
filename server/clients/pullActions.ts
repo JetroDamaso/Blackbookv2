@@ -74,37 +74,54 @@ export async function getAllClientsPaginated(page: number = 1, pageSize: number 
 
 export async function getClientStatistics() {
   try {
-    // Get all clients with their bookings
-    const clients = await prisma.client.findMany({
-      include: {
-        bookings: {
-          include: {
-            category: true,
-          },
-        },
-      },
-    });
-
-    const totalClients = clients.length;
-
-    // Calculate new clients per month (clients from current month)
     const currentDate = new Date();
     const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
+    const currentMonthStart = new Date(currentYear, currentMonth, 1);
 
-    const newClientsThisMonth = clients.filter(client => {
-      const createdDate = new Date(client.dateCreated);
-      return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
-    }).length;
+    // Use parallel queries for better performance
+    const [totalClients, newClientsThisMonth, oldestClient, clientsWithBookings] =
+      await Promise.all([
+        // Total count - very fast
+        prisma.client.count(),
+
+        // New clients this month - filtered at DB level
+        prisma.client.count({
+          where: {
+            dateCreated: {
+              gte: currentMonthStart,
+            },
+          },
+        }),
+
+        // Oldest client - only get what we need
+        prisma.client.findFirst({
+          select: {
+            dateCreated: true,
+          },
+          orderBy: {
+            dateCreated: "asc",
+          },
+        }),
+
+        // Clients with bookings - only necessary fields
+        prisma.client.findMany({
+          select: {
+            id: true,
+            bookings: {
+              select: {
+                category: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        }),
+      ]);
 
     // Calculate average new clients per month
-    const oldestClient = clients.reduce((oldest, client) => {
-      if (!oldest || new Date(client.dateCreated) < new Date(oldest.dateCreated)) {
-        return client;
-      }
-      return oldest;
-    }, clients[0]);
-
     let averageNewClientsPerMonth = 0;
     if (oldestClient) {
       const monthsSinceFirstClient = Math.ceil(
@@ -121,7 +138,7 @@ export async function getClientStatistics() {
     // Count unique clients per event type
     const clientEventTypes = new Map<number, Set<string>>();
 
-    clients.forEach(client => {
+    clientsWithBookings.forEach(client => {
       client.bookings.forEach(booking => {
         const eventTypeName = booking.category?.name || "Unknown";
         if (!clientEventTypes.has(client.id)) {

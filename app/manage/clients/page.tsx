@@ -26,6 +26,8 @@ export default function ManageClients() {
   const { data: stats } = useQuery({
     queryKey: ["clientStatistics"],
     queryFn: () => getClientStatistics(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
   const handleRowClick = (clientId: number) => {

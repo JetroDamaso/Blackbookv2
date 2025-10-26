@@ -53,26 +53,38 @@ export async function getAllPavilionsPaginated(page: number = 1, pageSize: numbe
 
 export async function getPavilionStatistics() {
   try {
-    // Get all pavilions with their bookings
-    const pavilions = await prisma.pavilion.findMany({
-      include: {
-        bookings: true,
-      },
-    });
+    // Use parallel queries for better performance
+    const [totalPavilions, pavilionsWithBookings] = await Promise.all([
+      // Count active pavilions - very fast
+      prisma.pavilion.count({
+        where: {
+          isActive: true,
+        },
+      }),
 
-    // Get total count of active pavilions
-    const totalPavilions = pavilions.filter(p => p.isActive).length;
+      // Get pavilions with booking counts - only necessary fields
+      prisma.pavilion.findMany({
+        select: {
+          name: true,
+          _count: {
+            select: {
+              bookings: true,
+            },
+          },
+        },
+      }),
+    ]);
 
     // Calculate total bookings across all pavilions
-    const totalBookings = pavilions.reduce((sum, pavilion) => {
-      return sum + pavilion.bookings.length;
+    const totalBookings = pavilionsWithBookings.reduce((sum, pavilion) => {
+      return sum + pavilion._count.bookings;
     }, 0);
 
     // Calculate pavilion usage statistics
     const pavilionStats: Record<string, { count: number; percentage: number }> = {};
 
-    pavilions.forEach(pavilion => {
-      const bookingCount = pavilion.bookings.length;
+    pavilionsWithBookings.forEach(pavilion => {
+      const bookingCount = pavilion._count.bookings;
       pavilionStats[pavilion.name] = {
         count: bookingCount,
         percentage: totalBookings > 0 ? Math.round((bookingCount / totalBookings) * 100) : 0,
