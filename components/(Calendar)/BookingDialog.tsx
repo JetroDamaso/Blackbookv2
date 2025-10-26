@@ -2769,7 +2769,8 @@ export default function BookingDialogComponent({
                       <div>
                         <h2 className="text-xl font-semibold">Print Preview</h2>
                         <p className="text-sm text-muted-foreground">
-                          Preview the booking before printing. Page size and copies can be set in the print dialog.
+                          Preview the booking before printing. Page size and copies can be set in
+                          the print dialog.
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
