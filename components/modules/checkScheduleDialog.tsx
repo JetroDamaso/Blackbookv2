@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Label } from "../ui/label";
+import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import TimeStartPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeStartPicker";
 import TimeEndPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeEndPicker";
@@ -21,6 +22,7 @@ import { updateBooking } from "@/server/Booking/pushActions";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
+import { ScrollArea } from "../ui/scroll-area";
 
 interface selected {
   month: number;
@@ -67,6 +69,7 @@ const CheckScheduleDialog = (props: {
   const [endTime, setEndTime] = useState<{ hour: number; minute: number; second?: number } | null>(
     null
   );
+
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -295,7 +298,7 @@ const CheckScheduleDialog = (props: {
     const params = new URLSearchParams();
 
     if (dateRange) {
-      // For date range, pass start and end dates
+      // For date range, also use the single-day booking page
       params.set(
         "startDate",
         `${dateRange.start.year}-${String(dateRange.start.month + 1).padStart(2, "0")}-${String(dateRange.start.day).padStart(2, "0")}`
@@ -304,20 +307,27 @@ const CheckScheduleDialog = (props: {
         "endDate",
         `${dateRange.end.year}-${String(dateRange.end.month + 1).padStart(2, "0")}-${String(dateRange.end.day).padStart(2, "0")}`
       );
+
+      if (selectedPavilionId) {
+        params.set("pavilionId", selectedPavilionId);
+      }
+
+      // Navigate to create booking page with date range parameters
+      router.push(`/bookings/create-booking?${params.toString()}`);
     } else if (selectedDay) {
       // For single date
       params.set(
         "startDate",
         `${selectedDay.year}-${String(selectedDay.month + 1).padStart(2, "0")}-${String(selectedDay.day).padStart(2, "0")}`
       );
-    }
 
-    if (selectedPavilionId) {
-      params.set("pavilionId", selectedPavilionId);
-    }
+      if (selectedPavilionId) {
+        params.set("pavilionId", selectedPavilionId);
+      }
 
-    // Navigate to create booking page with parameters
-    router.push(`/bookings/create-booking?${params.toString()}`);
+      // Navigate to create booking page with parameters
+      router.push(`/bookings/create-booking?${params.toString()}`);
+    }
   };
 
   return (
@@ -363,7 +373,7 @@ const CheckScheduleDialog = (props: {
           </Button>
         </DialogTrigger>
 
-        <DialogContent className="[&>button]:hidden">
+        <DialogContent className="[&>button]:hidden max-h-[90vh] flex flex-col">
           <DialogHeader className="text-center">
             <DialogTitle>{isRescheduling ? "Reschedule Booking" : "Add Booking"}</DialogTitle>
             <DialogDescription>
@@ -373,96 +383,98 @@ const CheckScheduleDialog = (props: {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="h-full items-start" />
-              <div>
-                <p className="text-xs text-neutral-500">{dateRange ? "Date Range" : "Date"}</p>
-                <p className="text-sm font-medium">
-                  {dateRange
-                    ? `${new Date(
-                        dateRange.start.year,
-                        dateRange.start.month,
-                        dateRange.start.day
-                      ).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })} - ${new Date(
-                        dateRange.end.year,
-                        dateRange.end.month,
-                        dateRange.end.day
-                      ).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}`
-                    : selectedDay
-                      ? new Date(
-                          selectedDay.year,
-                          selectedDay.month,
-                          selectedDay.day
+          <ScrollArea className="flex-1 max-h-[60vh]">
+            <div className="flex flex-col gap-4 pr-4">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="h-full items-start" />
+                <div>
+                  <p className="text-xs text-neutral-500">{dateRange ? "Date Range" : "Date"}</p>
+                  <p className="text-sm font-medium">
+                    {dateRange
+                      ? `${new Date(
+                          dateRange.start.year,
+                          dateRange.start.month,
+                          dateRange.start.day
                         ).toLocaleDateString(undefined, {
-                          year: "numeric",
                           month: "short",
                           day: "numeric",
-                        })
-                      : "No day selected"}
-                </p>
-                {selectedDates.length > 1 && (
-                  <p className="text-xs text-neutral-400">{selectedDates.length} days selected</p>
-                )}
-              </div>
-            </div>
-            <div className="*:not-first:mt-1">
-              <Label className="font-normal text-xs text-neutral-500">Select pavilion</Label>
-              <Select value={selectedPavilionId} onValueChange={setSelectedPavilionId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select pavilion" />
-                </SelectTrigger>
-                <SelectContent>
-                  {pavilions.map(pav => (
-                    <SelectItem key={pav.id} value={String(pav.id)}>
-                      {pav.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {isRescheduling && (
-              <div className="grid grid-cols-2 gap-4">
-                <TimeStartPickerCreateBookingComponent
-                  startTimeOnChange={setStartTime}
-                  initialDateTime={reschedulingBooking?.startAt ?? null}
-                />
-                <TimeEndPickerCreateBookingComponent
-                  endTimeOnChange={setEndTime}
-                  initialDateTime={reschedulingBooking?.endAt ?? null}
-                />
-              </div>
-            )}
-
-            {hasConflict && (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsConflictDialogOpen(true);
-                  setDialogOpen(false);
-                }}
-                className="flex gap-2 items-start text-red-500 border-1 rounded-md p-2 border-red-500 hover:bg-red-50 transition-colors cursor-pointer w-full text-left"
-              >
-                <CircleAlert />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    {conflictingBookings.length} nearby booking
-                    {conflictingBookings.length > 1 ? "s" : ""} found
+                          year: "numeric",
+                        })} - ${new Date(
+                          dateRange.end.year,
+                          dateRange.end.month,
+                          dateRange.end.day
+                        ).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}`
+                      : selectedDay
+                        ? new Date(
+                            selectedDay.year,
+                            selectedDay.month,
+                            selectedDay.day
+                          ).toLocaleDateString(undefined, {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })
+                        : "No day selected"}
                   </p>
-                  <p className="text-xs text-red-400">Click to view details</p>
+                  {selectedDates.length > 1 && (
+                    <p className="text-xs text-neutral-400">{selectedDates.length} days selected</p>
+                  )}
                 </div>
-              </button>
-            )}
-          </div>
+              </div>
+              <div className="*:not-first:mt-1">
+                <Label className="font-normal text-xs text-neutral-500">Select pavilion</Label>
+                <Select value={selectedPavilionId} onValueChange={setSelectedPavilionId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select pavilion" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pavilions.map(pav => (
+                      <SelectItem key={pav.id} value={String(pav.id)}>
+                        {pav.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {isRescheduling && (
+                <div className="grid grid-cols-2 gap-4">
+                  <TimeStartPickerCreateBookingComponent
+                    startTimeOnChange={setStartTime}
+                    initialDateTime={reschedulingBooking?.startAt ?? null}
+                  />
+                  <TimeEndPickerCreateBookingComponent
+                    endTimeOnChange={setEndTime}
+                    initialDateTime={reschedulingBooking?.endAt ?? null}
+                  />
+                </div>
+              )}
+
+              {hasConflict && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsConflictDialogOpen(true);
+                    setDialogOpen(false);
+                  }}
+                  className="flex gap-2 items-start text-red-500 border-1 rounded-md p-2 border-red-500 hover:bg-red-50 transition-colors cursor-pointer w-full text-left"
+                >
+                  <CircleAlert />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      {conflictingBookings.length} nearby booking
+                      {conflictingBookings.length > 1 ? "s" : ""} found
+                    </p>
+                    <p className="text-xs text-red-400">Click to view details</p>
+                  </div>
+                </button>
+              )}
+            </div>
+          </ScrollArea>
 
           <DialogFooter>
             <DialogClose>

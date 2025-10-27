@@ -54,7 +54,6 @@ export default function ManageRoles() {
           <p className="font-semibold text-lg flex items-center gap-2 grow">
             <Shield size={18} /> <span>Roles</span>
           </p>
-          <Button variant={"outline"}>Edit Widgets</Button>
         </div>
       </header>
 

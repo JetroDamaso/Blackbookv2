@@ -308,31 +308,65 @@ export async function processPendingNotifications() {
           break;
 
         case "PAYMENT_REMINDER_3":
-          // Notify Managers and Owners
-          notifications = managersAndOwners.map(employee => ({
-            userId: employee.id,
-            type: "PAYMENT",
-            title: "Urgent: Payment Pending",
-            message: `Urgent: Payment pending for ${clientName}'s booking on ${eventDate}. Total: ${formattedAmount}`,
-            link: `/manage/bookings/${booking.id}`,
-            read: false,
-            bookingId: booking.id,
-            clientId: booking.clientId,
-          }));
+          // Check if booking is unpaid (status 5)
+          const isUnpaid3Days = booking.status === 5;
+
+          if (isUnpaid3Days) {
+            // Notify Managers and Owners about unpaid booking 3 days before event
+            notifications = managersAndOwners.map(employee => ({
+              userId: employee.id,
+              type: "PAYMENT",
+              title: "Urgent: Unpaid Booking",
+              message: `Urgent: Booking for ${clientName} on ${eventDate} is still UNPAID (3 days remaining). Total: ${formattedAmount}`,
+              link: `/manage/bookings/${booking.id}`,
+              read: false,
+              bookingId: booking.id,
+              clientId: booking.clientId,
+            }));
+          } else {
+            // Regular payment pending reminder
+            notifications = managersAndOwners.map(employee => ({
+              userId: employee.id,
+              type: "PAYMENT",
+              title: "Urgent: Payment Pending",
+              message: `Urgent: Payment pending for ${clientName}'s booking on ${eventDate}. Total: ${formattedAmount}`,
+              link: `/manage/bookings/${booking.id}`,
+              read: false,
+              bookingId: booking.id,
+              clientId: booking.clientId,
+            }));
+          }
           break;
 
         case "PAYMENT_REMINDER_1":
-          // Notify Managers and Owners
-          notifications = managersAndOwners.map(employee => ({
-            userId: employee.id,
-            type: "PAYMENT",
-            title: "Critical: Payment Pending",
-            message: `Critical: Payment overdue for ${clientName}'s booking tomorrow. Total: ${formattedAmount}`,
-            link: `/manage/bookings/${booking.id}`,
-            read: false,
-            bookingId: booking.id,
-            clientId: booking.clientId,
-          }));
+          // Check if booking is unpaid (status 5)
+          const isUnpaid1Day = booking.status === 5;
+
+          if (isUnpaid1Day) {
+            // Critical notification for unpaid booking 1 day before event
+            notifications = managersAndOwners.map(employee => ({
+              userId: employee.id,
+              type: "PAYMENT",
+              title: "Critical: Unpaid Booking Tomorrow",
+              message: `Critical: Booking for ${clientName} tomorrow (${eventDate}) is UNPAID. Total: ${formattedAmount}. Immediate action required!`,
+              link: `/manage/bookings/${booking.id}`,
+              read: false,
+              bookingId: booking.id,
+              clientId: booking.clientId,
+            }));
+          } else {
+            // Regular payment pending reminder
+            notifications = managersAndOwners.map(employee => ({
+              userId: employee.id,
+              type: "PAYMENT",
+              title: "Critical: Payment Pending",
+              message: `Critical: Payment overdue for ${clientName}'s booking tomorrow. Total: ${formattedAmount}`,
+              link: `/manage/bookings/${booking.id}`,
+              read: false,
+              bookingId: booking.id,
+              clientId: booking.clientId,
+            }));
+          }
           break;
 
         case "PAYMENT_OVERDUE":

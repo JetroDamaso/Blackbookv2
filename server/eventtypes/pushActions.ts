@@ -15,3 +15,15 @@ export async function createEventType(data: { name: string }) {
     throw new Error("Failed to create event type: " + error.message);
   }
 }
+
+export async function deleteEventType(id: number) {
+  try {
+    const data = await prisma.eventTypes.update({
+      where: { id },
+      data: { isDeleted: true },
+    });
+    return data;
+  } catch (error: any) {
+    throw new Error("Failed to delete event type: " + error.message);
+  }
+}

@@ -32,6 +32,18 @@ export async function createClient(
   }
 }
 
+export async function deleteClient(id: number) {
+  try {
+    const data = await prisma.client.update({
+      where: { id },
+      data: { isDeleted: true },
+    });
+    return data;
+  } catch (error) {
+    console.error("Failed to delete client:", error);
+    throw error;
+  }
+}
 export async function updateClient(
   clientId: number,
   firstName?: string,

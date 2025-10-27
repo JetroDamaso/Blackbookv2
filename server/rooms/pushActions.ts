@@ -84,3 +84,15 @@ export async function setBookingRooms(bookingId: number, roomIds: number[]) {
     throw new Error("Failed to set booking rooms: " + error.message);
   }
 }
+
+export async function deleteRoom(id: number) {
+  try {
+    const data = await prisma.rooms.update({
+      where: { id },
+      data: { isDeleted: true },
+    });
+    return data;
+  } catch (error: any) {
+    throw new Error("Failed to delete room: " + error.message);
+  }
+}

@@ -4,6 +4,9 @@ import { prisma } from "../db";
 export async function getAllPackages() {
   try {
     const data = await prisma.package.findMany({
+      where: {
+        isDeleted: { not: true },
+      },
       include: {
         pavilion: true,
         services: true,
@@ -37,7 +40,10 @@ export async function getPackagesById(id: number) {
 export async function getPackagesByPavilion(pavilionId: number) {
   try {
     const data = await prisma.package.findMany({
-      where: { pavilionId },
+      where: {
+        pavilionId,
+        isDeleted: { not: true },
+      },
       include: {
         pavilion: true,
         services: true,

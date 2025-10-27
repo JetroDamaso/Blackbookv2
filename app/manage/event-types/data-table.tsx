@@ -25,9 +25,20 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronFirstIcon, ChevronLastIcon, CirclePlus, SearchIcon, Trash } from "lucide-react";
+import {
+  ChevronFirstIcon,
+  ChevronLastIcon,
+  CirclePlus,
+  SearchIcon,
+  Trash,
+  Filter,
+} from "lucide-react";
 import React, { useState } from "react";
 import {
   InputGroup,
@@ -43,11 +54,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createEventType } from "@/server/eventtypes/pushActions";
+import { createEventType, deleteEventType } from "@/server/eventtypes/pushActions";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -64,6 +86,9 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const router = useRouter();
   const [formData, setFormData] = React.useState({
     name: "",
   });
@@ -112,6 +137,31 @@ export function DataTable<TData, TValue>({
     },
   });
 
+  const selectedRows = table.getFilteredSelectedRowModel().rows;
+  const hasSelection = selectedRows.length > 0;
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await Promise.all(
+        selectedRows.map(row => {
+          const eventType = row.original as { id: number };
+          return deleteEventType(eventType.id);
+        })
+      );
+
+      setRowSelection({});
+      setShowDeleteDialog(false);
+      router.refresh();
+      toast.success("Event types deleted successfully!");
+    } catch (error) {
+      console.error("Failed to delete event types:", error);
+      toast.error("Failed to delete event types");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col">
       <div className="flex gap-2 items-center mb-2">
@@ -150,8 +200,12 @@ export function DataTable<TData, TValue>({
           </InputGroupAddon>
         </InputGroup>
 
-        <Button variant={"outline"}>
-          <Trash /> Delete
+        <Button
+          variant={"outline"}
+          disabled={!hasSelection}
+          onClick={() => setShowDeleteDialog(true)}
+        >
+          <Trash /> Delete ({selectedRows.length})
         </Button>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -281,6 +335,25 @@ export function DataTable<TData, TValue>({
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete {selectedRows.length} event type{selectedRows.length > 1 ? "s" : ""}.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

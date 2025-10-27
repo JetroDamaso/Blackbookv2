@@ -58,7 +58,6 @@ export default function ManageDiscounts() {
           <p className="font-semibold text-lg flex items-center gap-2 grow">
             <Percent size={18} /> <span>Discounts</span>
           </p>
-          <Button variant={"outline"}>Edit Widgets</Button>
         </div>
       </header>
 

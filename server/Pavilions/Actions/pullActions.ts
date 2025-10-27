@@ -4,6 +4,9 @@ import { prisma } from "@/server/db";
 export async function getAllPavilions() {
   try {
     const data = await prisma.pavilion.findMany({
+      where: {
+        isDeleted: { not: true },
+      },
       orderBy: { maxPax: "desc" },
     });
     return data;
@@ -30,8 +33,10 @@ export async function getPavilionsById(id: number) {
 export async function getAllPavilionsPaginated(page: number = 1, pageSize: number = 10) {
   try {
     const skip = (page - 1) * pageSize;
-    const totalCount = await prisma.pavilion.count();
+    const where = { isDeleted: { not: true } };
+    const totalCount = await prisma.pavilion.count({ where });
     const data = await prisma.pavilion.findMany({
+      where,
       skip,
       take: pageSize,
       orderBy: { maxPax: "desc" },

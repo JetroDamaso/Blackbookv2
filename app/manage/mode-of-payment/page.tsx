@@ -56,7 +56,6 @@ export default function ManageModeOfPayment() {
           <p className="font-semibold text-lg flex items-center gap-2 grow">
             <CreditCard size={18} /> <span>Payment Methods</span>
           </p>
-          <Button variant={"outline"}>Edit Widgets</Button>
         </div>
       </header>
 

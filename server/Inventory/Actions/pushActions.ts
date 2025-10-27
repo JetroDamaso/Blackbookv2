@@ -129,13 +129,75 @@ export async function updateInventoryItem(
 
 export async function deleteInventoryItem(id: number) {
   try {
-    const data = await prisma.inventoryItem.delete({
+    // Soft delete: set isDeleted to true instead of hard deleting
+    const data = await prisma.inventoryItem.update({
       where: { id },
+      data: { isDeleted: true },
     });
 
     return data;
   } catch (error) {
     console.error("Failed to delete inventory item", error);
+    throw error;
+  }
+}
+
+// Inventory Category Management
+export async function createInventoryCategory(name: string) {
+  try {
+    if (!name) {
+      throw new Error("Category name is required");
+    }
+
+    const data = await prisma.inventoryCategory.create({
+      data: {
+        name,
+      },
+    });
+
+    return data;
+  } catch (error) {
+    console.error("Failed to create inventory category", error);
+    throw error;
+  }
+}
+
+export async function updateInventoryCategory(id: number, name: string) {
+  try {
+    if (!name) {
+      throw new Error("Category name is required");
+    }
+
+    const data = await prisma.inventoryCategory.update({
+      where: { id },
+      data: { name },
+    });
+
+    return data;
+  } catch (error) {
+    console.error("Failed to update inventory category", error);
+    throw error;
+  }
+}
+
+export async function deleteInventoryCategory(id: number) {
+  try {
+    // Check if category has items
+    const itemCount = await prisma.inventoryItem.count({
+      where: { categoryId: id },
+    });
+
+    if (itemCount > 0) {
+      throw new Error("Cannot delete category that has inventory items");
+    }
+
+    const data = await prisma.inventoryCategory.delete({
+      where: { id },
+    });
+
+    return data;
+  } catch (error) {
+    console.error("Failed to delete inventory category", error);
     throw error;
   }
 }

@@ -78,6 +78,17 @@ export default function ManageBookings() {
             </div>
           </div>
 
+          {/* Active Bookings */}
+          <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
+            <div className="flex flex-col">
+              <p className="text-md">Active Bookings</p>
+              <p className="text-4xl font-semibold">{stats?.activeBookings || 0}</p>
+              <p className="text-xs">
+                <span className="text-primary">Pending, Confirmed & In Progress</span>
+              </p>
+            </div>
+          </div>
+
           {/* Yearly Revenue */}
           <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
             <div className="flex flex-col">
@@ -141,18 +152,16 @@ export default function ManageBookings() {
       );
     }
 
-    // Manager and Front Desk widgets (to be implemented)
-    // For now, show default widgets
+    // Manager and Front Desk widgets - Show only Active Bookings
     return (
       <>
-        {/* Total Bookings */}
+        {/* Active Bookings */}
         <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
           <div className="flex flex-col">
-            <p className="text-md">Total Bookings</p>
-            <p className="text-4xl font-semibold">{stats?.totalBookings || 0}</p>
+            <p className="text-md">Active Bookings</p>
+            <p className="text-4xl font-semibold">{stats?.activeBookings || 0}</p>
             <p className="text-xs">
-              Average{" "}
-              <span className="text-primary">{stats?.averageBookingsPerMonth || 0}/month</span>
+              <span className="text-primary">Pending, Confirmed & In Progress</span>
             </p>
           </div>
         </div>
@@ -184,8 +193,6 @@ export default function ManageBookings() {
           <p className="font-semibold text-lg flex items-center gap-2 grow">
             <Book size={18} /> <span>Bookings</span>
           </p>
-
-          <Button variant={"outline"}>Edit Widgets</Button>
         </div>
       </header>
       <div className="bg-muted flex flex-wrap gap-2 px-4 pb-2 overflow-x-auto">

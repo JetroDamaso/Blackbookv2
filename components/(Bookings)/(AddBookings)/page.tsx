@@ -291,7 +291,7 @@ const AddBookingsPageClient = (props: {
 
   // Removed unused pavilion/hour pricing interim states (reintroduce if needed)
   const [selectedCatering, setSelectedCatering] = useState<string>("4");
-  
+
   // Rooms selection state
   const [selectedRoomIds, setSelectedRoomIds] = useState<number[]>([]);
 
@@ -3078,9 +3078,7 @@ const AddBookingsPageClient = (props: {
                     key={room.id}
                     onClick={() => {
                       setSelectedRoomIds(prev =>
-                        isSelected
-                          ? prev.filter(id => id !== room.id)
-                          : [...prev, room.id]
+                        isSelected ? prev.filter(id => id !== room.id) : [...prev, room.id]
                       );
                     }}
                     className={`

@@ -15,3 +15,15 @@ export async function createModeOfPayment(data: { name: string }) {
     throw new Error("Failed to create mode of payment: " + error.message);
   }
 }
+
+export async function deleteModeOfPayment(id: number) {
+  try {
+    const data = await prisma.modeOfPayment.update({
+      where: { id },
+      data: { isDeleted: true },
+    });
+    return data;
+  } catch (error: any) {
+    throw new Error("Failed to delete mode of payment: " + error.message);
+  }
+}

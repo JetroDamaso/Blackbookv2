@@ -84,7 +84,6 @@ export default function ManageEmployees() {
           <p className="font-semibold text-lg flex items-center gap-2 grow">
             <UserCheck size={18} /> <span>Employees</span>
           </p>
-          <Button variant={"outline"}>Edit Widgets</Button>
         </div>
       </header>
 

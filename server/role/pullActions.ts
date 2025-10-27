@@ -4,6 +4,9 @@ import { prisma } from "../db";
 export async function getAllRoles() {
   try {
     const data = await prisma.role.findMany({
+      where: {
+        isDeleted: { not: true },
+      },
       include: {
         employees: {
           select: {

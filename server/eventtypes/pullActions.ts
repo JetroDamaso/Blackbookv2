@@ -4,6 +4,9 @@ import { prisma } from "../db";
 export async function getAllEventTypes() {
   try {
     const data = await prisma.eventTypes.findMany({
+      where: {
+        isDeleted: { not: true },
+      },
       include: {
         bookings: {
           select: {

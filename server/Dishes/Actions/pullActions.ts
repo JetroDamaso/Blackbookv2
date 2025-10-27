@@ -5,6 +5,9 @@ import "server-only";
 export async function getAllDishes() {
   try {
     const data = await prisma.dish.findMany({
+      where: {
+        isDeleted: { not: true }, // Only fetch non-deleted dishes
+      },
       include: { category: true },
     });
     return data;
@@ -19,6 +22,7 @@ export async function getDishesByCategory(categoryId: number) {
     const data = await prisma.dish.findMany({
       where: {
         categoryId: categoryId,
+        isDeleted: { not: true }, // Only fetch non-deleted dishes
       },
       include: { category: true },
     });

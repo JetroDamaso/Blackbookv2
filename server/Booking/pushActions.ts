@@ -288,3 +288,64 @@ export async function updateAllBookingStatuses() {
     throw error;
   }
 }
+
+/**
+ * Archives bookings by setting their status to archived (status 5)
+ * @param bookingIds - Array of booking IDs to archive
+ * @returns Object with success status and count of archived bookings
+ */
+export async function archiveBookings(bookingIds: number[]) {
+  try {
+    const result = await prisma.booking.updateMany({
+      where: {
+        id: { in: bookingIds },
+      },
+      data: {
+        status: 5, // Archived status
+      },
+    });
+    return { success: true, count: result.count };
+  } catch (error) {
+    console.error("Failed to archive bookings", error);
+    throw error;
+  }
+}
+
+/**
+ * Archives a single booking by setting its status to archived (status 5)
+ * @param id - ID of the booking to archive
+ * @returns The archived booking
+ */
+export async function archiveBooking(id: number) {
+  try {
+    const data = await prisma.booking.update({
+      where: { id },
+      data: { status: 5 }, // Archived status
+    });
+    return data;
+  } catch (error) {
+    console.error("Failed to archive booking", error);
+    throw error;
+  }
+}
+
+/**
+ * Changes the status of multiple bookings
+ * @param bookingIds - Array of booking IDs to update
+ * @param newStatus - The new status to set (1-8)
+ * @returns Updated bookings count
+ */
+export async function changeBookingsStatus(bookingIds: number[], newStatus: number) {
+  try {
+    const result = await prisma.booking.updateMany({
+      where: {
+        id: { in: bookingIds },
+      },
+      data: { status: newStatus },
+    });
+    return result;
+  } catch (error) {
+    console.error("Failed to change bookings status", error);
+    throw error;
+  }
+}

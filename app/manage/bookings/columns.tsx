@@ -103,15 +103,25 @@ export const columns: ColumnDef<BookingWithRelations>[] = [
     },
     cell: ({ row }) => {
       const status = row.original.status || 0;
-      const statusText =
-        status === 1
-          ? "Active"
-          : status === 2
-            ? "Completed"
-            : status === 3
-              ? "Cancelled"
-              : "Pending";
-      return <Badge variant={status === 1 ? "default" : "secondary"}>{statusText}</Badge>;
+
+      // Status mapping: 1=Pending, 2=Confirmed, 3=In Progress, 4=Completed, 5=Unpaid, 6=Canceled, 7=Archived, 8=Draft
+      const statusConfig: Record<
+        number,
+        { text: string; variant: "default" | "secondary" | "destructive" | "outline" }
+      > = {
+        1: { text: "Pending", variant: "outline" },
+        2: { text: "Confirmed", variant: "default" },
+        3: { text: "In Progress", variant: "default" },
+        4: { text: "Completed", variant: "secondary" },
+        5: { text: "Unpaid", variant: "destructive" },
+        6: { text: "Canceled", variant: "destructive" },
+        7: { text: "Archived", variant: "secondary" },
+        8: { text: "Draft", variant: "outline" },
+      };
+
+      const config = statusConfig[status] || { text: "Unknown", variant: "outline" };
+
+      return <Badge variant={config.variant}>{config.text}</Badge>;
     },
   },
   {

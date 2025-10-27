@@ -6,6 +6,7 @@ export async function getAllDiscounts() {
     const data = await prisma.discount.findMany({
       where: {
         isActive: true,
+        isDeleted: { not: true }, // Only fetch non-deleted discounts
       },
       orderBy: {
         name: "asc",

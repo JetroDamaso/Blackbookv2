@@ -8,6 +8,10 @@ declare module "next-auth" {
     email: string;
     role: string;
     employeeId: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    employeeNumber?: string;
   }
 
   interface Session {
@@ -17,6 +21,10 @@ declare module "next-auth" {
       email: string;
       role: string;
       employeeId: string;
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+      employeeNumber?: string;
     };
   }
 }

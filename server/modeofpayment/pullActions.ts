@@ -4,6 +4,9 @@ import { prisma } from "../db";
 export async function getAllModeOfPayments() {
   try {
     const data = await prisma.modeOfPayment.findMany({
+      where: {
+        isDeleted: { not: true },
+      },
       orderBy: {
         name: "asc",
       },

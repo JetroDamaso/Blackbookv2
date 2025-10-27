@@ -117,7 +117,6 @@ export default function ManagePackages() {
           <p className="font-semibold text-lg flex items-center gap-2 grow">
             <Package size={18} /> <span>Packages</span>
           </p>
-          <Button variant={"outline"}>Edit Widgets</Button>
         </div>
       </header>
 

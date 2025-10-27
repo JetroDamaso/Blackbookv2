@@ -166,7 +166,6 @@ export default function ManageClients() {
           <p className="font-semibold text-lg flex items-center gap-2 grow">
             <Users size={18} /> <span>Clients</span>
           </p>
-          <Button variant={"outline"}>Edit Widgets</Button>
         </div>
       </header>
 

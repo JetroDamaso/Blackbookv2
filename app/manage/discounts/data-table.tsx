@@ -25,9 +25,20 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronFirstIcon, ChevronLastIcon, CirclePlus, SearchIcon, Trash } from "lucide-react";
+import {
+  ChevronFirstIcon,
+  ChevronLastIcon,
+  CirclePlus,
+  SearchIcon,
+  Trash,
+  Filter,
+} from "lucide-react";
 import React from "react";
 import {
   InputGroup,
@@ -43,11 +54,29 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createDiscount } from "@/server/discount/pushActions";
+import { createDiscount, deleteDiscount } from "@/server/discount/pushActions";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -64,9 +93,13 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const router = useRouter();
   const [formData, setFormData] = React.useState({
     name: "",
-    percent: "",
+    type: "percentage", // "percentage" or "amount"
+    value: "",
   });
 
   const queryClient = useQueryClient();
@@ -77,7 +110,7 @@ export function DataTable<TData, TValue>({
       queryClient.invalidateQueries({ queryKey: ["allDiscounts"] });
       toast.success("Discount created successfully!");
       setIsDialogOpen(false);
-      setFormData({ name: "", percent: "" });
+      setFormData({ name: "", type: "percentage", value: "" });
     },
     onError: error => {
       toast.error("Failed to create discount: " + error.message);
@@ -86,14 +119,22 @@ export function DataTable<TData, TValue>({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.percent) {
+    if (!formData.name || !formData.value) {
       toast.error("Please fill in all fields");
       return;
     }
-    createDiscountMutation.mutate({
+
+    const discountData: any = {
       name: formData.name,
-      percent: parseFloat(formData.percent),
-    });
+    };
+
+    if (formData.type === "percentage") {
+      discountData.percent = parseFloat(formData.value);
+    } else {
+      discountData.amount = parseFloat(formData.value);
+    }
+
+    createDiscountMutation.mutate(discountData);
   };
 
   const table = useReactTable({
@@ -111,6 +152,31 @@ export function DataTable<TData, TValue>({
       rowSelection,
     },
   });
+
+  const selectedRows = table.getFilteredSelectedRowModel().rows;
+  const hasSelection = selectedRows.length > 0;
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await Promise.all(
+        selectedRows.map(row => {
+          const discount = row.original as { id: number };
+          return deleteDiscount(discount.id);
+        })
+      );
+
+      setRowSelection({});
+      setShowDeleteDialog(false);
+      router.refresh();
+      toast.success("Discounts deleted successfully!");
+    } catch (error) {
+      console.error("Failed to delete discounts:", error);
+      toast.error("Failed to delete discounts");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="flex flex-col">
@@ -150,8 +216,12 @@ export function DataTable<TData, TValue>({
           </InputGroupAddon>
         </InputGroup>
 
-        <Button variant={"outline"}>
-          <Trash /> Delete
+        <Button
+          variant={"outline"}
+          disabled={!hasSelection}
+          onClick={() => setShowDeleteDialog(true)}
+        >
+          <Trash /> Delete ({selectedRows.length})
         </Button>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -185,21 +255,44 @@ export function DataTable<TData, TValue>({
                   </div>
 
                   <div className="grid items-center gap-3">
-                    <Label htmlFor="percent" className="font-normal">
-                      Percentage
+                    <Label htmlFor="type" className="font-normal">
+                      Discount Type
+                    </Label>
+                    <Select
+                      value={formData.type}
+                      onValueChange={value =>
+                        setFormData(prev => ({
+                          ...prev,
+                          type: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id="type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="percentage">Percentage (%)</SelectItem>
+                        <SelectItem value="amount">Fixed Amount (₱)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid items-center gap-3">
+                    <Label htmlFor="value" className="font-normal">
+                      {formData.type === "percentage" ? "Percentage" : "Amount"}
                     </Label>
                     <Input
                       type="number"
-                      id="percent"
-                      placeholder="20"
+                      id="value"
+                      placeholder={formData.type === "percentage" ? "20" : "500"}
                       step="0.01"
-                      max="100"
+                      max={formData.type === "percentage" ? "100" : undefined}
                       min="0"
-                      value={formData.percent}
+                      value={formData.value}
                       onChange={e =>
                         setFormData(prev => ({
                           ...prev,
-                          percent: e.target.value,
+                          value: e.target.value,
                         }))
                       }
                       required
@@ -310,6 +403,25 @@ export function DataTable<TData, TValue>({
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete {selectedRows.length} discount{selectedRows.length > 1 ? "s" : ""}.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

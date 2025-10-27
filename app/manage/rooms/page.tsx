@@ -41,7 +41,6 @@ export default function ManageRooms() {
           <p className="font-semibold text-lg flex items-center gap-2 grow">
             <Hotel size={18} /> <span>Rooms</span>
           </p>
-          <Button variant={"outline"}>Edit Widgets</Button>
         </div>
       </header>
 
@@ -67,16 +66,6 @@ export default function ManageRooms() {
             <p className="text-md">Average Capacity</p>
             <p className="text-4xl font-semibold">{averageCapacity}</p>
             <p className="text-xs">Per room</p>
-          </div>
-        </div>
-
-        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
-          <div className="flex flex-col">
-            <p className="text-md flex items-center gap-1">
-              <Calendar size={16} /> Availability
-            </p>
-            <p className="text-2xl font-semibold text-green-600">Available</p>
-            <p className="text-xs">Ready for booking</p>
           </div>
         </div>
       </div>

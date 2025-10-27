@@ -56,17 +56,11 @@ export async function updateDish(
 
 export async function deleteDish(dishId: number) {
   try {
-    // First check if dish is being used in any menus
-    const menuDishCount = await prisma.menuDish.count({
-      where: { dishId },
-    });
-
-    if (menuDishCount > 0) {
-      throw new Error("Cannot delete dish that is being used in existing menus");
-    }
-
-    const dish = await prisma.dish.delete({
+    // Soft delete: set isDeleted to true instead of hard deleting
+    // The dish will still be available in existing menus, but won't show in the dish list
+    const dish = await prisma.dish.update({
       where: { id: dishId },
+      data: { isDeleted: true },
     });
     return dish;
   } catch (error) {

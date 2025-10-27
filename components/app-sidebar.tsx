@@ -39,8 +39,8 @@ import {
   Users,
   Wallet,
   Wine,
-  Receipt,
   Bell,
+  UtensilsCrossed,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { hasPermission, type Role } from "@/lib/permissions";
@@ -102,6 +102,11 @@ const data = {
           url: "/manage/inventory",
           icon: Wine,
         },
+        {
+          title: "Dishes",
+          url: "/manage/dishes",
+          icon: UtensilsCrossed,
+        },
       ],
     },
     {
@@ -129,20 +134,9 @@ const data = {
       icon: Wallet,
       items: [
         {
-          title: "Additional Charges",
-          url: "/manage/additional-charges",
-          icon: DollarSign,
-        },
-        {
           title: "Discounts",
           url: "/manage/discounts",
           icon: Percent,
-        },
-        {
-          title: "Discount Requests",
-          url: "/discount-requests",
-          icon: Receipt,
-          permission: "discounts:request",
         },
         {
           title: "Payment Methods",
@@ -184,7 +178,103 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Filter navigation based on user role and permissions
   const getFilteredNavigation = () => {
     const userRole = session.user.role as Role;
+    const normalizedRole = userRole?.toUpperCase().replace(/\s+/g, "_") as Role;
 
+    // For Front Desk, show only specific sections
+    if (normalizedRole === "FRONT_DESK") {
+      return [
+        {
+          title: "Daily Operations",
+          url: "#",
+          icon: LayoutDashboard,
+          items: [
+            {
+              title: "Home",
+              url: "/event_calendar",
+              icon: Calendar,
+            },
+            {
+              title: "Bookings",
+              url: "/manage",
+              icon: Book,
+            },
+            {
+              title: "Clients",
+              url: "/manage/clients",
+              icon: Users,
+            },
+            {
+              title: "Event Types",
+              url: "/manage/event-types",
+              icon: Cake,
+            },
+          ],
+        },
+        {
+          title: "Facilities & Resources",
+          url: "#",
+          icon: Building2,
+          items: [
+            {
+              title: "Pavilion",
+              url: "/manage/pavilion",
+              icon: Castle,
+            },
+            {
+              title: "Packages",
+              url: "/manage/packages",
+              icon: Package,
+            },
+            {
+              title: "Rooms",
+              url: "/manage/rooms",
+              icon: Hotel,
+            },
+            {
+              title: "Inventory",
+              url: "/manage/inventory",
+              icon: Wine,
+            },
+            {
+              title: "Dishes",
+              url: "/manage/dishes",
+              icon: UtensilsCrossed,
+            },
+          ],
+        },
+        {
+          title: "Finance & Payments",
+          url: "#",
+          icon: Wallet,
+          items: [
+            {
+              title: "Additional Charges",
+              url: "/manage/additional-charges",
+              icon: DollarSign,
+            },
+            {
+              title: "Payment Methods",
+              url: "/manage/mode-of-payment",
+              icon: CreditCard,
+            },
+          ],
+        },
+        {
+          title: "Settings",
+          url: "#",
+          icon: Settings2,
+          items: [
+            {
+              title: "Settings",
+              url: "/settings",
+              icon: Settings2,
+            },
+          ],
+        },
+      ];
+    }
+
+    // For other roles (Owner, Manager), use the default navigation with permission filtering
     return data.navMain
       .map(section => ({
         ...section,

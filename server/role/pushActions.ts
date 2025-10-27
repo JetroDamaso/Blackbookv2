@@ -15,3 +15,15 @@ export async function createRole(data: { name: string }) {
     throw new Error("Failed to create role: " + error.message);
   }
 }
+
+export async function deleteRole(id: number) {
+  try {
+    const data = await prisma.role.update({
+      where: { id },
+      data: { isDeleted: true },
+    });
+    return data;
+  } catch (error: any) {
+    throw new Error("Failed to delete role: " + error.message);
+  }
+}

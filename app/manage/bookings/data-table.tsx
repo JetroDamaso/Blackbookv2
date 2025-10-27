@@ -26,6 +26,10 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   InputGroup,
@@ -33,8 +37,36 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import { ChevronFirstIcon, ChevronLastIcon, CirclePlus, SearchIcon, Trash } from "lucide-react";
+import {
+  ChevronFirstIcon,
+  ChevronLastIcon,
+  CirclePlus,
+  SearchIcon,
+  Archive,
+  Filter,
+} from "lucide-react";
 import React from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { changeBookingsStatus } from "@/server/Booking/pushActions";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -58,11 +90,25 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelection, setRowSelection] = React.useState({});
-
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [showStatusDialog, setShowStatusDialog] = React.useState(false);
+  const [isChangingStatus, setIsChangingStatus] = React.useState(false);
+  const [selectedStatus, setSelectedStatus] = React.useState<string>("1");
+  const [statusFilter, setStatusFilter] = React.useState<string>("all");
+  const router = useRouter();
+
+  // Filter data based on status
+  const filteredData = React.useMemo(() => {
+    if (statusFilter === "all") {
+      return data;
+    }
+    return data.filter((row: any) => {
+      return row.status === parseInt(statusFilter);
+    });
+  }, [data, statusFilter]);
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -85,9 +131,58 @@ export function DataTable<TData, TValue>({
     },
   });
 
+  const selectedRows = table.getFilteredSelectedRowModel().rows;
+  const hasSelection = selectedRows.length > 0;
+
+  const handleStatusChange = async () => {
+    setIsChangingStatus(true);
+    try {
+      const bookingIds = selectedRows.map(row => {
+        const booking = row.original as { id: number };
+        return booking.id;
+      });
+
+      await changeBookingsStatus(bookingIds, parseInt(selectedStatus));
+
+      setRowSelection({});
+      setShowStatusDialog(false);
+      router.refresh();
+      toast.success(`Booking status changed successfully!`);
+    } catch (error) {
+      console.error("Failed to change booking status:", error);
+      toast.error("Failed to change booking status");
+    } finally {
+      setIsChangingStatus(false);
+    }
+  };
+
   return (
     <div className="flex flex-col">
       <div className="flex gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="ml-auto">
+              <Filter className="mr-2 h-4 w-4" />
+              Status Filter
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[200px]">
+            <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
+              <DropdownMenuRadioItem value="all">All Statuses</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="1">Pending</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="2">Confirmed</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="3">In Progress</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="4">Completed</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="5">Unpaid</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="6">Canceled</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="7">Archived</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="8">Draft</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">
@@ -123,8 +218,12 @@ export function DataTable<TData, TValue>({
           </InputGroupAddon>
         </InputGroup>
 
-        <Button variant={"outline"}>
-          <Trash /> Delete
+        <Button
+          variant={"outline"}
+          disabled={!hasSelection}
+          onClick={() => setShowStatusDialog(true)}
+        >
+          <Archive /> Change Status ({selectedRows.length})
         </Button>
 
         <a href="/event_calendar">
@@ -276,6 +375,42 @@ export function DataTable<TData, TValue>({
           </div>
         </div>
       </div>
+
+      {/* Change Status Confirmation Dialog */}
+      <AlertDialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change Booking Status</AlertDialogTitle>
+            <AlertDialogDescription>
+              Change status for {selectedRows.length} selected booking(s).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-4">
+            <Label htmlFor="status-select">Select New Status</Label>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger id="status-select">
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Pending</SelectItem>
+                <SelectItem value="2">Confirmed</SelectItem>
+                <SelectItem value="3">In Progress</SelectItem>
+                <SelectItem value="4">Completed</SelectItem>
+                <SelectItem value="5">Unpaid</SelectItem>
+                <SelectItem value="6">Canceled</SelectItem>
+                <SelectItem value="7">Archived</SelectItem>
+                <SelectItem value="8">Draft</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isChangingStatus}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleStatusChange} disabled={isChangingStatus}>
+              {isChangingStatus ? "Changing..." : "Change Status"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

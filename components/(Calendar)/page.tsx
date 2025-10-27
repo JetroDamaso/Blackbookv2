@@ -3,6 +3,7 @@ import type { Booking } from "@/generated/prisma";
 import { getAllPavilions } from "@/server/Pavilions/Actions/pullActions";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ContinuousCalendar } from "../ContinuousCalendar";
 import { ScrollArea } from "../ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -12,6 +13,7 @@ import NoPavilionSelectedAlert from "./NoPavilionSelectedAlert";
 
 const CalendarClient = (props: { getAllBookings: Booking[] }) => {
   const { getAllBookings } = props;
+  const router = useRouter();
   const [bookingId, setBookingId] = React.useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState(false);
 

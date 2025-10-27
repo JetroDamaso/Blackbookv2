@@ -41,3 +41,21 @@ export async function createPavilion(
     return { success: false, error: error?.message || "Failed to create pavilion" };
   }
 }
+
+/**
+ * Soft deletes a pavilion by setting isDeleted to true.
+ * @param id - The ID of the pavilion to delete.
+ * @returns An object with success status and the deleted pavilion or error message.
+ */
+export async function deletePavilion(id: number) {
+  try {
+    const pavilion = await prisma.pavilion.update({
+      where: { id },
+      data: { isDeleted: true },
+    });
+    return { success: true, data: pavilion };
+  } catch (error: any) {
+    console.error("Failed to delete pavilion", error);
+    return { success: false, error: error?.message || "Failed to delete pavilion" };
+  }
+}

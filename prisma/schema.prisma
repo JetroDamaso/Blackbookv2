@@ -19,6 +19,7 @@ model Client {
     phoneNumber      String
     email            String            @unique
     dateCreated      DateTime          @default(now())
+    isDeleted        Boolean?          @default(false)
     bookings         Booking[]
     payments         Payment[]
     scannedDocuments ScannedDocument[]
@@ -28,6 +29,7 @@ model Client {
 model Role {
     id        Int        @id @default(autoincrement())
     name      String
+    isDeleted Boolean?   @default(false)
     employees Employee[]
 }
 
@@ -39,6 +41,7 @@ model Employee {
     roleId            Int?
     dateOfEmployment  DateTime
     isActive          Boolean           @default(true)
+    isDeleted         Boolean?          @default(false)
     lastLogin         DateTime?
     role              Role?             @relation(fields: [roleId], references: [id], onDelete: SetNull)
     historyLogs       HistoryLog[]
@@ -57,6 +60,7 @@ model Pavilion {
     color             String?
     bookings          Booking[]
     isActive          Boolean           @default(true)
+    isDeleted         Boolean?          @default(false)
     inventoryStatuses InventoryStatus[]
     Package           Package[]
 }
@@ -73,6 +77,7 @@ model InventoryItem {
     categoryId        Int?
     quantity          Int
     out               Int                @default(0)
+    isDeleted         Boolean?           @default(false)
     category          InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
     inventoryStatuses InventoryStatus[]
 }
@@ -123,15 +128,17 @@ model Package {
     price       Float
     description String
     includePool Boolean        @default(false)
+    isDeleted   Boolean?       @default(false)
     Booking     Booking[]
     pavilion    Pavilion?      @relation(fields: [pavilionId], references: [id], onDelete: SetNull)
     services    OtherService[] @relation("OtherServiceToPackage")
 }
 
 model EventTypes {
-    id       Int       @id @default(autoincrement())
-    name     String    @unique
-    bookings Booking[]
+    id        Int       @id @default(autoincrement())
+    name      String    @unique
+    isDeleted Boolean?  @default(false)
+    bookings  Booking[]
 }
 
 model Menu {
@@ -153,6 +160,7 @@ model Dish {
     categoryId  Int?
     allergens   String?
     description String?
+    isDeleted   Boolean?      @default(false)
     category    DishCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
     menuDishes  MenuDish[]
 }
@@ -205,10 +213,11 @@ model Services {
 }
 
 model Rooms {
-    id       Int       @id @default(autoincrement())
-    name     String    @unique
-    capacity Int
-    Booking  Booking[] @relation("BookingToRooms")
+    id        Int       @id @default(autoincrement())
+    name      String    @unique
+    capacity  Int
+    isDeleted Boolean?  @default(false)
+    Booking   Booking[] @relation("BookingToRooms")
 }
 
 model InventoryStatus {
@@ -254,8 +263,9 @@ model HistoryLog {
 }
 
 model ModeOfPayment {
-    id   Int    @id @default(autoincrement())
-    name String @unique
+    id        Int      @id @default(autoincrement())
+    name      String   @unique
+    isDeleted Boolean? @default(false)
 }
 
 model Payment {
@@ -294,11 +304,12 @@ model ScannedDocument {
 }
 
 model Discount {
-    id          Int     @id @default(autoincrement())
+    id          Int      @id @default(autoincrement())
     name        String
     percent     Float?
     amount      Float?
-    isActive    Boolean @default(true)
+    isActive    Boolean  @default(true)
+    isDeleted   Boolean? @default(false)
     description String?
 }
 

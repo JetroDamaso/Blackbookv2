@@ -4,6 +4,9 @@ import { prisma } from "../db";
 export async function getAllRooms() {
   try {
     const data = await prisma.rooms.findMany({
+      where: {
+        isDeleted: { not: true },
+      },
       include: {
         Booking: {
           select: {

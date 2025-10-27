@@ -27,6 +27,10 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import {
@@ -36,12 +40,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronFirstIcon, ChevronLastIcon, SearchIcon, Trash } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ChevronFirstIcon, ChevronLastIcon, SearchIcon, Trash, Filter } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { getAllPavilions } from "@/server/Pavilions/Actions/pullActions";
 import { useQuery } from "@tanstack/react-query";
 import { getAllPackages } from "@/server/Packages/pullActions";
+import { deletePackage } from "@/server/Packages/pushActions";
 import AddPackageDialog from "@/components/(Packages)/AddPackageDialog";
+import { useRouter } from "next/navigation";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -49,7 +65,6 @@ interface DataTableProps<TData, TValue> {
   onRowClick?: (clientId: number) => void;
   selectedPavilion?: string;
 }
-
 
 export function DataTable<TData, TValue>({
   columns,
@@ -63,6 +78,10 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = React.useState<string>("");
   const [pavilionFilter, setPavilionFilter] = useState<string>(selectedPavilion);
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [deletedFilter, setDeletedFilter] = React.useState<string>("active");
+  const router = useRouter();
 
   const { data: pavilionsData } = useQuery({
     queryKey: ["allPavilions"],
@@ -80,11 +99,23 @@ export function DataTable<TData, TValue>({
   }, [selectedPavilion]);
 
   const filteredPackages = useMemo(() => {
-    if (pavilionFilter === "all") {
-      return packagesData || [];
+    let filtered = packagesData || [];
+
+    // Filter by pavilion
+    if (pavilionFilter !== "all") {
+      filtered = filtered.filter(pkg => pkg.pavilionId === parseInt(pavilionFilter));
     }
-    return packagesData?.filter(pkg => pkg.pavilionId === parseInt(pavilionFilter)) || [];
-  }, [packagesData, pavilionFilter]);
+
+    // Filter by deleted status
+    if (deletedFilter !== "all") {
+      filtered = filtered.filter((pkg: any) => {
+        const isDeleted = pkg.isDeleted === true;
+        return deletedFilter === "deleted" ? isDeleted : !isDeleted;
+      });
+    }
+
+    return filtered;
+  }, [packagesData, pavilionFilter, deletedFilter]);
 
   const table = useReactTable({
     data: filteredPackages as TData[],
@@ -108,11 +139,51 @@ export function DataTable<TData, TValue>({
     },
   });
 
+  const selectedRows = table.getFilteredSelectedRowModel().rows;
+  const hasSelection = selectedRows.length > 0;
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await Promise.all(
+        selectedRows.map(row => {
+          const pkg = row.original as { id: number };
+          return deletePackage(pkg.id);
+        })
+      );
+
+      setRowSelection({});
+      setShowDeleteDialog(false);
+      router.refresh();
+    } catch (error) {
+      console.error("Failed to delete packages:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="flex flex-col">
       {/* Main controls row */}
       <div className="flex gap-2 items-center mb-4">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="ml-auto">
+              <Filter className="mr-2 h-4 w-4" />
+              Filter
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[180px]">
+            <DropdownMenuLabel>Show Items</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup value={deletedFilter} onValueChange={setDeletedFilter}>
+              <DropdownMenuRadioItem value="active">Active</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="deleted">Deleted</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">
@@ -174,8 +245,12 @@ export function DataTable<TData, TValue>({
           Clear Filters
         </Button>
 
-        <Button variant={"outline"}>
-          <Trash /> Delete
+        <Button
+          variant={"outline"}
+          disabled={!hasSelection}
+          onClick={() => setShowDeleteDialog(true)}
+        >
+          <Trash /> Delete ({selectedRows.length})
         </Button>
 
         <AddPackageDialog />
@@ -288,6 +363,25 @@ export function DataTable<TData, TValue>({
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete {selectedRows.length} package{selectedRows.length > 1 ? "s" : ""}.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

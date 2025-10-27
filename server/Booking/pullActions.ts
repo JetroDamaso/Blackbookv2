@@ -25,6 +25,9 @@ export async function getAllEventTypes() {
 export async function getAllBookings() {
   try {
     const data = await prisma.booking.findMany({
+      where: {
+        status: { not: 5 }, // Exclude archived bookings (status 5)
+      },
       include: {
         client: true,
         pavilion: true,
@@ -41,12 +44,14 @@ export async function getAllBookings() {
 export async function getAllBookingsPaginated(page: number = 1, pageSize: number = 10) {
   try {
     const skip = (page - 1) * pageSize;
+    const where = { status: { not: 5 } }; // Exclude archived bookings
 
     // Get total count for pagination info
-    const totalCount = await prisma.booking.count();
+    const totalCount = await prisma.booking.count({ where });
 
     // Get paginated data
     const data = await prisma.booking.findMany({
+      where,
       skip,
       take: pageSize,
       include: {
@@ -100,55 +105,71 @@ export async function getBookingStatistics() {
   try {
     const currentYear = new Date().getFullYear();
     const currentYearStart = new Date(currentYear, 0, 1);
+    const where = { status: { not: 5 } }; // Exclude archived bookings
 
     // Use aggregation and parallel queries for better performance
-    const [totalBookings, yearlyBookings, oldestBooking, allBookingsForStats] = await Promise.all([
-      // Total count - very fast
-      prisma.booking.count(),
+    const [totalBookings, yearlyBookings, oldestBooking, allBookingsForStats, activeBookings] =
+      await Promise.all([
+        // Total count - very fast
+        prisma.booking.count({ where }),
 
-      // Yearly bookings with billing - filtered at DB level
-      prisma.booking.findMany({
-        where: {
-          startAt: {
-            gte: currentYearStart,
-          },
-        },
-        select: {
-          billing: {
-            select: {
-              discountedPrice: true,
+        // Yearly bookings with billing - filtered at DB level
+        prisma.booking.findMany({
+          where: {
+            status: { not: 5 }, // Exclude archived
+            startAt: {
+              gte: currentYearStart,
             },
           },
-        },
-      }),
-
-      // Oldest booking - only get what we need
-      prisma.booking.findFirst({
-        where: {
-          startAt: {
-            not: null,
-          },
-        },
-        select: {
-          startAt: true,
-        },
-        orderBy: {
-          startAt: "asc",
-        },
-      }),
-
-      // Get bookings with event types - only necessary fields
-      prisma.booking.findMany({
-        select: {
-          eventType: true,
-          category: {
-            select: {
-              name: true,
+          select: {
+            billing: {
+              select: {
+                discountedPrice: true,
+              },
             },
           },
-        },
-      }),
-    ]);
+        }),
+
+        // Oldest booking - only get what we need
+        prisma.booking.findFirst({
+          where: {
+            status: { not: 5 }, // Exclude archived
+            startAt: {
+              not: null,
+            },
+          },
+          select: {
+            startAt: true,
+          },
+          orderBy: {
+            startAt: "asc",
+          },
+        }),
+
+        // Get bookings with event types - only necessary fields
+        prisma.booking.findMany({
+          where: {
+            status: { not: 5 }, // Exclude archived
+          },
+          select: {
+            eventType: true,
+            category: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        }),
+
+        // Active bookings count (Pending, Confirmed, In Progress)
+        prisma.booking.count({
+          where: {
+            status: {
+              in: [1, 2, 3], // 1=Pending, 2=Confirmed, 3=In Progress
+            },
+          },
+        }),
+      ]);
 
     // Calculate yearly revenue
     const yearlyRevenue = yearlyBookings.reduce((sum, booking) => {
@@ -187,6 +208,7 @@ export async function getBookingStatistics() {
 
     return {
       totalBookings,
+      activeBookings,
       yearlyRevenue,
       monthlyRevenueAverage: monthlyAverage,
       averageBookingsPerMonth: Math.round(averageBookingsPerMonth),

@@ -4,6 +4,9 @@ import { prisma } from "@/server/db";
 export async function getAllInventory() {
   try {
     const data = await prisma.inventoryItem.findMany({
+      where: {
+        isDeleted: { not: true }, // Only fetch non-deleted items
+      },
       include: { category: true },
     });
     return data;
@@ -18,6 +21,7 @@ export async function getInventoryByCategory(categoryId: number) {
     const data = await prisma.inventoryItem.findMany({
       where: {
         categoryId: categoryId,
+        isDeleted: { not: true }, // Only fetch non-deleted items
       },
       include: { category: true },
     });

@@ -1,21 +1,42 @@
 "use client";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
 import { getAllInventory } from "@/server/Inventory/Actions/pullActions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Wine, AlertTriangle, Package } from "lucide-react";
+import { Wine, AlertTriangle, Package, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AddInventoryDialog } from "./add-inventory-dialog";
+import { ManageCategoriesDialog } from "./manage-categories-dialog";
 
 export default function ManageInventory() {
-  const { isPending, error, data } = useQuery({
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isCategoriesDialogOpen, setIsCategoriesDialogOpen] = useState(false);
+  const [selectedInventoryId, setSelectedInventoryId] = useState<number | null>(null);
+
+  const { isPending, error, data, refetch } = useQuery({
     queryKey: ["allInventory"],
     queryFn: () => getAllInventory(),
   });
 
   const handleRowClick = (inventoryId: number) => {
-    console.log("Clicked inventory item:", inventoryId);
-    // TODO: Add inventory item dialog or detail view
+    setSelectedInventoryId(inventoryId);
+    setIsAddDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsAddDialogOpen(false);
+    setSelectedInventoryId(null);
+  };
+
+  const handleSuccess = () => {
+    refetch();
+    handleCloseDialog();
+  };
+
+  const handleCategoriesSuccess = () => {
+    refetch();
   };
 
   if (isPending) {
@@ -36,8 +57,6 @@ export default function ManageInventory() {
 
   // Calculate inventory stats
   const totalItems = data?.length || 0;
-  const lowStockItems = data?.filter(item => item.quantity < 10).length || 0;
-  const totalQuantity = data?.reduce((sum, item) => sum + item.quantity, 0) || 0;
 
   return (
     <>
@@ -47,7 +66,6 @@ export default function ManageInventory() {
           <p className="font-semibold text-lg flex items-center gap-2 grow">
             <Wine size={18} /> <span>Inventory</span>
           </p>
-          <Button variant={"outline"}>Edit Widgets</Button>
         </div>
       </header>
 
@@ -62,30 +80,37 @@ export default function ManageInventory() {
           </div>
         </div>
 
-        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
-          <div className="flex flex-col">
-            <p className="text-md">Low Stock Alert</p>
-            <p className="text-4xl font-semibold text-orange-500">{lowStockItems}</p>
-            <p className="text-xs">
-              Items <span className="text-orange-500">below 10</span>
-            </p>
-          </div>
-        </div>
-
-        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
-          <div className="flex flex-col">
-            <p className="text-md">Total Quantity</p>
-            <p className="text-4xl font-semibold">{totalQuantity}</p>
-            <p className="text-xs">
-              Items <span className="text-primary">in stock</span>
-            </p>
-          </div>
+        {/* Manage Categories Widget */}
+        <div
+          className="flex flex-col rounded-md p-4 bg-white border-1 items-center gap-2 justify-center cursor-pointer hover:bg-gray-50 transition-colors min-w-[140px] flex-shrink-0"
+          onClick={() => setIsCategoriesDialogOpen(true)}
+        >
+          <FolderKanban className="size-9 text-blue-600" />
+          <p className="text-sm select-none">Manage Categories</p>
         </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
-        <DataTable columns={columns} data={data || []} onRowClick={handleRowClick} />
+        <DataTable
+          columns={columns}
+          data={data || []}
+          onRowClick={handleRowClick}
+          onAddNew={() => setIsAddDialogOpen(true)}
+        />
       </div>
+
+      <AddInventoryDialog
+        open={isAddDialogOpen}
+        onClose={handleCloseDialog}
+        onSuccess={handleSuccess}
+        inventoryId={selectedInventoryId}
+      />
+
+      <ManageCategoriesDialog
+        open={isCategoriesDialogOpen}
+        onClose={() => setIsCategoriesDialogOpen(false)}
+        onSuccess={handleCategoriesSuccess}
+      />
     </>
   );
 }

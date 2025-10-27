@@ -55,8 +55,10 @@ export async function updateDiscount(
 
 export async function deleteDiscount(id: number) {
   try {
-    const discount = await prisma.discount.delete({
+    // Soft delete: set isDeleted to true instead of hard deleting
+    const discount = await prisma.discount.update({
       where: { id },
+      data: { isDeleted: true },
     });
     return discount;
   } catch (error) {
