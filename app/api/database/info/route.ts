@@ -8,12 +8,9 @@ export async function GET(request: NextRequest) {
   try {
     // Check authentication and authorization
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const userRole = session.user.role?.toUpperCase().replace(/\s+/g, "_");
@@ -30,7 +27,7 @@ export async function GET(request: NextRequest) {
     // Check if database exists and get stats
     if (fs.existsSync(dbPath)) {
       const stats = fs.statSync(dbPath);
-      
+
       return NextResponse.json({
         success: true,
         databasePath: dbPath,
@@ -49,7 +46,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Database info error:", error);
     return NextResponse.json(
-      { error: "Failed to get database info", details: error instanceof Error ? error.message : String(error) },
+      {
+        error: "Failed to get database info",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }

@@ -52,7 +52,7 @@ const SettingsPage = () => {
     try {
       const response = await fetch("/api/database/info");
       const data = await response.json();
-      
+
       if (data.success) {
         setDatabaseInfo(data);
       } else {
@@ -70,14 +70,14 @@ const SettingsPage = () => {
     try {
       // Open directory picker dialog
       const dirHandle = await (window as any).showDirectoryPicker();
-      
+
       setIsBackingUp(true);
 
       // Get permission to write
-      const permission = await dirHandle.queryPermission({ mode: 'readwrite' });
-      if (permission !== 'granted') {
-        const requestPermission = await dirHandle.requestPermission({ mode: 'readwrite' });
-        if (requestPermission !== 'granted') {
+      const permission = await dirHandle.queryPermission({ mode: "readwrite" });
+      if (permission !== "granted") {
+        const requestPermission = await dirHandle.requestPermission({ mode: "readwrite" });
+        if (requestPermission !== "granted") {
           toast.error("Permission denied to write to the selected directory");
           return;
         }
@@ -107,7 +107,7 @@ const SettingsPage = () => {
       // Since we can't directly write to file system from browser,
       // we'll trigger a download instead
       toast.success(`Backup process initiated. The file will be downloaded as ${backupFileName}`);
-      
+
       loadDatabaseInfo();
     } catch (error: any) {
       console.error("Backup error:", error);
@@ -124,10 +124,10 @@ const SettingsPage = () => {
   const handleRestoreDatabase = async () => {
     try {
       // Create a file input element
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.db,.sqlite,.sqlite3';
-      
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".db,.sqlite,.sqlite3";
+
       input.onchange = async (e: any) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -142,11 +142,11 @@ const SettingsPage = () => {
           // Convert to base64 for transmission
           const reader = new FileReader();
           reader.readAsDataURL(blob);
-          
+
           reader.onloadend = async () => {
             try {
               const base64data = reader.result as string;
-              
+
               const response = await fetch("/api/database/restore", {
                 method: "POST",
                 headers: {
@@ -191,7 +191,7 @@ const SettingsPage = () => {
   const handleDownloadBackup = async () => {
     try {
       setIsBackingUp(true);
-      
+
       // Create a link to download the database file
       const response = await fetch("/api/database/backup", {
         method: "POST",
@@ -207,9 +207,9 @@ const SettingsPage = () => {
       const blob = await response.blob();
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const fileName = `backup-${timestamp}.db`;
-      
+
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = fileName;
       document.body.appendChild(a);
@@ -328,8 +328,7 @@ const SettingsPage = () => {
                         <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
                           <span>Size: {databaseInfo.sizeFormatted}</span>
                           <span>
-                            Last Modified:{" "}
-                            {new Date(databaseInfo.lastModified).toLocaleString()}
+                            Last Modified: {new Date(databaseInfo.lastModified).toLocaleString()}
                           </span>
                         </div>
                       </AlertDescription>
@@ -384,9 +383,9 @@ const SettingsPage = () => {
 
                   <Alert className="mt-4">
                     <AlertDescription className="text-xs text-muted-foreground">
-                      <strong>Note:</strong> When restoring a database, an automatic backup of
-                      the current database will be created first. After restoring, please
-                      refresh the page to see the changes.
+                      <strong>Note:</strong> When restoring a database, an automatic backup of the
+                      current database will be created first. After restoring, please refresh the
+                      page to see the changes.
                     </AlertDescription>
                   </Alert>
                 </div>
