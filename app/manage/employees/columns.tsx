@@ -37,6 +37,23 @@ export const columns: ColumnDef<EmployeeWithRelations>[] = [
     enableHiding: false,
   },
   {
+    accessorKey: "empId",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Employee ID
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      return <div className="font-medium">{row.getValue("empId") || "N/A"}</div>;
+    },
+  },
+  {
     accessorKey: "id",
     header: ({ column }) => {
       return (
@@ -44,13 +61,13 @@ export const columns: ColumnDef<EmployeeWithRelations>[] = [
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          ID
+          UUID
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }) => {
-      return <div className="font-medium">#{row.getValue("id")}</div>;
+      return <div className="font-medium text-xs opacity-60">#{row.getValue("id")}</div>;
     },
   },
   {

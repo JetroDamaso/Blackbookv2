@@ -62,11 +62,12 @@ export async function getAllEmployeesPaginated(page: number = 1, pageSize: numbe
   }
 }
 
-export async function authenticateEmployee(employeeIdPrefix: string, password: string) {
+export async function authenticateEmployee(empId: string, password: string) {
   try {
-    // Get all active employees and find one whose UUID starts with the given prefix
-    const employees = await prisma.employee.findMany({
+    // Find employee by empId
+    const employee = await prisma.employee.findFirst({
       where: {
+        empId: empId,
         isActive: true,
       },
       include: {
@@ -79,11 +80,6 @@ export async function authenticateEmployee(employeeIdPrefix: string, password: s
       },
     });
 
-    // Find employee whose ID starts with the provided prefix (first 8 characters)
-    const employee = employees.find(emp =>
-      (emp.id as string).toLowerCase().startsWith(employeeIdPrefix.toLowerCase())
-    );
-
     if (!employee) {
       return null;
     }
@@ -95,6 +91,7 @@ export async function authenticateEmployee(employeeIdPrefix: string, password: s
 
     return {
       id: employee.id as string,
+      empId: employee.empId || "",
       firstName: employee.firstName,
       lastName: employee.lastName,
       role: employee.role,

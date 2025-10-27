@@ -35,6 +35,7 @@ model Role {
 
 model Employee {
     id                String            @id @default(uuid())
+    empId             String?           @unique
     firstName         String
     lastName          String
     password          String

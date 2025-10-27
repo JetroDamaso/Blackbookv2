@@ -73,6 +73,7 @@ export function DataTable<TData, TValue>({
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [formData, setFormData] = React.useState({
+    empId: "",
     firstName: "",
     lastName: "",
     password: "",
@@ -94,6 +95,7 @@ export function DataTable<TData, TValue>({
       toast.success("Employee created successfully!");
       setIsDialogOpen(false);
       setFormData({
+        empId: "",
         firstName: "",
         lastName: "",
         password: "",
@@ -109,6 +111,7 @@ export function DataTable<TData, TValue>({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (
+      !formData.empId ||
       !formData.firstName ||
       !formData.lastName ||
       !formData.password ||
@@ -118,6 +121,7 @@ export function DataTable<TData, TValue>({
       return;
     }
     createEmployeeMutation({
+      empId: formData.empId,
       firstName: formData.firstName,
       lastName: formData.lastName,
       password: formData.password,
@@ -195,6 +199,24 @@ export function DataTable<TData, TValue>({
               <DialogTitle className="mb-4">Add Employee</DialogTitle>
               <DialogDescription>
                 <div className="grid gap-4">
+                  <div className="grid items-center gap-3">
+                    <Label htmlFor="empId" className="font-normal">
+                      Employee ID
+                    </Label>
+                    <Input
+                      type="text"
+                      id="empId"
+                      placeholder="EMP001"
+                      value={formData.empId}
+                      onChange={e =>
+                        setFormData(prev => ({
+                          ...prev,
+                          empId: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid items-center gap-3">
                       <Label htmlFor="firstName" className="font-normal">

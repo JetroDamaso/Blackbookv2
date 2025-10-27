@@ -71,8 +71,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
                 </FieldLabel>
                 <Input
                   id="employeeId"
-                  placeholder="a1b2c3d4"
-                  maxLength={8}
+                  placeholder="EMP001"
                   value={employeeId}
                   onChange={e => setEmployeeId(e.target.value)}
                   required

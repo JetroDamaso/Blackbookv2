@@ -2,6 +2,7 @@
 import { prisma } from "../db";
 
 export async function createEmployee(data: {
+  empId: string;
   firstName: string;
   lastName: string;
   password: string;
@@ -11,6 +12,7 @@ export async function createEmployee(data: {
   try {
     const employee = await prisma.employee.create({
       data: {
+        empId: data.empId,
         firstName: data.firstName,
         lastName: data.lastName,
         password: data.password,
