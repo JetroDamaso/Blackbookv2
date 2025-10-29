@@ -40,6 +40,7 @@ interface InventorySelectionDialogProps {
   onSave: (items: Array<{ id: number; quantity: number }>) => void;
   startDate: Date | null;
   endDate: Date | null;
+  numPax?: string;
 }
 
 export function InventorySelectionDialog({
@@ -49,6 +50,7 @@ export function InventorySelectionDialog({
   onSave,
   startDate,
   endDate,
+  numPax = "0",
 }: InventorySelectionDialogProps) {
   // Local state for this dialog
   const [localSelectedItems, setLocalSelectedItems] = useState<
@@ -116,7 +118,8 @@ export function InventorySelectionDialog({
   }, [isOpen]);
 
   // Local handlers
-  const addInventoryItem = (inventoryId: number, quantity: number = 1) => {
+  const addInventoryItem = (inventoryId: number) => {
+    const quantity = parseInt(numPax) || 1; // Use numPax, fallback to 1 if invalid
     setLocalSelectedItems(prev => {
       const existingIndex = prev.findIndex(item => item.id === inventoryId);
       if (existingIndex !== -1) {
@@ -529,9 +532,10 @@ export function InventorySelectionDialog({
                           filteredInventoryItems.map((item: any) => {
                             const selectedItem = localSelectedItems.find(si => si.id === item.id);
                             const selectedQuantity = selectedItem?.quantity || 0;
+                            const paxQuantity = parseInt(numPax) || 1;
                             const conflicts = getInventoryConflicts(
                               item.id,
-                              selectedQuantity + 1,
+                              selectedQuantity + paxQuantity,
                               true
                             );
                             const category = inventoryCategoriesData?.find(
@@ -615,35 +619,14 @@ export function InventorySelectionDialog({
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => addInventoryItem(item.id, 1)}
-                                        disabled={selectedQuantity >= availableQuantity}
+                                        onClick={() => addInventoryItem(item.id)}
+                                        disabled={
+                                          selectedQuantity + (parseInt(numPax) || 1) >
+                                          availableQuantity
+                                        }
                                       >
                                         <Plus className="w-3 h-3" />
                                       </Button>
-                                      {selectedQuantity > 0 && (
-                                        <>
-                                          <Input
-                                            type="text"
-                                            min="0"
-                                            max={availableQuantity}
-                                            value={selectedQuantity}
-                                            onChange={e => {
-                                              const newQuantity = parseInt(e.target.value) || 0;
-                                              updateInventoryQuantity(item.id, newQuantity);
-                                            }}
-                                            className="w-16 h-8 text-center text-xs"
-                                          />
-                                          <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-red-600"
-                                            onClick={() => removeInventoryItem(item.id)}
-                                          >
-                                            <Trash2 className="w-3 h-3" />
-                                          </Button>
-                                        </>
-                                      )}
                                     </div>
                                   </TableCell>
                                 </TableRow>

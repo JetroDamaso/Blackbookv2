@@ -61,6 +61,7 @@ const CheckScheduleDialog = (props: {
   const [selectedPavilionId, setSelectedPavilionId] = useState<string>("");
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [numPax, setNumPax] = useState<string>("");
   const [startTime, setStartTime] = useState<{
     hour: number;
     minute: number;
@@ -312,6 +313,21 @@ const CheckScheduleDialog = (props: {
         params.set("pavilionId", selectedPavilionId);
       }
 
+      // Add time parameters if set
+      if (startTime) {
+        params.set("startHour", String(startTime.hour));
+        params.set("startMinute", String(startTime.minute));
+      }
+      if (endTime) {
+        params.set("endHour", String(endTime.hour));
+        params.set("endMinute", String(endTime.minute));
+      }
+
+      // Add pax parameter if set
+      if (numPax) {
+        params.set("pax", numPax);
+      }
+
       // Navigate to create booking page with date range parameters
       router.push(`/bookings/create-booking?${params.toString()}`);
     } else if (selectedDay) {
@@ -323,6 +339,21 @@ const CheckScheduleDialog = (props: {
 
       if (selectedPavilionId) {
         params.set("pavilionId", selectedPavilionId);
+      }
+
+      // Add time parameters if set
+      if (startTime) {
+        params.set("startHour", String(startTime.hour));
+        params.set("startMinute", String(startTime.minute));
+      }
+      if (endTime) {
+        params.set("endHour", String(endTime.hour));
+        params.set("endMinute", String(endTime.minute));
+      }
+
+      // Add pax parameter if set
+      if (numPax) {
+        params.set("pax", numPax);
       }
 
       // Navigate to create booking page with parameters
@@ -441,16 +472,44 @@ const CheckScheduleDialog = (props: {
                 </Select>
               </div>
 
-              {isRescheduling && (
-                <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="*:not-first:mt-1">
+                  <Label className="font-normal text-xs text-neutral-500">Start Time</Label>
                   <TimeStartPickerCreateBookingComponent
                     startTimeOnChange={setStartTime}
-                    initialDateTime={reschedulingBooking?.startAt ?? null}
+                    initialDateTime={
+                      isRescheduling && reschedulingBooking?.startAt
+                        ? reschedulingBooking.startAt
+                        : null
+                    }
                   />
+                </div>
+                <div className="*:not-first:mt-1">
+                  <Label className="font-normal text-xs text-neutral-500">End Time</Label>
                   <TimeEndPickerCreateBookingComponent
                     endTimeOnChange={setEndTime}
-                    initialDateTime={reschedulingBooking?.endAt ?? null}
+                    initialDateTime={
+                      isRescheduling && reschedulingBooking?.endAt
+                        ? reschedulingBooking.endAt
+                        : null
+                    }
                   />
+                </div>
+              </div>
+
+              <div className="*:not-first:mt-1">
+                <Label className="font-normal text-xs text-neutral-500">No. of Pax</Label>
+                <Input
+                  type="text"
+                  placeholder="200"
+                  value={numPax}
+                  onChange={e => setNumPax(e.target.value)}
+                />
+              </div>
+
+              {isRescheduling && (
+                <div className="hidden">
+                  {/* Hidden for rescheduling - times are shown above */}
                 </div>
               )}
 
@@ -477,8 +536,10 @@ const CheckScheduleDialog = (props: {
           </ScrollArea>
 
           <DialogFooter>
-            <DialogClose>
-              <Button variant={"outline"}>Cancel</Button>
+            <DialogClose asChild>
+              <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
+                Cancel
+              </button>
             </DialogClose>
             <Button type="submit" onClick={handleContinue}>
               {isRescheduling ? "Confirm Reschedule" : "Continue"}

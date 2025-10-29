@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -142,6 +143,11 @@ const AddBookingsPageClient = (props: {
   preSelectedStartDate?: string;
   preSelectedEndDate?: string;
   preSelectedPavilionId?: string;
+  preSelectedStartHour?: string;
+  preSelectedStartMinute?: string;
+  preSelectedEndHour?: string;
+  preSelectedEndMinute?: string;
+  preSelectedPax?: string;
   pavilions: Pavilion[];
   eventTypes: EventTypes[];
   discounts: Discount[];
@@ -166,6 +172,11 @@ const AddBookingsPageClient = (props: {
   const preSelectedStartDate = props.preSelectedStartDate;
   const preSelectedEndDate = props.preSelectedEndDate;
   const preSelectedPavilionId = props.preSelectedPavilionId;
+  const preSelectedStartHour = props.preSelectedStartHour;
+  const preSelectedStartMinute = props.preSelectedStartMinute;
+  const preSelectedEndHour = props.preSelectedEndHour;
+  const preSelectedEndMinute = props.preSelectedEndMinute;
+  const preSelectedPax = props.preSelectedPax;
 
   const bookingsRef = React.useRef(props.bookings ?? []);
   // if prop changes (should be static for page load) update ref
@@ -292,6 +303,9 @@ const AddBookingsPageClient = (props: {
   // Removed unused pavilion/hour pricing interim states (reintroduce if needed)
   const [selectedCatering, setSelectedCatering] = useState<string>("4");
 
+  // Menu Package selection state
+  const [selectedMenuPackageId, setSelectedMenuPackageId] = useState<number | null>(null);
+
   // Rooms selection state
   const [selectedRoomIds, setSelectedRoomIds] = useState<number[]>([]);
 
@@ -325,6 +339,16 @@ const AddBookingsPageClient = (props: {
     },
   });
 
+  // Query for all menu packages
+  const { data: allMenuPackages = [] } = useQuery({
+    queryKey: ["allMenuPackages"],
+    queryFn: async () => {
+      const { getAllMenuPackages } = await import("@/server/menuPackages/pullActions");
+      return getAllMenuPackages();
+    },
+    enabled: selectedCatering === "1",
+  });
+
   // State declarations first
   const [selectedPavilionId, setSelectedPavilionId] = useState<number | null>(
     preSelectedPavilionId ? parseInt(preSelectedPavilionId, 10) : null
@@ -345,13 +369,27 @@ const AddBookingsPageClient = (props: {
     hour: number;
     minute: number;
     second?: number;
-  } | null>(null);
+  } | null>(
+    preSelectedStartHour && preSelectedStartMinute
+      ? {
+          hour: parseInt(preSelectedStartHour, 10),
+          minute: parseInt(preSelectedStartMinute, 10),
+        }
+      : null
+  );
 
   const [endTime, setEndTime] = useState<{
     hour: number;
     minute: number;
     second?: number;
-  } | null>(null);
+  } | null>(
+    preSelectedEndHour && preSelectedEndMinute
+      ? {
+          hour: parseInt(preSelectedEndHour, 10),
+          minute: parseInt(preSelectedEndMinute, 10),
+        }
+      : null
+  );
 
   // Sync dates and times with preselected props and set defaults
   useEffect(() => {
@@ -360,7 +398,13 @@ const AddBookingsPageClient = (props: {
       setStartDate(new Date(preSelectedStartDate));
     }
 
-    // Don't set default start time - let user select it manually
+    // Set start time from preselected if available and not already set
+    if (preSelectedStartHour && preSelectedStartMinute && !startTime) {
+      setStartTime({
+        hour: parseInt(preSelectedStartHour, 10),
+        minute: parseInt(preSelectedStartMinute, 10),
+      });
+    }
 
     // Set end date from preselected if available, otherwise default to start date
     if (preSelectedEndDate && !endDate) {
@@ -370,8 +414,25 @@ const AddBookingsPageClient = (props: {
       setEndDate(new Date(startDate));
     }
 
-    // Don't set default end time - let user select it manually
-  }, [preSelectedStartDate, preSelectedEndDate, startDate, endDate, startTime, endTime]);
+    // Set end time from preselected if available and not already set
+    if (preSelectedEndHour && preSelectedEndMinute && !endTime) {
+      setEndTime({
+        hour: parseInt(preSelectedEndHour, 10),
+        minute: parseInt(preSelectedEndMinute, 10),
+      });
+    }
+  }, [
+    preSelectedStartDate,
+    preSelectedEndDate,
+    preSelectedStartHour,
+    preSelectedStartMinute,
+    preSelectedEndHour,
+    preSelectedEndMinute,
+    startDate,
+    endDate,
+    startTime,
+    endTime,
+  ]);
 
   const { data: inventoryStatuses = [], refetch: refetchInventoryStatuses } = useQuery({
     queryKey: ["inventoryStatus"],
@@ -632,7 +693,37 @@ const AddBookingsPageClient = (props: {
 
   // Add dish: increment quantity if exists, else add with quantity 1
   const addDish = (dish: Dish) => {
+    // Get selected menu package
+    const selectedMenuPackage = selectedMenuPackageId
+      ? allMenuPackages.find((pkg: any) => pkg.id === selectedMenuPackageId)
+      : null;
+
     setSelectedDishes(prev => {
+      // If menu package is selected, check restrictions
+      if (selectedMenuPackage) {
+        // Check if dish category is allowed
+        const allowedCategoryIds =
+          selectedMenuPackage.allowedCategories?.map((cat: any) => cat.id) || [];
+        if (!allowedCategoryIds.includes(dish.categoryId)) {
+          toast.error(
+            `This dish is not included in the selected menu package. Allowed categories: ${selectedMenuPackage.allowedCategories?.map((cat: any) => cat.name).join(", ")}`
+          );
+          return prev;
+        }
+
+        // Count total unique dishes (not quantities)
+        const totalUniqueDishes = prev.length;
+        const dishExists = prev.findIndex(d => d.id === dish.id) !== -1;
+
+        // Check if adding new dish would exceed max dishes
+        if (!dishExists && totalUniqueDishes >= selectedMenuPackage.maxDishes) {
+          toast.error(
+            `You can only select ${selectedMenuPackage.maxDishes} dishes for this menu package`
+          );
+          return prev;
+        }
+      }
+
       const idx = prev.findIndex(d => d.id === dish.id);
       if (idx !== -1) {
         // Already exists, increment quantity
@@ -669,13 +760,26 @@ const AddBookingsPageClient = (props: {
   // Filter dishes based on search and category
   const dishesSource = allDishesQuery.data;
   const categoriesSource = dishCategoriesQuery.data;
+
+  // Get selected menu package for filtering
+  const selectedMenuPackage = selectedMenuPackageId
+    ? allMenuPackages.find((pkg: any) => pkg.id === selectedMenuPackageId)
+    : null;
+  const allowedCategoryIds =
+    selectedMenuPackage?.allowedCategories?.map((cat: any) => cat.id) || [];
+
   const filteredDishes =
     dishesSource?.filter((dish: any) => {
       const matchesSearch = dish.name.toLowerCase().includes(dishSearchQuery.toLowerCase());
       const matchesCategory =
         selectedDishCategoryFilter === "all" ||
         dish.categoryId?.toString() === selectedDishCategoryFilter;
-      return matchesSearch && matchesCategory;
+
+      // If menu package is selected, only show dishes from allowed categories
+      const matchesMenuPackage =
+        !selectedMenuPackageId || allowedCategoryIds.includes(dish.categoryId);
+
+      return matchesSearch && matchesCategory && matchesMenuPackage;
     }) ?? [];
 
   // Filter selected dishes based on search and category
@@ -1358,7 +1462,7 @@ const AddBookingsPageClient = (props: {
 
   // Removed unused price change handlers (hours, pavilion, total) to satisfy lint; add back if needed where values are updated.
 
-  const [numPax, setNumPax] = useState<string>("");
+  const [numPax, setNumPax] = useState<string>(preSelectedPax || "");
 
   // Catering pax and price per pax state
   const [cateringPax, setCateringPax] = useState<string>("");
@@ -1370,6 +1474,16 @@ const AddBookingsPageClient = (props: {
       setCateringPax(numPax);
     }
   }, [numPax]);
+
+  // Auto-set price per pax when menu package is selected
+  useEffect(() => {
+    if (selectedMenuPackageId) {
+      const selectedPackage = allMenuPackages.find((pkg: any) => pkg.id === selectedMenuPackageId);
+      if (selectedPackage) {
+        setPricePerPax(selectedPackage.price.toString());
+      }
+    }
+  }, [selectedMenuPackageId, allMenuPackages]);
 
   const getMonthName = (d: Date) => d.toLocaleString("en-US", { month: "long" });
 
@@ -1553,8 +1667,11 @@ const AddBookingsPageClient = (props: {
               <div className="">
                 <div className="mt-2">
                   <Dialog>
-                    <DialogTrigger className="w-full">
-                      <div className=" flex border-1 p-4 rounded-md justify-between  items-center">
+                    <DialogTrigger asChild>
+                      <button
+                        type="button"
+                        className="w-full flex border-1 p-4 rounded-md justify-between items-center hover:bg-accent transition-colors"
+                      >
                         <div className="flex flex-col justify-start items-start">
                           <p className="flex font-medium gap-2 items-center text-md">
                             {selectedPackage ? selectedPackage.name : "Select a package"}
@@ -1572,70 +1689,92 @@ const AddBookingsPageClient = (props: {
                         </div>
 
                         <Pen size={18} />
-                      </div>
+                      </button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-w-2xl max-h-[80vh]">
                       <DialogHeader>
                         <DialogTitle>Select a Package</DialogTitle>
-                        <DialogDescription className="mt-4">
-                          <div>
-                            <RadioGroup
-                              name="package"
-                              className="flex flex-col"
-                              value={selectedPackageId?.toString()}
-                              onValueChange={val => setSelectedPackageId(Number(val))}
-                            >
-                              {selectedPavilionId === null && (
-                                <div className="col-span-4 text-sm text-muted-foreground">
-                                  Select a pavilion to see its packages.
-                                </div>
-                              )}
-                              {selectedPavilionId !== null && filteredPackages.length === 0 && (
-                                <div className="col-span-4 text-sm text-muted-foreground">
-                                  No packages available for the selected pavilion.
-                                </div>
-                              )}
-                              {filteredPackages.map(pack => {
-                                const items = (pack.description ?? "")
-                                  .split(".")
-                                  .map(s => s.trim())
-                                  .filter(Boolean);
-                                return (
-                                  <div
-                                    key={pack.id}
-                                    className="border-input has-data-[state=checked]:border-primary/50 relative flex w-full items-start gap-2 rounded-md border p-4 shadow-xs outline-none"
-                                  >
-                                    <RadioGroupItem
-                                      value={`${pack.id}`}
-                                      id={`${pack.id}`}
-                                      aria-describedby={`${id}-package-${pack.id}-description`}
-                                      className="order-1 after:absolute after:inset-0"
-                                    />
-                                    <div className="grid grow gap-2">
-                                      <Label className="flex items-center" htmlFor={`${pack.id}`}>
-                                        {pack.name}
-                                        <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal">
-                                          {`(₱${pack.price.toLocaleString()})`}
-                                        </span>
-                                      </Label>
-                                      <div
-                                        id={`${id}-package-${pack.id}-description`}
-                                        className="text-muted-foreground text-xs"
-                                      >
-                                        <ul className="list-disc list-inside space-y-1">
-                                          {items.map((it, idx) => (
-                                            <li key={idx}>{it}</li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </RadioGroup>
-                          </div>
-                        </DialogDescription>
+                        <DialogDescription>Choose a package for your booking</DialogDescription>
                       </DialogHeader>
+
+                      <div className="overflow-y-auto max-h-[50vh] pr-2">
+                        <RadioGroup
+                          name="package"
+                          className="flex flex-col gap-3"
+                          value={selectedPackageId?.toString()}
+                          onValueChange={val => setSelectedPackageId(Number(val))}
+                        >
+                          {selectedPavilionId === null && (
+                            <div className="text-sm text-muted-foreground text-center py-8">
+                              Select a pavilion to see its packages.
+                            </div>
+                          )}
+                          {selectedPavilionId !== null && filteredPackages.length === 0 && (
+                            <div className="text-sm text-muted-foreground text-center py-8">
+                              No packages available for the selected pavilion.
+                            </div>
+                          )}
+                          {filteredPackages.map(pack => {
+                            const items = (pack.description ?? "")
+                              .split(".")
+                              .map(s => s.trim())
+                              .filter(Boolean);
+                            return (
+                              <div
+                                key={pack.id}
+                                className="border-input has-data-[state=checked]:border-primary has-data-[state=checked]:bg-accent relative flex w-full items-start gap-3 rounded-md border p-4 shadow-sm outline-none transition-colors cursor-pointer hover:bg-accent/50"
+                              >
+                                <RadioGroupItem
+                                  value={`${pack.id}`}
+                                  id={`${pack.id}`}
+                                  aria-describedby={`${id}-package-${pack.id}-description`}
+                                  className="mt-0.5"
+                                />
+                                <div className="grid grow gap-2">
+                                  <Label
+                                    className="flex items-center cursor-pointer"
+                                    htmlFor={`${pack.id}`}
+                                  >
+                                    <span className="font-semibold">{pack.name}</span>
+                                    <span className="ml-2 text-muted-foreground text-sm font-normal">
+                                      ₱{pack.price.toLocaleString()}
+                                    </span>
+                                  </Label>
+                                  <div
+                                    id={`${id}-package-${pack.id}-description`}
+                                    className="text-muted-foreground text-sm"
+                                  >
+                                    <ul className="list-disc list-inside space-y-1">
+                                      {items.map((it, idx) => (
+                                        <li key={idx}>{it}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </RadioGroup>
+                      </div>
+
+                      <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+                          >
+                            Cancel
+                          </button>
+                        </DialogClose>
+                        <DialogClose asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+                          >
+                            Confirm Selection
+                          </button>
+                        </DialogClose>
+                      </DialogFooter>
                     </DialogContent>
                   </Dialog>
                 </div>
@@ -1978,10 +2117,38 @@ const AddBookingsPageClient = (props: {
                 <div className="mt-4">
                   <div className="grid grid-cols-2 gap-4 w-full ">
                     <div className="flex-grow">
-                      <TimeStartPickerCreateBookingComponent startTimeOnChange={setStartTime} />
+                      <TimeStartPickerCreateBookingComponent
+                        startTimeOnChange={setStartTime}
+                        initialDateTime={
+                          startTime
+                            ? new Date(
+                                2000,
+                                0,
+                                1,
+                                startTime.hour,
+                                startTime.minute,
+                                startTime.second || 0
+                              )
+                            : undefined
+                        }
+                      />
                     </div>
                     <div className="flex-grow">
-                      <TimeEndPickerCreateBookingComponent endTimeOnChange={setEndTime} />
+                      <TimeEndPickerCreateBookingComponent
+                        endTimeOnChange={setEndTime}
+                        initialDateTime={
+                          endTime
+                            ? new Date(
+                                2000,
+                                0,
+                                1,
+                                endTime.hour,
+                                endTime.minute,
+                                endTime.second || 0
+                              )
+                            : undefined
+                        }
+                      />
                     </div>
                   </div>
                 </div>
@@ -2170,23 +2337,68 @@ const AddBookingsPageClient = (props: {
               </div>
               {selectedCatering === "1" && (
                 <div className="w-full h-fit mt-4">
-                  <div className="grid grid-cols-2 gap-2 mt-4">
-                    <div className="flex flex-col gap-2">
-                      <p className="text-sm text-foreground/50">Pax</p>
-                      <InputGroup>
-                        <InputGroupInput
-                          placeholder="200"
-                          value={cateringPax}
-                          onChange={e => setCateringPax(e.target.value)}
-                          type="number"
-                          min="0"
-                        />
-                        <InputGroupAddon>
-                          <Users />
-                        </InputGroupAddon>
-                      </InputGroup>
-                    </div>
+                  {/* Menu Package Selection */}
+                  <div className="mb-4">
+                    <p className="text-sm text-foreground/50 mb-2">Menu Package</p>
+                    <Select
+                      value={selectedMenuPackageId?.toString() || ""}
+                      onValueChange={val => {
+                        setSelectedMenuPackageId(val ? Number(val) : null);
+                        // Clear selected dishes when changing package
+                        setSelectedDishes([]);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a menu package" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allMenuPackages.map((pkg: any) => (
+                          <SelectItem key={pkg.id} value={pkg.id.toString()}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{pkg.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                ₱{pkg.price} - {pkg.maxDishes} dishes
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
+                    {selectedMenuPackageId && (
+                      <div className="mt-2 p-3 bg-blue-50 rounded-md border border-blue-200">
+                        <p className="text-sm text-blue-900 font-medium">
+                          Selected:{" "}
+                          {
+                            allMenuPackages.find((pkg: any) => pkg.id === selectedMenuPackageId)
+                              ?.name
+                          }
+                        </p>
+                        <p className="text-xs text-blue-700 mt-1">
+                          You can select{" "}
+                          {
+                            allMenuPackages.find((pkg: any) => pkg.id === selectedMenuPackageId)
+                              ?.maxDishes
+                          }{" "}
+                          dishes from:{" "}
+                          {allMenuPackages
+                            .find((pkg: any) => pkg.id === selectedMenuPackageId)
+                            ?.allowedCategories?.map((cat: any) => cat.name)
+                            .join(", ")}
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          {selectedDishes.length} /{" "}
+                          {
+                            allMenuPackages.find((pkg: any) => pkg.id === selectedMenuPackageId)
+                              ?.maxDishes
+                          }{" "}
+                          dishes selected
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 mt-4">
                     <div className="flex flex-col gap-2">
                       <p className="text-sm text-foreground/50">Price per pax</p>
                       <InputGroup>
@@ -2271,6 +2483,7 @@ const AddBookingsPageClient = (props: {
                           onSave={setSelectedInventoryItems}
                           startDate={startDate}
                           endDate={endDate}
+                          numPax={numPax}
                         />
 
                         {/* Inventory Conflict Dialog */}
@@ -2633,6 +2846,17 @@ const AddBookingsPageClient = (props: {
                               <p className="text-sm text-muted-foreground">
                                 Add, edit, or remove dishes from your menu.
                               </p>
+                              {selectedMenuPackageId && (
+                                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                                  <p className="text-sm text-amber-900">
+                                    <strong>Menu Package Restriction:</strong> You can select up to{" "}
+                                    {selectedMenuPackage?.maxDishes} dishes from:{" "}
+                                    {selectedMenuPackage?.allowedCategories
+                                      ?.map((cat: any) => cat.name)
+                                      .join(", ")}
+                                  </p>
+                                </div>
+                              )}
                             </div>
                             <Button
                               type="button"

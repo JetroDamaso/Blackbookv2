@@ -35,7 +35,7 @@ model Role {
 
 model Employee {
     id                String            @id @default(uuid())
-    empId             String?           @unique
+    empId             String?
     firstName         String
     lastName          String
     password          String
@@ -143,16 +143,19 @@ model EventTypes {
 }
 
 model Menu {
-    id         Int        @id @default(autoincrement())
-    bookingId  Int?
-    booking    Booking?   @relation(fields: [bookingId], references: [id], onDelete: SetNull)
-    menuDishes MenuDish[]
+    id             Int           @id @default(autoincrement())
+    bookingId      Int?
+    booking        Booking?      @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+    menuDishes     MenuDish[]
+    MenuPackages   MenuPackages? @relation(fields: [menuPackagesId], references: [id])
+    menuPackagesId Int?
 }
 
 model DishCategory {
-    id     Int    @id @default(autoincrement())
-    name   String @unique
-    dishes Dish[]
+    id                    Int            @id @default(autoincrement())
+    name                  String         @unique
+    dishes                Dish[]
+    menuPackagesAllowedIn MenuPackages[] @relation("MenuPackageAllowedCategories")
 }
 
 model Dish {
@@ -175,6 +178,19 @@ model MenuDish {
     menu     Menu? @relation(fields: [menuId], references: [id], onDelete: SetNull)
 
     @@unique([menuId, dishId])
+}
+
+model MenuPackages {
+    id                 Int            @id @default(autoincrement())
+    name               String
+    price              Int
+    maxDishes          Int // Maximum number of dishes allowed
+    allowedCategoryIds String? // JSON array of allowed dish category IDs
+    description        String? // Description of what's included
+    isActive           Boolean        @default(true)
+    isDeleted          Boolean?       @default(false)
+    Menu               Menu[]
+    allowedCategories  DishCategory[] @relation("MenuPackageAllowedCategories")
 }
 
 model AdditionalCharge {
@@ -376,4 +392,17 @@ model ScheduledNotification {
 
     @@index([bookingId])
     @@index([scheduledFor, sent])
+}
+
+model GeneratedReport {
+    id          String   @id @default(cuid())
+    name        String
+    reportType  String // BOOKINGS_BY_DATE, REVENUE_SUMMARY, etc.
+    parameters  String // JSON string of report parameters
+    reportData  String // JSON string of generated report data
+    generatedBy String?
+    createdAt   DateTime @default(now())
+
+    @@index([reportType])
+    @@index([createdAt])
 }

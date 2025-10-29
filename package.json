@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbo",
     "build": "npx prisma generate && npx prisma db push && next build",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
@@ -16,7 +16,11 @@
     "precommit": "npm run fix-all && npm run type-check",
     "delete-employees": "tsx scripts/delete-employees.ts",
     "delete-employees-safe": "tsx scripts/delete-employees-safe.ts",
-    "process-notifications": "tsx scripts/process-notifications.ts"
+    "process-notifications": "tsx scripts/process-notifications.ts",
+    "seed": "tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
