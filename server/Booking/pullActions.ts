@@ -26,7 +26,7 @@ export async function getAllBookings() {
   try {
     const data = await prisma.booking.findMany({
       where: {
-        status: { not: 5 }, // Exclude archived bookings (status 5)
+        status: { not: 7 }, // Exclude archived bookings (status 7)
       },
       include: {
         client: true,
@@ -44,7 +44,7 @@ export async function getAllBookings() {
 export async function getAllBookingsPaginated(page: number = 1, pageSize: number = 10) {
   try {
     const skip = (page - 1) * pageSize;
-    const where = { status: { not: 5 } }; // Exclude archived bookings
+    const where = { status: { not: 7 } }; // Exclude archived bookings (status 7)
 
     // Get total count for pagination info
     const totalCount = await prisma.booking.count({ where });

@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { integrateNewBooking } from "@/lib/local/integration";
+import { createBookingNotification } from "@/app/actions/createBookingNotification";
 import {
   Banknote,
   CalendarIcon,
@@ -185,6 +187,33 @@ const AddBookingsPageClient = (props: {
   }, [props.bookings]);
   const [isVisible] = useState(true);
   const [selectedDishes, setSelectedDishes] = useState<SelectedDish[]>([]);
+
+  // Validation Error State - tracks which fields have errors
+  const [validationErrors, setValidationErrors] = useState<{
+    eventName?: boolean;
+    client?: boolean;
+    firstName?: boolean;
+    lastName?: boolean;
+    phoneNumber?: boolean;
+    email?: boolean;
+    region?: boolean;
+    province?: boolean;
+    municipality?: boolean;
+    barangay?: boolean;
+    pavilion?: boolean;
+    package?: boolean;
+    startDate?: boolean;
+    endDate?: boolean;
+    startTime?: boolean;
+    endTime?: boolean;
+    eventType?: boolean;
+    numPax?: boolean;
+    catering?: boolean;
+    menuPackage?: boolean;
+    dishes?: boolean;
+    cateringPax?: boolean;
+    pricePerPax?: boolean;
+  }>({});
 
   // Dish Management State
   const [isDishesDialogOpen, setIsDishesDialogOpen] = useState(false);
@@ -525,6 +554,91 @@ const AddBookingsPageClient = (props: {
   const [selectedBookingFiles, setSelectedBookingFiles] = useState<File[]>([]);
   const [bookingFileResetTrigger, setBookingFileResetTrigger] = useState(0);
 
+  // Clear validation errors when users fix the issues
+  useEffect(() => {
+    if (selectedClientId && validationErrors.client) {
+      setValidationErrors(prev => ({ ...prev, client: undefined }));
+    }
+  }, [selectedClientId, validationErrors.client]);
+
+  useEffect(() => {
+    if (selectedPavilionId && validationErrors.pavilion) {
+      setValidationErrors(prev => ({ ...prev, pavilion: undefined }));
+    }
+  }, [selectedPavilionId, validationErrors.pavilion]);
+
+  useEffect(() => {
+    if (selectedPackageId && validationErrors.package) {
+      setValidationErrors(prev => ({ ...prev, package: undefined }));
+    }
+  }, [selectedPackageId, validationErrors.package]);
+
+  useEffect(() => {
+    if (startDate && validationErrors.startDate) {
+      setValidationErrors(prev => ({ ...prev, startDate: undefined }));
+    }
+  }, [startDate, validationErrors.startDate]);
+
+  useEffect(() => {
+    if (endDate && validationErrors.endDate) {
+      setValidationErrors(prev => ({ ...prev, endDate: undefined }));
+    }
+  }, [endDate, validationErrors.endDate]);
+
+  useEffect(() => {
+    if (startTime && validationErrors.startTime) {
+      setValidationErrors(prev => ({ ...prev, startTime: undefined }));
+    }
+  }, [startTime, validationErrors.startTime]);
+
+  useEffect(() => {
+    if (endTime && validationErrors.endTime) {
+      setValidationErrors(prev => ({ ...prev, endTime: undefined }));
+    }
+  }, [endTime, validationErrors.endTime]);
+
+  useEffect(() => {
+    if (selectedCatering && validationErrors.catering) {
+      setValidationErrors(prev => ({ ...prev, catering: undefined }));
+    }
+  }, [selectedCatering, validationErrors.catering]);
+
+  useEffect(() => {
+    if (selectedMenuPackageId && validationErrors.menuPackage) {
+      setValidationErrors(prev => ({ ...prev, menuPackage: undefined }));
+    }
+  }, [selectedMenuPackageId, validationErrors.menuPackage]);
+
+  useEffect(() => {
+    if (selectedDishes.length > 0 && validationErrors.dishes) {
+      setValidationErrors(prev => ({ ...prev, dishes: undefined }));
+    }
+  }, [selectedDishes, validationErrors.dishes]);
+
+  useEffect(() => {
+    if (region && validationErrors.region) {
+      setValidationErrors(prev => ({ ...prev, region: undefined }));
+    }
+  }, [region, validationErrors.region]);
+
+  useEffect(() => {
+    if (province && validationErrors.province) {
+      setValidationErrors(prev => ({ ...prev, province: undefined }));
+    }
+  }, [province, validationErrors.province]);
+
+  useEffect(() => {
+    if (municipality && validationErrors.municipality) {
+      setValidationErrors(prev => ({ ...prev, municipality: undefined }));
+    }
+  }, [municipality, validationErrors.municipality]);
+
+  useEffect(() => {
+    if (barangay && validationErrors.barangay) {
+      setValidationErrors(prev => ({ ...prev, barangay: undefined }));
+    }
+  }, [barangay, validationErrors.barangay]);
+
   // Pre-compute a set of booked calendar days (date-only) for quick disable lookup
   const bookedDaySet = React.useMemo(() => {
     if (selectedPavilionId == null) return new Set<string>();
@@ -726,11 +840,13 @@ const AddBookingsPageClient = (props: {
 
       const idx = prev.findIndex(d => d.id === dish.id);
       if (idx !== -1) {
-        // Already exists, increment quantity
-        return prev.map((d, i) => (i === idx ? { ...d, quantity: d.quantity + 1 } : d));
+        // Already exists, increment quantity by numPax (or 1 if not set)
+        const incrementBy = parseInt(numPax) || 1;
+        return prev.map((d, i) => (i === idx ? { ...d, quantity: d.quantity + incrementBy } : d));
       } else {
-        // New dish, add with quantity 1
-        return [...prev, { ...dish, quantity: 1 }];
+        // New dish, add with quantity = numPax (or 1 if not set)
+        const defaultQuantity = parseInt(numPax) || 1;
+        return [...prev, { ...dish, quantity: defaultQuantity }];
       }
     });
   };
@@ -1118,18 +1234,233 @@ const AddBookingsPageClient = (props: {
   const handleSubmitDraft = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // Validate required fields
+    const formData = new FormData(e.currentTarget);
+    const errors: typeof validationErrors = {};
+    let firstErrorSection: string | null = null;
+    const errorMessages: string[] = [];
 
-    // Validate client selection
-    if (clientSelectionMode === "existing" && !selectedClientId) {
+    // VALIDATION: Event Name (Required)
+    const eventName = formData.get("eventName");
+    if (!eventName || String(eventName).trim() === "") {
+      errors.eventName = true;
+      errorMessages.push("Event name is required");
+      if (!firstErrorSection) firstErrorSection = "event_details";
+    }
+
+    // VALIDATION: Client Information
+    if (clientSelectionMode === "existing") {
+      if (!selectedClientId) {
+        errors.client = true;
+        errorMessages.push("Please select a client");
+        if (!firstErrorSection) firstErrorSection = "client";
+      }
+    } else {
+      // New client - validate required fields
+      const firstName = formData.get("firstName");
+      const lastName = formData.get("lastName");
+      const phoneNumber = formData.get("phoneNumber");
+      const email = formData.get("email");
+
+      if (!firstName || String(firstName).trim() === "") {
+        errors.firstName = true;
+        errorMessages.push("Client first name is required");
+        if (!firstErrorSection) firstErrorSection = "client";
+      }
+
+      if (!lastName || String(lastName).trim() === "") {
+        errors.lastName = true;
+        errorMessages.push("Client last name is required");
+        if (!firstErrorSection) firstErrorSection = "client";
+      }
+
+      if (!phoneNumber || String(phoneNumber).trim() === "") {
+        errors.phoneNumber = true;
+        errorMessages.push("Client phone number is required");
+        if (!firstErrorSection) firstErrorSection = "client";
+      }
+
+      if (!email || String(email).trim() === "") {
+        errors.email = true;
+        errorMessages.push("Client email is required");
+        if (!firstErrorSection) firstErrorSection = "client";
+      }
+
+      // Validate address fields
+      if (!region || region.trim() === "") {
+        errors.region = true;
+        errorMessages.push("Client region is required");
+        if (!firstErrorSection) firstErrorSection = "client";
+      }
+
+      if (!province || province.trim() === "") {
+        errors.province = true;
+        errorMessages.push("Client province is required");
+        if (!firstErrorSection) firstErrorSection = "client";
+      }
+
+      if (!municipality || municipality.trim() === "") {
+        errors.municipality = true;
+        errorMessages.push("Client municipality is required");
+        if (!firstErrorSection) firstErrorSection = "client";
+      }
+
+      if (!barangay || barangay.trim() === "") {
+        errors.barangay = true;
+        errorMessages.push("Client barangay is required");
+        if (!firstErrorSection) firstErrorSection = "client";
+      }
+    }
+
+    // VALIDATION: Pavilion (Required)
+    if (!selectedPavilionId) {
+      errors.pavilion = true;
+      errorMessages.push("Please select a pavilion");
+      if (!firstErrorSection) firstErrorSection = "pavilion";
+    }
+
+    // VALIDATION: Package (Required)
+    if (!selectedPackageId) {
+      errors.package = true;
+      errorMessages.push("Please select a package");
+      if (!firstErrorSection) firstErrorSection = "pavilion";
+    }
+
+    // VALIDATION: Date and Time (Required)
+    if (!startDate) {
+      errors.startDate = true;
+      errorMessages.push("Start date is required");
+      if (!firstErrorSection) firstErrorSection = "date_and_time";
+    }
+
+    if (!endDate) {
+      errors.endDate = true;
+      errorMessages.push("End date is required");
+      if (!firstErrorSection) firstErrorSection = "date_and_time";
+    }
+
+    if (!startTime) {
+      errors.startTime = true;
+      errorMessages.push("Start time is required");
+      if (!firstErrorSection) firstErrorSection = "date_and_time";
+    }
+
+    if (!endTime) {
+      errors.endTime = true;
+      errorMessages.push("End time is required");
+      if (!firstErrorSection) firstErrorSection = "date_and_time";
+    }
+
+    // Validate end date is not before start date
+    if (startDate && endDate && endDate < startDate) {
+      errors.endDate = true;
+      errorMessages.push("End date cannot be before start date");
+      if (!firstErrorSection) firstErrorSection = "date_and_time";
+    }
+
+    // Validate end time is after start time if same day
+    if (startDate && endDate && startTime && endTime && startDate.toDateString() === endDate.toDateString()) {
+      const startMinutes = startTime.hour * 60 + startTime.minute;
+      const endMinutes = endTime.hour * 60 + endTime.minute;
+      if (endMinutes <= startMinutes) {
+        errors.endTime = true;
+        errorMessages.push("End time must be after start time");
+        if (!firstErrorSection) firstErrorSection = "date_and_time";
+      }
+    }
+
+    // VALIDATION: Event Type (Required)
+    const eventType = formData.get("eventType");
+    if (!eventType || String(eventType) === "0" || String(eventType).trim() === "") {
+      errors.eventType = true;
+      errorMessages.push("Event type is required");
+      if (!firstErrorSection) firstErrorSection = "event_details";
+    }
+
+    // VALIDATION: Number of Pax (Required)
+    const numberOfPax = formData.get("numPax");
+    if (!numberOfPax || String(numberOfPax).trim() === "" || Number(numberOfPax) <= 0) {
+      errors.numPax = true;
+      errorMessages.push("Number of attendees (pax) is required and must be greater than 0");
+      if (!firstErrorSection) firstErrorSection = "event_details";
+    }
+
+    // VALIDATION: Catering (Required)
+    if (!selectedCatering) {
+      errors.catering = true;
+      errorMessages.push("Please select a catering option");
+      if (!firstErrorSection) firstErrorSection = "catering";
+    }
+
+    // VALIDATION: In-house Catering Requirements
+    if (selectedCatering === "1") {
+      // Validate menu package selection
+      if (!selectedMenuPackageId) {
+        errors.menuPackage = true;
+        errorMessages.push("Please select a menu package for in-house catering");
+        if (!firstErrorSection) firstErrorSection = "catering";
+      }
+
+      // Validate dishes selection
+      if (selectedDishes.length === 0) {
+        errors.dishes = true;
+        errorMessages.push("Please select at least one dish for in-house catering");
+        if (!firstErrorSection) firstErrorSection = "catering";
+      }
+
+      // Validate catering pax
+      if (!cateringPax || String(cateringPax).trim() === "" || Number(cateringPax) <= 0) {
+        errors.cateringPax = true;
+        errorMessages.push("Catering number of pax is required and must be greater than 0");
+        if (!firstErrorSection) firstErrorSection = "catering";
+      }
+    }
+
+    // VALIDATION: Inventory (if selected, validate quantities)
+    if (selectedInventoryItems.length > 0) {
+      for (const item of selectedInventoryItems) {
+        if (item.quantity <= 0) {
+          const inventoryItem = inventoryItems.find((inv: any) => inv.id === item.id);
+          errorMessages.push(
+            `Inventory item "${inventoryItem?.name || "Unknown"}" must have a quantity greater than 0`
+          );
+          if (!firstErrorSection) firstErrorSection = "services";
+        }
+
+        // Check for conflicts
+        const { conflicts, warnings } = getInventoryConflicts(item.id, item.quantity);
+        if (conflicts.length > 0 || warnings.length > 0) {
+          const inventoryItem = inventoryItems.find((inv: any) => inv.id === item.id);
+          errorMessages.push(
+            `Inventory item "${inventoryItem?.name || "Unknown"}" has conflicts or warnings. Please review.`
+          );
+          if (!firstErrorSection) firstErrorSection = "services";
+          handleConflictClick(item.id, item.quantity);
+        }
+      }
+    }
+
+    // NOTE: Discount block (mode of payment, down payment, discount) is optional - no validation required
+
+    // If there are any errors, display them and scroll to first error
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+
+      // Show error messages
+      if (errorMessages.length === 1) {
+        toast.error(errorMessages[0]);
+      } else {
+        toast.error(`Please fix ${errorMessages.length} validation error${errorMessages.length > 1 ? 's' : ''}`);
+      }
+
+      // Scroll to first error section
+      if (firstErrorSection) {
+        document.getElementById(firstErrorSection)?.scrollIntoView({ behavior: "smooth" });
+      }
       return;
     }
 
-    // Additional validation for form fields
-    const formData = new FormData(e.currentTarget);
-    const eventName = formData.get("eventName");
-    const firstName = formData.get("firstName");
-    const lastName = formData.get("lastName");
+    // All validations passed, clear errors
+    setValidationErrors({});
 
     // Proceed with booking creation
     await handleCreateBooking(e);
@@ -1323,10 +1654,16 @@ const AddBookingsPageClient = (props: {
       const extraHours = Math.max(0, hoursCount - 5);
       const extraHoursFee = extraHours * 2000;
 
+      // Get selected menu package price
+      const selectedMenuPackage = selectedMenuPackageId
+        ? allMenuPackages.find((pkg: any) => pkg.id === selectedMenuPackageId)
+        : null;
+      const menuPackagePrice = selectedMenuPackage?.price || 0;
+
       // Calculate catering cost if in-house catering is selected
       const cateringCost =
-        selectedCatering === "1" && cateringPax && pricePerPax
-          ? parseFloat(cateringPax) * parseFloat(pricePerPax)
+        selectedCatering === "1" && cateringPax && menuPackagePrice
+          ? parseFloat(cateringPax) * menuPackagePrice
           : 0;
 
       const originalPrice = basePackagePrice + extraHoursFee + cateringCost;
@@ -1406,7 +1743,7 @@ const AddBookingsPageClient = (props: {
         isCustomDiscount: finalIsCustomDiscount,
         catering: selectedCatering === "1" && cateringCost > 0 ? cateringCost : undefined,
         cateringPerPaxAmount:
-          selectedCatering === "1" && pricePerPax ? parseFloat(pricePerPax) : undefined,
+          selectedCatering === "1" && menuPackagePrice ? menuPackagePrice : undefined,
       });
 
       // Upload all documents if any (client IDs, contracts, etc.)
@@ -1446,6 +1783,40 @@ const AddBookingsPageClient = (props: {
       setSelectedBookingFiles([]);
       setBookingFileResetTrigger(prev => prev + 1);
 
+      // 🔄 Sync booking to LocalStorage and trigger notifications
+      try {
+        await integrateNewBooking({
+          id: Number(bookingId),
+          eventName: String(eventName ?? ""),
+          startAt: validStartAt,
+          endAt: validEndAt,
+          clientId: Number(clientID),
+          pavilionId: selectedPavilionId ? Number(selectedPavilionId) : null,
+          billing: {
+            balance: Number(billing?.balance ?? finalDiscountedPrice),
+            originalPrice: Number(originalPrice || 0),
+          },
+          createdAt: new Date(),
+        });
+        console.log("✅ Booking synced to offline system");
+
+        // 🔔 Create database notification (works across devices/origins)
+        const clientName = selectedClientId
+          ? `${allClients.find(c => c.id === selectedClientId)?.firstName || ''} ${allClients.find(c => c.id === selectedClientId)?.lastName || ''}`.trim()
+          : `${firstName || ''} ${lastName || ''}`.trim();
+
+        await createBookingNotification({
+          id: Number(bookingId),
+          eventName: String(eventName ?? ""),
+          clientName: clientName || 'Unknown Client',
+          startAt: validStartAt,
+        });
+        console.log("✅ Database notification created");
+      } catch (syncError) {
+        console.error("Error syncing to offline system:", syncError);
+        // Don't block booking creation if sync fails
+      }
+
       // Show success dialog
       setShowBookingSuccessDialog(true);
     } catch (error) {
@@ -1484,6 +1855,19 @@ const AddBookingsPageClient = (props: {
       }
     }
   }, [selectedMenuPackageId, allMenuPackages]);
+
+  // Clear validation errors when values are provided
+  useEffect(() => {
+    if (numPax && validationErrors.numPax) {
+      setValidationErrors(prev => ({ ...prev, numPax: undefined }));
+    }
+  }, [numPax, validationErrors.numPax]);
+
+  useEffect(() => {
+    if (cateringPax && validationErrors.cateringPax) {
+      setValidationErrors(prev => ({ ...prev, cateringPax: undefined }));
+    }
+  }, [cateringPax, validationErrors.cateringPax]);
 
   const getMonthName = (d: Date) => d.toLocaleString("en-US", { month: "long" });
 
@@ -1545,9 +1929,12 @@ const AddBookingsPageClient = (props: {
   const extraHoursFee = extraHours * 2000;
 
   // Calculate catering cost if in-house catering is selected
+  // Get selected menu package price
+  const menuPackagePrice = selectedMenuPackage?.price || 0;
+
   const cateringCost =
-    selectedCatering === "1" && cateringPax && pricePerPax
-      ? parseFloat(cateringPax) * parseFloat(pricePerPax)
+    selectedCatering === "1" && cateringPax && menuPackagePrice
+      ? parseFloat(cateringPax) * menuPackagePrice
       : 0;
 
   const originalPrice = basePackagePrice + extraHoursFee + cateringCost; // before discount
@@ -1613,7 +2000,11 @@ const AddBookingsPageClient = (props: {
           {/* === PAVILIONS BLOCK === */}
           <div
             id="pavilion"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+            className={`w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4 transition-all duration-200 ${
+              validationErrors.pavilion || validationErrors.package
+                ? "ring-2 ring-red-500 border-red-500"
+                : ""
+            }`}
           >
             <div className="">
               <div>
@@ -1785,7 +2176,19 @@ const AddBookingsPageClient = (props: {
           {/* === CLIENT BLOCK === */}
           <div
             id="services"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+            className={`w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4 transition-all duration-200 ${
+              validationErrors.client ||
+              validationErrors.firstName ||
+              validationErrors.lastName ||
+              validationErrors.phoneNumber ||
+              validationErrors.email ||
+              validationErrors.region ||
+              validationErrors.province ||
+              validationErrors.municipality ||
+              validationErrors.barangay
+                ? "ring-2 ring-red-500 border-red-500"
+                : ""
+            }`}
           >
             <p className="font-bold text-lg -mb-2">Client Details</p>
 
@@ -1895,13 +2298,13 @@ const AddBookingsPageClient = (props: {
                         <DialogContent className="max-w-2xl">
                           <DialogHeader>
                             <DialogTitle>Select an Existing Client</DialogTitle>
-                            <DialogDescription className="mt-4">
-                              <div className="space-y-4">
-                                <div>
-                                  <Label className="font-normal text-foreground/50">
-                                    Search Client
-                                  </Label>
-                                  <InputGroup className="mt-2">
+                          </DialogHeader>
+                          <div className="mt-4 space-y-4">
+                            <div>
+                              <Label className="font-normal text-foreground/50">
+                                Search Client
+                              </Label>
+                              <InputGroup className="mt-2">
                                     <InputGroupInput
                                       placeholder="Search by name, email, or phone..."
                                       value={clientSearchQuery}
@@ -2015,8 +2418,6 @@ const AddBookingsPageClient = (props: {
                                   </RadioGroup>
                                 </div>
                               </div>
-                            </DialogDescription>
-                          </DialogHeader>
                         </DialogContent>
                       </Dialog>
 
@@ -2030,19 +2431,67 @@ const AddBookingsPageClient = (props: {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="*:not-first:mt-2">
                           <Label className="font-normal text-foreground/50">First name</Label>
-                          <Input name="firstName" placeholder="John" type="text" />
+                          <Input
+                            name="firstName"
+                            placeholder="John"
+                            type="text"
+                            className={
+                              validationErrors.firstName ? "ring-2 ring-red-500 border-red-500" : ""
+                            }
+                            onChange={e => {
+                              if (e.target.value.trim() && validationErrors.firstName) {
+                                setValidationErrors(prev => ({ ...prev, firstName: undefined }));
+                              }
+                            }}
+                          />
                         </div>
                         <div className="*:not-first:mt-2">
                           <Label className="font-normal text-foreground/50">Last name</Label>
-                          <Input name="lastName" placeholder="Doe" type="text" />
+                          <Input
+                            name="lastName"
+                            placeholder="Doe"
+                            type="text"
+                            className={
+                              validationErrors.lastName ? "ring-2 ring-red-500 border-red-500" : ""
+                            }
+                            onChange={e => {
+                              if (e.target.value.trim() && validationErrors.lastName) {
+                                setValidationErrors(prev => ({ ...prev, lastName: undefined }));
+                              }
+                            }}
+                          />
                         </div>
                         <div className="*:not-first:mt-2">
                           <Label className="font-normal text-foreground/50">Phone number</Label>
-                          <Input name="phoneNumber" placeholder="09123456789" type="tel" />
+                          <Input
+                            name="phoneNumber"
+                            placeholder="09123456789"
+                            type="tel"
+                            className={
+                              validationErrors.phoneNumber ? "ring-2 ring-red-500 border-red-500" : ""
+                            }
+                            onChange={e => {
+                              if (e.target.value.trim() && validationErrors.phoneNumber) {
+                                setValidationErrors(prev => ({ ...prev, phoneNumber: undefined }));
+                              }
+                            }}
+                          />
                         </div>
                         <div className="*:not-first:mt-2">
                           <Label className="font-normal text-foreground/50">Email address</Label>
-                          <Input name="email" placeholder="johndoe@gmail.com" type="email" />
+                          <Input
+                            name="email"
+                            placeholder="johndoe@gmail.com"
+                            type="email"
+                            className={
+                              validationErrors.email ? "ring-2 ring-red-500 border-red-500" : ""
+                            }
+                            onChange={e => {
+                              if (e.target.value.trim() && validationErrors.email) {
+                                setValidationErrors(prev => ({ ...prev, email: undefined }));
+                              }
+                            }}
+                          />
                         </div>
                       </div>
                       <div className="mt-3">
@@ -2090,7 +2539,14 @@ const AddBookingsPageClient = (props: {
           {/* === DATE AND TIME BLOCK === */}
           <div
             id="date_and_time"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+            className={`w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4 transition-all duration-200 ${
+              validationErrors.startDate ||
+              validationErrors.endDate ||
+              validationErrors.startTime ||
+              validationErrors.endTime
+                ? "ring-2 ring-red-500 border-red-500"
+                : ""
+            }`}
           >
             <p className="font-bold text-lg">Date and Time</p>
             <div className="flex w-full">
@@ -2159,13 +2615,27 @@ const AddBookingsPageClient = (props: {
           {/* === EVENT DETAILS BLOCK === */}
           <div
             id="event_details"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+            className={`w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4 transition-all duration-200 ${
+              validationErrors.eventName || validationErrors.eventType || validationErrors.numPax
+                ? "ring-2 ring-red-500 border-red-500"
+                : ""
+            }`}
           >
             <p className="font-bold text-lg">Event Details</p>
             <div className="flex">
               <div className="mt-2 *:not-first:mt-2 flex-1">
                 <Label className="text-foreground/50 font-normal">Event Name</Label>
-                <Input name="eventName" placeholder="Chris' Birthday Party" type="text" />
+                <Input
+                  name="eventName"
+                  placeholder="Chris' Birthday Party"
+                  type="text"
+                  className={validationErrors.eventName ? "ring-2 ring-red-500 border-red-500" : ""}
+                  onChange={e => {
+                    if (e.target.value.trim() && validationErrors.eventName) {
+                      setValidationErrors(prev => ({ ...prev, eventName: undefined }));
+                    }
+                  }}
+                />
               </div>
               <div className="mt-2 *:not-first:mt-2 flex-1 ml-4">
                 <Label className="text-foreground/50 font-normal">No. of pax</Label>
@@ -2199,7 +2669,14 @@ const AddBookingsPageClient = (props: {
           {/* === CATERING BLOCK === */}
           <div
             id="catering"
-            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+            className={`w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4 transition-all duration-200 ${
+              validationErrors.catering ||
+              validationErrors.menuPackage ||
+              validationErrors.dishes ||
+              validationErrors.cateringPax
+                ? "ring-2 ring-red-500 border-red-500"
+                : ""
+            }`}
           >
             <div className="flex justify-between items-center">
               <p className="font-bold text-lg">Catering</p>
@@ -2396,25 +2873,6 @@ const AddBookingsPageClient = (props: {
                         </p>
                       </div>
                     )}
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-2 mt-4">
-                    <div className="flex flex-col gap-2">
-                      <p className="text-sm text-foreground/50">Price per pax</p>
-                      <InputGroup>
-                        <InputGroupInput
-                          placeholder="200"
-                          value={pricePerPax}
-                          onChange={e => setPricePerPax(e.target.value)}
-                          type="number"
-                          min="0"
-                          step="0.01"
-                        />
-                        <InputGroupAddon>
-                          <Banknote />
-                        </InputGroupAddon>
-                      </InputGroup>
-                    </div>
                   </div>
 
                   <div className="border rounded-md mt-4">
@@ -2935,6 +3393,7 @@ const AddBookingsPageClient = (props: {
                                           <TableHead>Dish Name</TableHead>
                                           <TableHead>Category</TableHead>
                                           <TableHead>Allergens</TableHead>
+                                          <TableHead className="w-32">Quantity</TableHead>
                                           <TableHead className="w-20">Actions</TableHead>
                                         </TableRow>
                                       </TableHeader>
@@ -2943,7 +3402,7 @@ const AddBookingsPageClient = (props: {
                                         {selectedDishes.length === 0 ? (
                                           <TableRow>
                                             <TableCell
-                                              colSpan={4}
+                                              colSpan={5}
                                               className="text-center text-muted-foreground"
                                             >
                                               No dishes selected for this booking
@@ -2952,7 +3411,7 @@ const AddBookingsPageClient = (props: {
                                         ) : filteredSelectedDishes.length === 0 ? (
                                           <TableRow>
                                             <TableCell
-                                              colSpan={4}
+                                              colSpan={5}
                                               className="text-center text-muted-foreground"
                                             >
                                               {selectedDishesSearchQuery.trim() !== "" ||
@@ -2967,18 +3426,34 @@ const AddBookingsPageClient = (props: {
                                               (c: { id: number; name: string }) =>
                                                 c.id === dish.categoryId
                                             );
-                                            const dishNameWithQuantity =
-                                              dish.quantity > 1
-                                                ? `${dish.name} x${dish.quantity}`
-                                                : dish.name;
                                             return (
                                               <TableRow key={dish.id}>
                                                 <TableCell className="font-medium flex-1 grow">
-                                                  {dishNameWithQuantity}
+                                                  {dish.name}
                                                 </TableCell>
                                                 <TableCell>{category?.name ?? "—"}</TableCell>
                                                 <TableCell className="text-sm text-muted-foreground">
                                                   {dish.allergens || "—"}
+                                                </TableCell>
+                                                <TableCell>
+                                                  <InputGroup>
+                                                    <InputGroupInput
+                                                      type="number"
+                                                      min="1"
+                                                      value={dish.quantity}
+                                                      onChange={e => {
+                                                        const newQuantity = parseInt(e.target.value) || 1;
+                                                        setSelectedDishes(prev =>
+                                                          prev.map(d =>
+                                                            d.id === dish.id
+                                                              ? { ...d, quantity: newQuantity }
+                                                              : d
+                                                          )
+                                                        );
+                                                      }}
+                                                      className="w-20"
+                                                    />
+                                                  </InputGroup>
                                                 </TableCell>
                                                 <TableCell>
                                                   <Button

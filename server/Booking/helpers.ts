@@ -1,7 +1,7 @@
 /**
  * Booking Status Codes:
- * 1 = Pending - No payments yet
- * 2 = Confirmed - Has payment(s) but event hasn't started
+ * 1 = Pending - No payments OR payments received but not fully paid (for future events)
+ * 2 = Confirmed - Fully paid AND event hasn't started
  * 3 = In Progress - Event is happening today (between start and end date)
  * 4 = Completed - Event is past AND payment is fully paid
  * 5 = Unpaid - Event is past AND payment is NOT fully paid
@@ -14,8 +14,8 @@
  * Calculate the booking status based on payment and date
  *
  * Status logic:
- * - 1 (Pending): No payments yet
- * - 2 (Confirmed): Has payment(s) but event hasn't started
+ * - 1 (Pending): No payments OR partial payments (not fully paid) for future events
+ * - 2 (Confirmed): Fully paid AND event hasn't started
  * - 3 (In Progress): Event date is today
  * - 4 (Completed): Event date is past AND payment is fully paid
  * - 5 (Unpaid): Event date is past AND payment is NOT fully paid
@@ -72,11 +72,11 @@ export function calculateBookingStatus(params: {
     return 5;
   }
 
-  // Status 2: Confirmed - has payments but event hasn't started
-  if (hasPayments) {
+  // Status 2: Confirmed - event is future AND fully paid
+  if (isFullyPaid) {
     return 2;
   }
 
-  // Status 1: Pending - no payments yet
+  // Status 1: Pending - event is future but not fully paid (or no payments)
   return 1;
 }

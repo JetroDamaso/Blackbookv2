@@ -13,7 +13,11 @@ export async function GET() {
         id: true,
         eventName: true,
         startAt: true,
+        endAt: true,
         status: true,
+        clientId: true,
+        pavilionId: true,
+        createdAt: true,
         client: {
           select: {
             firstName: true,
@@ -23,6 +27,13 @@ export async function GET() {
         pavilion: {
           select: {
             name: true,
+          },
+        },
+        billing: {
+          select: {
+            balance: true,
+            originalPrice: true,
+            status: true,
           },
         },
       },

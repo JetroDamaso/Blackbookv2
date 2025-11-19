@@ -1,6 +1,7 @@
 "use client";
 import type { Booking } from "@/generated/prisma";
 import { getAllPavilions } from "@/server/Pavilions/Actions/pullActions";
+import { getAllBookings } from "@/server/Booking/pullActions";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -11,11 +12,18 @@ import BookingDialogComponent from "./BookingDialog";
 import NoDateSelectedAlert from "./NoDateSelectedAlert";
 import NoPavilionSelectedAlert from "./NoPavilionSelectedAlert";
 
-const CalendarClient = (props: { getAllBookings: Booking[] }) => {
-  const { getAllBookings } = props;
+const CalendarClient = () => {
   const router = useRouter();
   const [bookingId, setBookingId] = React.useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState(false);
+
+  // Fetch bookings with real-time polling (every 10 seconds)
+  const { data: allBookings = [], isLoading: bookingsLoading, isFetching: bookingsFetching } = useQuery({
+    queryKey: ["calendar-bookings"],
+    queryFn: () => getAllBookings(),
+    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchOnWindowFocus: true, // Refresh when user focuses the window
+  });
 
   // Fetch pavilions for color mapping
   const { data: pavilions } = useQuery({
@@ -64,8 +72,8 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
   // Filter bookings by selected status
   const filteredBookings =
     selectedStatus === "all"
-      ? getAllBookings
-      : getAllBookings.filter(booking => booking.status?.toString() === selectedStatus);
+      ? allBookings
+      : allBookings.filter(booking => booking.status?.toString() === selectedStatus);
 
   // Auto-fade alert after 5 seconds
   useEffect(() => {
@@ -168,6 +176,7 @@ const CalendarClient = (props: { getAllBookings: Booking[] }) => {
           }}
           onNoDateAlert={triggerNoDateAlert}
           onNoPavilionAlert={triggerNoPavilionAlert}
+          isFetching={bookingsFetching}
           statusFilter={
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
               <SelectTrigger className="w-[180px]">

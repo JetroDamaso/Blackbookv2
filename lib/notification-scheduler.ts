@@ -20,40 +20,26 @@ export async function scheduleBookingNotifications(bookingId: number) {
       },
     });
 
-    if (!booking || !booking.startAt) {
-      console.log("Booking not found or missing start date");
+    if (!booking || !booking.endAt) {
+      console.log("Booking not found or missing end date");
       return;
     }
 
-    const eventDate = new Date(booking.startAt);
+    // Use END date for payment overdue notifications
+    const eventEndDate = new Date(booking.endAt);
     const now = new Date();
 
-    // Calculate notification dates
-    const sevenDaysBefore = new Date(eventDate);
-    sevenDaysBefore.setDate(sevenDaysBefore.getDate() - 7);
-    sevenDaysBefore.setHours(8, 0, 0, 0); // 8 AM
-
-    const threeDaysBefore = new Date(eventDate);
+    // Calculate notification dates based on END date
+    const threeDaysBefore = new Date(eventEndDate);
     threeDaysBefore.setDate(threeDaysBefore.getDate() - 3);
     threeDaysBefore.setHours(8, 0, 0, 0); // 8 AM
 
-    const oneDayBefore = new Date(eventDate);
+    const oneDayBefore = new Date(eventEndDate);
     oneDayBefore.setDate(oneDayBefore.getDate() - 1);
     oneDayBefore.setHours(8, 0, 0, 0); // 8 AM
 
-    const onEventDay = new Date(eventDate);
-    onEventDay.setHours(8, 0, 0, 0); // 8 AM on event day
-
-    // Schedule notifications only if dates are in the future
+    // Schedule notifications only if dates are in the future and payment is not complete
     const scheduledNotifications = [];
-
-    if (sevenDaysBefore > now) {
-      scheduledNotifications.push({
-        bookingId,
-        notificationType: "PAYMENT_REMINDER_7",
-        scheduledFor: sevenDaysBefore,
-      });
-    }
 
     if (threeDaysBefore > now) {
       scheduledNotifications.push({
@@ -68,14 +54,6 @@ export async function scheduleBookingNotifications(bookingId: number) {
         bookingId,
         notificationType: "PAYMENT_REMINDER_1",
         scheduledFor: oneDayBefore,
-      });
-    }
-
-    if (onEventDay > now) {
-      scheduledNotifications.push({
-        bookingId,
-        notificationType: "PAYMENT_OVERDUE",
-        scheduledFor: onEventDay,
       });
     }
 
@@ -269,14 +247,27 @@ export async function processPendingNotifications() {
 
       if (!booking) continue;
 
-      const eventDate = booking.startAt
-        ? format(new Date(booking.startAt), "MMMM dd, yyyy")
-        : "TBD";
+      const eventEndDate = booking.endAt ? format(new Date(booking.endAt), "MMMM dd, yyyy") : "TBD";
       const clientName = booking.client
         ? `${booking.client.firstName} ${booking.client.lastName}`
         : "Client";
       const totalAmount = booking.billing?.discountedPrice || booking.billing?.originalPrice || 0;
+      const balance = booking.billing?.balance || 0;
       const formattedAmount = `₱${totalAmount.toLocaleString()}`;
+      const formattedBalance = `₱${balance.toLocaleString()}`;
+
+      // Check if payment is not fully paid (balance > 0)
+      const hasUnpaidBalance = balance > 0;
+
+      // Skip notification if payment is fully paid
+      if (!hasUnpaidBalance) {
+        // Mark as sent since payment is complete
+        await prisma.scheduledNotification.update({
+          where: { id: scheduled.id },
+          data: { sent: true },
+        });
+        continue;
+      }
 
       // Get all Manager and Owner employees
       const managersAndOwners = await prisma.employee.findMany({
@@ -293,13 +284,13 @@ export async function processPendingNotifications() {
       let notifications: any[] = [];
 
       switch (notificationType) {
-        case "PAYMENT_REMINDER_7":
-          // Notify Managers and Owners
+        case "PAYMENT_REMINDER_3":
+          // Notify 3 days before END date about unpaid balance
           notifications = managersAndOwners.map(employee => ({
             userId: employee.id,
             type: "PAYMENT",
-            title: "Payment Pending",
-            message: `Payment pending: ${clientName}'s booking for ${booking.eventName} is in 7 days. Total: ${formattedAmount}`,
+            title: "Payment Due Soon",
+            message: `Payment reminder: ${clientName}'s event ends in 3 days (${eventEndDate}). Outstanding balance: ${formattedBalance}`,
             link: `/manage/bookings/${booking.id}`,
             read: false,
             bookingId: booking.id,
@@ -307,94 +298,18 @@ export async function processPendingNotifications() {
           }));
           break;
 
-        case "PAYMENT_REMINDER_3":
-          // Check if booking is unpaid (status 5)
-          const isUnpaid3Days = booking.status === 5;
-
-          if (isUnpaid3Days) {
-            // Notify Managers and Owners about unpaid booking 3 days before event
-            notifications = managersAndOwners.map(employee => ({
-              userId: employee.id,
-              type: "PAYMENT",
-              title: "Urgent: Unpaid Booking",
-              message: `Urgent: Booking for ${clientName} on ${eventDate} is still UNPAID (3 days remaining). Total: ${formattedAmount}`,
-              link: `/manage/bookings/${booking.id}`,
-              read: false,
-              bookingId: booking.id,
-              clientId: booking.clientId,
-            }));
-          } else {
-            // Regular payment pending reminder
-            notifications = managersAndOwners.map(employee => ({
-              userId: employee.id,
-              type: "PAYMENT",
-              title: "Urgent: Payment Pending",
-              message: `Urgent: Payment pending for ${clientName}'s booking on ${eventDate}. Total: ${formattedAmount}`,
-              link: `/manage/bookings/${booking.id}`,
-              read: false,
-              bookingId: booking.id,
-              clientId: booking.clientId,
-            }));
-          }
-          break;
-
         case "PAYMENT_REMINDER_1":
-          // Check if booking is unpaid (status 5)
-          const isUnpaid1Day = booking.status === 5;
-
-          if (isUnpaid1Day) {
-            // Critical notification for unpaid booking 1 day before event
-            notifications = managersAndOwners.map(employee => ({
-              userId: employee.id,
-              type: "PAYMENT",
-              title: "Critical: Unpaid Booking Tomorrow",
-              message: `Critical: Booking for ${clientName} tomorrow (${eventDate}) is UNPAID. Total: ${formattedAmount}. Immediate action required!`,
-              link: `/manage/bookings/${booking.id}`,
-              read: false,
-              bookingId: booking.id,
-              clientId: booking.clientId,
-            }));
-          } else {
-            // Regular payment pending reminder
-            notifications = managersAndOwners.map(employee => ({
-              userId: employee.id,
-              type: "PAYMENT",
-              title: "Critical: Payment Pending",
-              message: `Critical: Payment overdue for ${clientName}'s booking tomorrow. Total: ${formattedAmount}`,
-              link: `/manage/bookings/${booking.id}`,
-              read: false,
-              bookingId: booking.id,
-              clientId: booking.clientId,
-            }));
-          }
-          break;
-
-        case "PAYMENT_OVERDUE":
-          // Check if payment is still pending
-          const isPaid = booking.billing?.status === 2; // Assuming status 2 means paid
-
-          if (!isPaid) {
-            // Notify only Owners
-            const owners = await prisma.employee.findMany({
-              where: {
-                isActive: true,
-                role: {
-                  name: "Owner",
-                },
-              },
-            });
-
-            notifications = owners.map(employee => ({
-              userId: employee.id,
-              type: "PAYMENT",
-              title: "Payment Overdue",
-              message: `Payment overdue: ${clientName}'s event is today. Total: ${formattedAmount}. Status: ${isPaid ? "Paid" : "Unpaid"}`,
-              link: `/manage/bookings/${booking.id}`,
-              read: false,
-              bookingId: booking.id,
-              clientId: booking.clientId,
-            }));
-          }
+          // Critical notification 1 day before END date
+          notifications = managersAndOwners.map(employee => ({
+            userId: employee.id,
+            type: "PAYMENT",
+            title: "Urgent: Payment Due Tomorrow",
+            message: `Urgent: ${clientName}'s event ends tomorrow (${eventEndDate}). Outstanding balance: ${formattedBalance}. Immediate action required!`,
+            link: `/manage/bookings/${booking.id}`,
+            read: false,
+            bookingId: booking.id,
+            clientId: booking.clientId,
+          }));
           break;
       }
 

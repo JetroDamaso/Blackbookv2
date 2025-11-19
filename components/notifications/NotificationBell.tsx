@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +15,6 @@ import { NotificationDropdown } from "./NotificationDropdown";
 import BookingDialogComponent from "@/components/(Calendar)/BookingDialog";
 
 export function NotificationBell() {
-  const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
   const [showBookingDialog, setShowBookingDialog] = useState(false);
@@ -24,32 +24,26 @@ export function NotificationBell() {
     setIsMounted(true);
   }, []);
 
-  const fetchUnreadCount = async () => {
-    try {
+  // Use React Query for automatic refetching every 5 seconds
+  const { data: unreadCountData, refetch } = useQuery({
+    queryKey: ["notificationUnreadCount"],
+    queryFn: async () => {
       const response = await fetch("/api/notifications/unread-count");
-      if (response.ok) {
-        const data = await response.json();
-        setUnreadCount(data.count);
-      }
-    } catch (error) {
-      console.error("Error fetching unread count:", error);
-    }
-  };
+      if (!response.ok) throw new Error("Failed to fetch unread count");
+      return response.json();
+    },
+    refetchInterval: 5000, // Refetch every 5 seconds for semi-realtime feel
+    refetchIntervalInBackground: true, // Continue refetching even when tab is not focused
+    staleTime: 0, // Always consider data stale to ensure fresh data
+  });
 
-  useEffect(() => {
-    fetchUnreadCount();
-
-    // Poll every 30 seconds for new notifications
-    const interval = setInterval(fetchUnreadCount, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
+  const unreadCount = unreadCountData?.count || 0;
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
     if (open) {
       // Refresh count when dropdown opens
-      fetchUnreadCount();
+      refetch();
     }
   };
 
@@ -57,6 +51,11 @@ export function NotificationBell() {
     setSelectedBookingId(bookingId);
     setShowBookingDialog(true);
     setIsOpen(false); // Close the dropdown
+  };
+
+  const handleNotificationUpdate = () => {
+    // Refetch unread count when notifications are updated
+    refetch();
   };
 
   return (
@@ -77,7 +76,10 @@ export function NotificationBell() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-80 p-0">
-          <NotificationDropdown onUpdate={fetchUnreadCount} onBookingClick={handleBookingClick} />
+          <NotificationDropdown
+            onUpdate={handleNotificationUpdate}
+            onBookingClick={handleBookingClick}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
 

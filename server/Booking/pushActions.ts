@@ -188,7 +188,7 @@ export async function updateBooking(
 
 export async function updateBookingStatus(bookingId: number) {
   try {
-    // Fetch booking with billing and payments
+    // Fetch booking with billing, payments, and additional charges
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
@@ -197,6 +197,7 @@ export async function updateBookingStatus(bookingId: number) {
             payments: true,
           },
         },
+        additionalCharges: true,
       },
     });
 
@@ -210,9 +211,13 @@ export async function updateBookingStatus(bookingId: number) {
 
     // Calculate payment status
     const billing = booking.billing; // This is now an object, not an array
-    const hasPayments = billing?.payments && billing.payments.length > 0;
-    const totalPaid = billing?.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0;
-    const isFullyPaid = billing ? totalPaid >= billing.discountedPrice : false;
+    const hasPayments = billing?.payments && billing.payments.filter((p: any) => p.status !== "refunded" && p.amount > 0).length > 0;
+    const totalPaid = billing?.payments?.filter((p: any) => p.status !== "refunded").reduce((sum: number, p: any) => sum + p.amount, 0) || 0;
+
+    // Calculate total billing including additional charges
+    const additionalChargesTotal = booking.additionalCharges?.reduce((sum: number, charge: any) => sum + charge.amount, 0) || 0;
+    const totalBilling = (billing?.discountedPrice || 0) + additionalChargesTotal;
+    const isFullyPaid = totalBilling > 0 ? totalPaid >= totalBilling : false;
 
     // Calculate new status
     const newStatus = calculateBookingStatus({
@@ -240,7 +245,7 @@ export async function updateBookingStatus(bookingId: number) {
 
 export async function updateAllBookingStatuses() {
   try {
-    // Fetch all bookings with billing and payments
+    // Fetch all bookings with billing, payments, and additional charges
     const bookings = await prisma.booking.findMany({
       where: {
         startAt: { not: null },
@@ -252,6 +257,7 @@ export async function updateAllBookingStatuses() {
             payments: true,
           },
         },
+        additionalCharges: true,
       },
     });
 
@@ -261,9 +267,13 @@ export async function updateAllBookingStatuses() {
       if (!booking.startAt || !booking.endAt) continue;
 
       const billing = booking.billing;
-      const hasPayments = billing?.payments && billing.payments.length > 0;
-      const totalPaid = billing?.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0;
-      const isFullyPaid = billing ? totalPaid >= billing.discountedPrice : false;
+      const hasPayments = billing?.payments && billing.payments.filter((p: any) => p.status !== "refunded" && p.amount > 0).length > 0;
+      const totalPaid = billing?.payments?.filter((p: any) => p.status !== "refunded").reduce((sum: number, p: any) => sum + p.amount, 0) || 0;
+
+      // Calculate total billing including additional charges
+      const additionalChargesTotal = booking.additionalCharges?.reduce((sum: number, charge: any) => sum + charge.amount, 0) || 0;
+      const totalBilling = (billing?.discountedPrice || 0) + additionalChargesTotal;
+      const isFullyPaid = totalBilling > 0 ? totalPaid >= totalBilling : false;
 
       const newStatus = calculateBookingStatus({
         hasPayments: hasPayments || false,

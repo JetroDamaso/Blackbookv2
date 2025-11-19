@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CheckCheck, Trash2, ExternalLink, Maximize2 } from "lucide-react";
+import { Bell, CheckCheck, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -34,55 +35,49 @@ interface NotificationDropdownProps {
 
 export function NotificationDropdown({ onUpdate, onBookingClick }: NotificationDropdownProps) {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [allNotifications, setAllNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingAll, setLoadingAll] = useState(false);
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<"all" | "unread">("unread");
   const [showAllDialog, setShowAllDialog] = useState(false);
   const [dialogFilter, setDialogFilter] = useState<"all" | "unread">("all");
 
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true);
+  // Use React Query for automatic refetching every 5 seconds
+  const {
+    data: notificationsData,
+    isLoading: loading,
+    refetch,
+  } = useQuery({
+    queryKey: ["notifications", filter],
+    queryFn: async () => {
       const unreadOnly = filter === "unread";
       const response = await fetch(`/api/notifications?limit=20&unreadOnly=${unreadOnly}`);
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications);
-      }
-    } catch (error) {
-      console.error("Error fetching notifications:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (!response.ok) throw new Error("Failed to fetch notifications");
+      return response.json();
+    },
+    refetchInterval: 5000, // Refetch every 5 seconds
+    refetchIntervalInBackground: true,
+    staleTime: 0,
+  });
 
-  useEffect(() => {
-    fetchNotifications();
-  }, [filter]);
-
-  const fetchAllNotifications = async () => {
-    try {
-      setLoadingAll(true);
+  const {
+    data: allNotificationsData,
+    isLoading: loadingAll,
+    refetch: refetchAll,
+  } = useQuery({
+    queryKey: ["allNotifications", dialogFilter],
+    queryFn: async () => {
       const unreadOnly = dialogFilter === "unread";
       const response = await fetch(`/api/notifications?limit=100&unreadOnly=${unreadOnly}`);
-      if (response.ok) {
-        const data = await response.json();
-        setAllNotifications(data.notifications);
-      }
-    } catch (error) {
-      console.error("Error fetching all notifications:", error);
-    } finally {
-      setLoadingAll(false);
-    }
-  };
+      if (!response.ok) throw new Error("Failed to fetch notifications");
+      return response.json();
+    },
+    enabled: showAllDialog, // Only fetch when dialog is open
+    refetchInterval: showAllDialog ? 5000 : false, // Refetch every 5 seconds when dialog is open
+    refetchIntervalInBackground: true,
+    staleTime: 0,
+  });
 
-  useEffect(() => {
-    if (showAllDialog) {
-      fetchAllNotifications();
-    }
-  }, [showAllDialog, dialogFilter]);
+  const notifications = notificationsData?.notifications || [];
+  const allNotifications = allNotificationsData?.notifications || [];
 
   const handleMarkAllAsRead = async () => {
     try {
@@ -93,7 +88,10 @@ export function NotificationDropdown({ onUpdate, onBookingClick }: NotificationD
       });
 
       if (response.ok) {
-        await fetchNotifications();
+        // Invalidate all notification queries to refetch
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        queryClient.invalidateQueries({ queryKey: ["allNotifications"] });
+        queryClient.invalidateQueries({ queryKey: ["notificationUnreadCount"] });
         onUpdate?.();
       }
     } catch (error) {
@@ -115,10 +113,11 @@ export function NotificationDropdown({ onUpdate, onBookingClick }: NotificationD
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notificationIds: [notification.id] }),
         });
-        await fetchNotifications();
-        if (showAllDialog) {
-          await fetchAllNotifications();
-        }
+
+        // Invalidate queries to refetch
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        queryClient.invalidateQueries({ queryKey: ["allNotifications"] });
+        queryClient.invalidateQueries({ queryKey: ["notificationUnreadCount"] });
         onUpdate?.();
       } catch (error) {
         console.error("Error marking notification as read:", error);
@@ -139,17 +138,17 @@ export function NotificationDropdown({ onUpdate, onBookingClick }: NotificationD
     }
   };
 
-  const handleDelete = async (notificationId: string, fromDialog = false) => {
+  const handleDelete = async (notificationId: string) => {
     try {
       const response = await fetch(`/api/notifications/${notificationId}`, {
         method: "DELETE",
       });
 
       if (response.ok) {
-        await fetchNotifications();
-        if (fromDialog) {
-          await fetchAllNotifications();
-        }
+        // Invalidate queries to refetch
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        queryClient.invalidateQueries({ queryKey: ["allNotifications"] });
+        queryClient.invalidateQueries({ queryKey: ["notificationUnreadCount"] });
         onUpdate?.();
       }
     } catch (error) {
@@ -157,8 +156,8 @@ export function NotificationDropdown({ onUpdate, onBookingClick }: NotificationD
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-  const dialogUnreadCount = allNotifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((n: Notification) => !n.read).length;
+  const dialogUnreadCount = allNotifications.filter((n: Notification) => !n.read).length;
 
   return (
     <div className="flex flex-col">
@@ -213,7 +212,7 @@ export function NotificationDropdown({ onUpdate, onBookingClick }: NotificationD
           </div>
         ) : (
           <div className="divide-y">
-            {notifications.map(notification => (
+            {notifications.map((notification: Notification) => (
               <NotificationItem
                 key={notification.id}
                 notification={notification}
@@ -297,12 +296,12 @@ export function NotificationDropdown({ onUpdate, onBookingClick }: NotificationD
               </div>
             ) : (
               <div className="divide-y">
-                {allNotifications.map(notification => (
+                {allNotifications.map((notification: Notification) => (
                   <NotificationItem
                     key={notification.id}
                     notification={notification}
                     onClick={() => handleNotificationClick(notification, true)}
-                    onDelete={() => handleDelete(notification.id, true)}
+                    onDelete={() => handleDelete(notification.id)}
                   />
                 ))}
               </div>

@@ -226,6 +226,7 @@ const CreateBookingAddPayment = ({
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["allPayments"] });
       queryClient.invalidateQueries({ queryKey: ["billing"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-bookings"] }); // Refresh calendar
       onBookingCreated?.();
       handleClose();
     },
@@ -297,6 +298,7 @@ const CreateBookingAddPayment = ({
       toast.success("Booking created successfully!");
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["billing"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-bookings"] }); // Refresh calendar
       onBookingCreated?.();
       handleClose();
     },

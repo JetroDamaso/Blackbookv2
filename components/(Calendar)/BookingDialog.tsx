@@ -92,6 +92,7 @@ import { StartDatePickerForm } from "../(Bookings)/(AddBookings)/TimeDatePicker/
 import TimeEndPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeEndPicker";
 import TimeStartPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeStartPicker";
 import AddPaymentDialog from "../(Payments)/AddPaymentDialog";
+import RefundPaymentDialog from "../(Payments)/RefundPaymentDialog";
 import ViewPaymentDialog from "../(Payments)/ViewPaymentDialog";
 import AdditionalChargesDialog from "./AdditionalChargesDialog";
 import { ViewDocumentsDialog } from "./ViewDocumentsDialog";
@@ -173,7 +174,8 @@ export default function BookingDialogComponent({
     queryKey: ["payments", billing?.id],
     queryFn: async () => {
       const { getPaymentsByBilling } = await import("@/server/Billing & Payments/pullActions");
-      return getPaymentsByBilling(Number(billing?.id));
+      const result = await getPaymentsByBilling(Number(billing?.id), 1, 1000);
+      return result?.data || [];
     },
     enabled: !!billing?.id,
   });
@@ -904,6 +906,7 @@ export default function BookingDialogComponent({
       queryClient.invalidateQueries({ queryKey: ["client"] });
       queryClient.invalidateQueries({ queryKey: ["package", bookingId] });
       queryClient.invalidateQueries({ queryKey: ["pavilionPackages"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-bookings"] }); // Refresh calendar
       toast.success("Booking updated successfully!");
     },
     onError: () => {
@@ -3094,6 +3097,11 @@ export default function BookingDialogComponent({
                         <AddPaymentDialog
                           billingId={billing?.id || 0}
                           clientId={booking?.clientId || 0}
+                        />
+                      </div>
+                      <div className="w-full grow flex-1">
+                        <RefundPaymentDialog
+                          billingId={billing?.id || 0}
                         />
                       </div>
                       <div className="w-full grow flex-1">

@@ -123,7 +123,7 @@ export async function createPayment(
         });
 
         if (billing) {
-          const totalPaid = billing.payments.reduce((sum, p) => sum + p.amount, 0);
+          const totalPaid = billing.payments.filter((p) => p.status !== "refunded").reduce((sum, p) => sum + p.amount, 0);
           const isFullyPaid = totalPaid >= billing.discountedPrice;
 
           // If fully paid, send payment completion notifications and cancel reminders

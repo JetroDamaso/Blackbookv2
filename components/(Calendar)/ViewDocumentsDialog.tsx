@@ -34,11 +34,16 @@ export function ViewDocumentsDialog({ bookingId, clientId, billingId }: ViewDocu
   });
 
   // Fetch payments for this billing to get payment IDs
-  const { data: payments = [], isPending: isPaymentsPending } = useQuery({
+  const { data: paymentsResponse, isPending: isPaymentsPending } = useQuery({
     queryKey: ["paymentsByBilling", billingId],
-    queryFn: () => getPaymentsByBilling(billingId || 0),
+    queryFn: async () => {
+      const result = await getPaymentsByBilling(billingId || 0, 1, 1000);
+      return result?.data || [];
+    },
     enabled: isOpen && !!billingId,
   });
+
+  const payments = paymentsResponse || [];
 
   // Get payment IDs as a stable string
   const paymentIds = payments.map(p => p.id);

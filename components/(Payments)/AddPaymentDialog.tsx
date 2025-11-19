@@ -163,6 +163,12 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
       });
       // Also invalidate billing data to update totals in BookingDialog
       queryClient.invalidateQueries({ queryKey: ["billing"] });
+      // Invalidate payments query used in BookingDialog
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      // Invalidate booking query to refresh status (CRITICAL for real-time update)
+      queryClient.invalidateQueries({ queryKey: ["booking"] });
+      // Invalidate calendar bookings to update calendar view
+      queryClient.invalidateQueries({ queryKey: ["calendar-bookings"] });
 
       handleClose();
     },
@@ -174,7 +180,7 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!amount || !modeOfPayment) {
+    if (!amount || !modeOfPayment || !orNumber) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -246,8 +252,10 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
               )}
               <DialogDescription className="grid grid-cols-2 gap-4">
                 <div className="gap-2 flex flex-col">
-                  <Label className="font-normal">Mode of payment *</Label>
-                  <Select value={modeOfPayment} onValueChange={setModeOfPayment}>
+                  <Label className="font-normal">
+                    Mode of payment <span className="text-red-500">*</span>
+                  </Label>
+                  <Select value={modeOfPayment} onValueChange={setModeOfPayment} required>
                     <SelectTrigger>
                       <SelectValue placeholder="Mode of payment" />
                     </SelectTrigger>
@@ -261,7 +269,9 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                   </Select>
                 </div>
                 <div className="gap-2 flex flex-col">
-                  <Label className="font-normal">Amount *</Label>
+                  <Label className="font-normal">
+                    Amount <span className="text-red-500">*</span>
+                  </Label>
                   <InputGroup>
                     <InputGroupAddon>
                       <InputGroupText>₱</InputGroupText>
@@ -271,7 +281,8 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                       value={amount}
                       onChange={e => setAmount(e.target.value)}
                       step="0.01"
-                      min="0"
+                      min="0.01"
+                      required
                       className={
                         billingSummary && amount && parseFloat(amount) > billingSummary.balance
                           ? "border-red-500 focus:border-red-500"
@@ -314,11 +325,14 @@ const AddPaymentDialog = ({ billingId, clientId }: AddPaymentDialogProps) => {
                 </div>
 
                 <div className="gap-2 flex flex-col">
-                  <Label className="font-normal">OR Number</Label>
+                  <Label className="font-normal">
+                    OR Number <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     placeholder="Official Receipt Number"
                     value={orNumber}
                     onChange={e => setOrNumber(e.target.value)}
+                    required
                   />
                 </div>
 

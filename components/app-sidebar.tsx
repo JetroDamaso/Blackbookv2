@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { hasPermission, type Role } from "@/lib/permissions";
-import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { NotificationBell } from "@/components/NotificationBell";
 
 // This is sample data.
 const data = {

@@ -44,6 +44,7 @@ interface ContinuousCalendarProps {
   onNoDateAlert?: () => void;
   onNoPavilionAlert?: () => void;
   statusFilter?: React.ReactNode; // New prop for status filter component
+  isFetching?: boolean; // New prop for showing loading state
 }
 
 export interface selected {
@@ -69,6 +70,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
   onNoDateAlert,
   onNoPavilionAlert,
   statusFilter, // Add statusFilter prop
+  isFetching, // Add isFetching prop
 }) => {
   const [selectedDate, setSelectedDate] = useState<selected | undefined>(undefined);
   const [selectedDates, setSelectedDates] = useState<selected[]>([]);
@@ -517,12 +519,28 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
 
                     const isRescheduling = reschedulingBookingId === n.id;
 
+                    // Get the full booking to check status and date
+                    const fullBooking = getAllBookings?.find(b => b.id === n.id);
+                    const bookingDate = new Date(cellYear, month, day);
+                    bookingDate.setHours(23, 59, 59, 999); // End of the booking day
+                    const isPastBooking = bookingDate < todayDate;
+                    const bookingStatus = fullBooking?.status;
+
+                    // Determine if semi-transparent (past + completed or pending)
+                    const isSemiTransparent =
+                      isPastBooking && (bookingStatus === 4 || bookingStatus === 1);
+
+                    // Determine if red outline (past + unpaid)
+                    const hasRedOutline = isPastBooking && bookingStatus === 5;
+
                     return (
                       <ContextMenu key={`${dateKey}-${i}`}>
                         <ContextMenuTrigger asChild>
                           <div
                             className={`text-[10px] font-normal rounded-sm h-fit cursor-pointer transition-all hover:brightness-110 ${
                               isRescheduling ? "opacity-50 ring-2 ring-blue-500" : ""
+                            } ${isSemiTransparent ? "opacity-50" : ""} ${
+                              hasRedOutline ? "ring-1 ring-red-500" : ""
                             }`}
                             style={{
                               backgroundColor: backgroundColor,
@@ -633,6 +651,12 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
               Today
             </button>
             {statusFilter && <div className="ml-2">{statusFilter}</div>}
+            {isFetching && (
+              <div className="ml-2 flex items-center gap-2 text-xs text-slate-500">
+                <div className="animate-spin rounded-full h-3 w-3 border-2 border-slate-300 border-t-slate-600"></div>
+                <span>Updating...</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between gap-2">

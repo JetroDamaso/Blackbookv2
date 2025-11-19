@@ -105,39 +105,61 @@ export async function getAllPayments() {
   }
 }
 
-export async function getPaymentsByBilling(billingId: number) {
+export async function getPaymentsByBilling(billingId: number, page: number = 1, pageSize: number = 6) {
   try {
-    const data = await prisma.payment.findMany({
-      where: { billingId },
-      include: {
-        client: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
+    const skip = (page - 1) * pageSize;
+
+    const [data, total] = await Promise.all([
+      prisma.payment.findMany({
+        where: { billingId },
+        include: {
+          client: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
           },
-        },
-        billing: {
-          select: {
-            id: true,
-            modeOfPayment: true,
-            booking: {
-              select: {
-                eventName: true,
-                id: true,
+          billing: {
+            select: {
+              id: true,
+              modeOfPayment: true,
+              booking: {
+                select: {
+                  eventName: true,
+                  id: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: {
-        date: "desc",
-      },
-    });
-    return data || []; // Return empty array if no data
+        orderBy: {
+          date: "desc",
+        },
+        skip,
+        take: pageSize,
+      }),
+      prisma.payment.count({
+        where: { billingId },
+      }),
+    ]);
+
+    return {
+      data: data || [],
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
   } catch (error) {
     console.error("Failed to fetch payments by billing", error);
-    return []; // Return empty array on error instead of throwing
+    return {
+      data: [],
+      total: 0,
+      page: 1,
+      pageSize,
+      totalPages: 0,
+    };
   }
 }
 
@@ -196,7 +218,7 @@ export async function getBillingSummary(billingId: number) {
     }
 
     const totalPaid =
-      billing.payments?.reduce((sum: number, payment: any) => sum + payment.amount, 0) || 0;
+      billing.payments?.filter((payment: any) => payment.status !== "refunded").reduce((sum: number, payment: any) => sum + payment.amount, 0) || 0;
     const additionalChargesTotal =
       billing.booking?.additionalCharges?.reduce(
         (sum: number, charge: any) => sum + charge.amount,

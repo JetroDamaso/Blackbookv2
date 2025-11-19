@@ -73,6 +73,8 @@ export default function AdditionalChargesDialog({ bookingId }: AdditionalCharges
       queryClient.invalidateQueries({ queryKey: ["additionalCharges", bookingId] });
       queryClient.invalidateQueries({ queryKey: ["billingSummary"] });
       queryClient.invalidateQueries({ queryKey: ["billing"] });
+      queryClient.invalidateQueries({ queryKey: ["booking"] }); // Refresh booking status
+      queryClient.invalidateQueries({ queryKey: ["calendar-bookings"] }); // Refresh calendar
     } catch (error) {
       toast.error("Failed to add additional charge");
       console.error(error);
@@ -92,6 +94,8 @@ export default function AdditionalChargesDialog({ bookingId }: AdditionalCharges
       queryClient.invalidateQueries({ queryKey: ["additionalCharges", bookingId] });
       queryClient.invalidateQueries({ queryKey: ["billingSummary"] });
       queryClient.invalidateQueries({ queryKey: ["billing"] });
+      queryClient.invalidateQueries({ queryKey: ["booking"] }); // Refresh booking status
+      queryClient.invalidateQueries({ queryKey: ["calendar-bookings"] }); // Refresh calendar
     } catch (error) {
       toast.error("Failed to delete additional charge");
       console.error(error);
