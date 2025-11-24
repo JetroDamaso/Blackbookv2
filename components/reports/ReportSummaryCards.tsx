@@ -15,44 +15,48 @@ interface ReportSummaryCardsProps {
 
 export function ReportSummaryCards({ summary }: ReportSummaryCardsProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 print:gap-2">
+      <Card className="print:shadow-none print:border">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-semibold text-gray-700">Total Bookings</CardTitle>
+          <Users className="h-5 w-5 text-blue-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{summary.totalBookings}</div>
+          <div className="text-3xl font-bold text-gray-900">{summary.totalBookings}</div>
+          <p className="text-xs text-gray-500 mt-1">Event bookings</p>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="print:shadow-none print:border">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-semibold text-gray-700">Total Bookings Value</CardTitle>
+          <DollarSign className="h-5 w-5 text-green-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(summary.totalRevenue)}</div>
+          <div className="text-3xl font-bold text-gray-900">{formatCurrency(summary.totalRevenue)}</div>
+          <p className="text-xs text-gray-500 mt-1">Confirmed, Completed & Unpaid</p>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="print:shadow-none print:border">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Average Booking Value</CardTitle>
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-semibold text-gray-700">Average Value</CardTitle>
+          <TrendingUp className="h-5 w-5 text-purple-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(summary.averageBookingValue)}</div>
+          <div className="text-3xl font-bold text-gray-900">{formatCurrency(summary.averageBookingValue)}</div>
+          <p className="text-xs text-gray-500 mt-1">Per booking</p>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="print:shadow-none print:border">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Cancellation Rate</CardTitle>
-          <AlertCircle className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-semibold text-gray-700">Cancellation Rate</CardTitle>
+          <AlertCircle className="h-5 w-5 text-orange-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{summary.cancellationRate.toFixed(2)}%</div>
+          <div className="text-3xl font-bold text-gray-900">{summary.cancellationRate.toFixed(1)}%</div>
+          <p className="text-xs text-gray-500 mt-1">Of total bookings</p>
         </CardContent>
       </Card>
     </div>

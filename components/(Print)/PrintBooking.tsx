@@ -9,6 +9,7 @@ interface PrintBookingProps {
   client?: any;
   pavilion?: any;
   package?: any;
+  menuPackage?: any;
   eventType?: any;
   billingSummary?: any;
   menuDishes?: any[];
@@ -23,6 +24,7 @@ const PrintBooking = ({
   client,
   pavilion,
   package: pkg,
+  menuPackage,
   eventType,
   billingSummary,
   menuDishes = [],
@@ -210,10 +212,10 @@ const PrintBooking = ({
           </div>
         </div>
 
-        {/* Package Information Block - Keep together */}
+        {/* Pavilion Package Information Block - Keep together */}
         <div className="w-full border-t pt-2 pb-2 mt-2 border-foreground print-section">
           <p className="font-medium mb-1.5 gap-2 flex items-center text-xs">
-            <ForkKnife size={14} /> Package:
+            <Package size={14} /> Pavilion Package:
           </p>
 
           <div className="grid grid-cols-2 mb-2">
@@ -221,44 +223,89 @@ const PrintBooking = ({
               Package Name: <span className="font-normal ml-2">{pkg?.name || "N/A"}</span>
             </p>
             <p className="font-medium text-xs">
-              Price per pax:{" "}
-              <span className="font-normal ml-2">
-                {pkg?.price ? formatCurrency(pkg.price) : "N/A"}
-              </span>
+              Package Price: <span className="font-normal ml-2">{pkg?.price ? formatCurrency(pkg.price) : "N/A"}</span>
             </p>
           </div>
         </div>
 
-        {/* Menu Dishes Block */}
-        {menuDishes && menuDishes.length > 0 && (
-          <div className="mb-2 print-section-large">
+        {/* Menu Package Information Block - Keep together */}
+        {menuPackage && (
+          <div className="w-full border-t pt-2 pb-2 mt-2 border-foreground print-section">
             <p className="font-medium mb-1.5 gap-2 flex items-center text-xs">
-              <ForkKnife size={14} /> Menu:
+              <ForkKnife size={14} /> Menu Package & Catering:
             </p>
-            <table className="w-full text-xs">
-              <thead className="border-b">
-                <tr>
-                  <th className="text-left py-0.5">Dish</th>
-                  <th className="text-left py-0.5">Category</th>
-                </tr>
-              </thead>
-              <tbody>
-                {menuDishes.map((dish: any, idx: number) => {
-                  const dishName = dish.name || "N/A";
-                  const quantity = dish.quantity || 1;
-                  const displayName = quantity > 1 ? `${dishName} x${quantity}` : dishName;
 
-                  return (
-                    <tr key={idx} className="border-b">
-                      <td className="py-0.5">{displayName}</td>
-                      <td className="py-0.5">{dish.categoryName || "—"}</td>
+            <div className="grid grid-cols-2 mb-2">
+              <p className="font-medium text-xs">
+                Package Name: <span className="font-normal ml-2">{menuPackage?.name || "N/A"}</span>
+              </p>
+              <p className="font-medium text-xs">
+                Price per pax: <span className="font-normal ml-2">{menuPackage?.price ? formatCurrency(menuPackage.price) : "N/A"}</span>
+              </p>
+              <p className="font-medium text-xs">
+                Dishes: <span className="font-normal ml-2">{menuPackage?.maxDishes || "N/A"}</span>
+              </p>
+              <p className="font-medium text-xs">
+                Number of Pax: <span className="font-normal ml-2">{booking?.totalPax || "N/A"}</span>
+              </p>
+            </div>
+
+            {/* Selected Dishes */}
+            {menuDishes && menuDishes.length > 0 && (
+              <div className="mb-2 mt-2">
+                <p className="font-medium text-xs mb-1">Selected Dishes:</p>
+                <table className="w-full text-xs">
+                  <thead className="border-b">
+                    <tr>
+                      <th className="text-left py-0.5">Dish</th>
+                      <th className="text-left py-0.5">Category</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {menuDishes.map((dish: any, idx: number) => {
+                      const dishName = dish.name || "N/A";
+                      const quantity = dish.quantity || 1;
+                      const displayName = quantity > 1 ? `${dishName} x${quantity}` : dishName;
+
+                      return (
+                        <tr key={idx} className="border-b">
+                          <td className="py-0.5">{displayName}</td>
+                          <td className="py-0.5">{dish.categoryName || "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Catering Computation */}
+            <div className="border-t pt-2 mt-2">
+              <p className="font-medium text-xs mb-1">Catering Computation:</p>
+              <div className="flex justify-between items-center text-xs mb-0.5">
+                <span className="text-gray-600">
+                  {booking?.totalPax || 0} pax × {menuPackage?.price ? formatCurrency(menuPackage.price) : "₱0.00"} per pax
+                </span>
+                <span className="font-medium">
+                  = {menuPackage?.price && booking?.totalPax
+                    ? formatCurrency(menuPackage.price * booking.totalPax)
+                    : "₱0.00"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs font-semibold border-t pt-1 mt-1">
+                <span>Total Catering Cost:</span>
+                <span>
+                  {menuPackage?.price && booking?.totalPax
+                    ? formatCurrency(menuPackage.price * booking.totalPax)
+                    : "₱0.00"}
+                </span>
+              </div>
+            </div>
           </div>
         )}
+
+        {/* Menu Dishes Block - Remove this section since dishes are now in Menu Package */}
+        {/* Keeping this commented for backward compatibility but dishes now show in Menu Package section above */}
 
         {/* Inventory Block */}
         {bookingInventory && bookingInventory.length > 0 && (

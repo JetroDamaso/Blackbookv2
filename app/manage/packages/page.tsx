@@ -7,6 +7,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useSession } from "next-auth/react";
 import { DataTable } from "./data-table";
 import { columns } from "./columns";
+import { EditPackageDialog } from "./edit-package-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -19,6 +20,8 @@ import { useState, useMemo } from "react";
 
 export default function ManagePackages() {
   const [selectedPavilion, setSelectedPavilion] = useState<string>("all");
+  const [editPackageId, setEditPackageId] = useState<number | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const { data: session } = useSession();
 
   const {
@@ -54,6 +57,11 @@ export default function ManagePackages() {
   const averagePrice = packagesData?.length
     ? packagesData.reduce((sum, pkg) => sum + pkg.price, 0) / packagesData.length
     : 0;
+
+  const handleRowClick = (packageId: number) => {
+    setEditPackageId(packageId);
+    setEditDialogOpen(true);
+  };
 
   // Render widgets based on user role
   const renderWidgets = () => {
@@ -129,8 +137,15 @@ export default function ManagePackages() {
           columns={columns}
           data={packagesData || []}
           selectedPavilion={selectedPavilion}
+          onRowClick={handleRowClick}
         />
       </div>
+
+      <EditPackageDialog
+        packageId={editPackageId}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+      />
     </>
   );
 }

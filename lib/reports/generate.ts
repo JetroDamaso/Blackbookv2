@@ -347,7 +347,6 @@ async function buildReport(
   const financialBreakdown = await calculateFinancialBreakdown(bookings, startDate, endDate);
   const clientStats = await calculateClientStats(bookings, startDate, endDate);
   const bookingDetails = mapBookingDetails(bookings);
-  const inventoryStats = calculateInventoryStats(bookings);
 
   return {
     metadata: {
@@ -371,7 +370,6 @@ async function buildReport(
     financialBreakdown,
     clientStats,
     bookings: bookingDetails,
-    inventoryStats,
   };
 }
 
@@ -380,10 +378,13 @@ async function buildReport(
  */
 function calculateSummary(bookings: any[]) {
   const totalBookings = bookings.length;
-  const totalRevenue = bookings.reduce((sum, b) => sum + (b.billing?.originalPrice || 0), 0);
+
+  // Only include Confirmed (2), Completed (4), and Unpaid (5) bookings in revenue calculation
+  const revenueBookings = bookings.filter(b => b.status === 2 || b.status === 4 || b.status === 5);
+  const totalRevenue = revenueBookings.reduce((sum, b) => sum + (b.billing?.originalPrice || 0), 0);
   const averageBookingValue = safeDivide(totalRevenue, totalBookings);
 
-  const cancelledCount = bookings.filter(b => b.status === 3).length; // Assuming 3 = Cancelled
+  const cancelledCount = bookings.filter(b => b.status === 6).length; // Status 6 = Cancelled
   const cancellationRate = calculatePercentage(cancelledCount, totalBookings);
 
   return {
@@ -402,17 +403,32 @@ function calculateBookingBreakdown(bookings: any[]) {
   const byVenue: Record<string, number> = {};
   const byEventType: Record<string, number> = {};
 
-  // Status mapping (adjust based on your actual status values)
+  // Status mapping (actual status values in the database)
   const statusMap: Record<number, string> = {
-    0: "Pending",
-    1: "Confirmed",
-    2: "Completed",
-    3: "Cancelled",
+    1: "Pending",
+    2: "Confirmed",
+    3: "In Progress",
+    4: "Completed",
+    5: "Unpaid",
+    6: "Cancelled",
+    7: "Archived",
   };
 
   bookings.forEach(booking => {
-    // By Status
-    const statusName = statusMap[booking.status] || "Unknown";
+    // By Status - Override "In Progress" based on payment status
+    let statusName = statusMap[booking.status] || "Unknown";
+
+    if (booking.status === 3) { // Status 3 = In Progress
+      const totalAmount = booking.billing?.originalPrice || 0;
+      const balance = booking.billing?.balance || 0;
+
+      if (balance === 0 && totalAmount > 0) {
+        statusName = "Completed"; // Full payment received
+      } else if (balance > 0) {
+        statusName = "Unpaid"; // Still has balance
+      }
+    }
+
     byStatus[statusName] = (byStatus[statusName] || 0) + 1;
 
     // By Venue
@@ -435,34 +451,54 @@ function calculateBookingBreakdown(bookings: any[]) {
  * Calculate financial breakdown
  */
 async function calculateFinancialBreakdown(bookings: any[], startDate: Date, endDate: Date) {
-  const totalRevenue = bookings.reduce((sum, b) => sum + (b.billing?.originalPrice || 0), 0);
+  // Only include Confirmed (2), Completed (4), and Unpaid (5) bookings in revenue calculation
+  const revenueBookings = bookings.filter(b => b.status === 2 || b.status === 4 || b.status === 5);
+  const totalRevenue = revenueBookings.reduce((sum, b) => sum + (b.billing?.originalPrice || 0), 0);
 
-  // Revenue by venue
+  // Revenue by venue - only for revenue bookings
   const revenueByVenue: Record<string, number> = {};
-  bookings.forEach(booking => {
+  revenueBookings.forEach(booking => {
     const venueName = booking.pavilion?.name || "No Venue";
     const revenue = booking.billing?.originalPrice || 0;
     revenueByVenue[venueName] = (revenueByVenue[venueName] || 0) + revenue;
   });
 
-  // Payment statistics
+  // Payment statistics - exclude refunded payments (use all bookings for payment tracking)
   const paymentsCollected = bookings.reduce((sum, b) => {
     const payments = b.billing?.payments || [];
-    return sum + payments.reduce((pSum: number, p: any) => pSum + p.amount, 0);
+    const validPayments = payments
+      .filter((p: any) => p.status?.toLowerCase() !== 'refunded')
+      .reduce((pSum: number, p: any) => pSum + p.amount, 0);
+    return sum + validPayments;
   }, 0);
 
-  const outstandingBalance = bookings.reduce((sum, b) => sum + (b.billing?.balance || 0), 0);
+  // Calculate outstanding balance - only for Confirmed (2), Completed (4), and Unpaid (5) bookings
+  const outstandingBalance = revenueBookings.reduce((sum, b) => {
+    const totalAmount = b.billing?.originalPrice || 0;
+    const payments = b.billing?.payments || [];
+    const paidAmount = payments
+      .filter((p: any) => p.status?.toLowerCase() !== 'refunded')
+      .reduce((pSum: number, p: any) => pSum + p.amount, 0);
+    const balance = Math.max(0, totalAmount - paidAmount);
+    return sum + balance;
+  }, 0);
 
-  // Overdue payments (bookings with balance and past event date)
+  // Overdue payments (bookings with balance and past event date) - only for revenue bookings
   const now = new Date();
-  const overduePayments = bookings.filter(b => {
-    const hasBalance = (b.billing?.balance || 0) > 0;
+  const overduePayments = revenueBookings.filter(b => {
+    const totalAmount = b.billing?.originalPrice || 0;
+    const payments = b.billing?.payments || [];
+    const paidAmount = payments
+      .filter((p: any) => p.status?.toLowerCase() !== 'refunded')
+      .reduce((pSum: number, p: any) => pSum + p.amount, 0);
+    const balance = totalAmount - paidAmount;
+    const hasBalance = balance > 0;
     const isPastEvent = b.startAt && b.startAt < now;
     return hasBalance && isPastEvent;
   }).length;
 
-  // Discount statistics
-  const discountsData = bookings.map(b => ({
+  // Discount statistics - only for Confirmed (2), Completed (4), and Unpaid (5) bookings
+  const discountsData = revenueBookings.map(b => ({
     type: b.billing?.discountType || "None",
     amount: b.billing?.discountAmount || 0,
   }));
@@ -554,13 +590,30 @@ function mapBookingDetails(bookings: any[]): BookingDetail[] {
   return bookings.map(booking => {
     const totalAmount = booking.billing?.originalPrice || 0;
     const payments = booking.billing?.payments || [];
-    const paidAmount = payments.reduce((sum: number, p: any) => sum + p.amount, 0);
-    const balance = booking.billing?.balance || 0;
+
+    // Only sum payments that are not refunded (exclude status "refunded" or "REFUNDED")
+    const paidAmount = payments
+      .filter((p: any) => p.status?.toLowerCase() !== 'refunded')
+      .reduce((sum: number, p: any) => sum + p.amount, 0);
+
+    // Calculate actual balance: totalAmount - paidAmount
+    const balance = Math.max(0, totalAmount - paidAmount);
+
+    // Override status for "In Progress" bookings based on payment status
+    let displayStatus = getStatusName(booking.status);
+    if (booking.status === 3) { // Status 3 = In Progress
+      if (balance === 0 && totalAmount > 0) {
+        displayStatus = "Completed"; // Full payment received
+      } else if (balance > 0) {
+        displayStatus = "Unpaid"; // Still has balance
+      }
+    }
 
     return {
       id: booking.id.toString(),
       eventDate: booking.startAt || new Date(),
-      status: getStatusName(booking.status),
+      eventName: booking.eventName || "No Event Name",
+      status: displayStatus,
       venue: booking.pavilion?.name || "No Venue",
       eventType: booking.category?.name || "No Type",
       client: booking.client
@@ -578,35 +631,15 @@ function mapBookingDetails(bookings: any[]): BookingDetail[] {
  */
 function getStatusName(status: number): string {
   const statusMap: Record<number, string> = {
-    0: "Pending",
-    1: "Confirmed",
-    2: "Completed",
-    3: "Cancelled",
+    1: "Pending",
+    2: "Confirmed",
+    3: "In Progress",
+    4: "Completed",
+    5: "Unpaid",
+    6: "Cancelled",
+    7: "Archived",
   };
   return statusMap[status] || "Unknown";
-}
-
-/**
- * Calculate inventory statistics
- */
-function calculateInventoryStats(bookings: any[]) {
-  let totalCheckouts = 0;
-  let damagedItems = 0;
-  let missingItems = 0;
-
-  bookings.forEach(booking => {
-    const items = booking.inventoryStatuses || [];
-    totalCheckouts += items.length;
-
-    // You may need to add fields to track damaged/missing items in your schema
-    // For now, returning zeros
-  });
-
-  return {
-    totalCheckouts,
-    damagedItems,
-    missingItems,
-  };
 }
 
 /**

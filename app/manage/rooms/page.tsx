@@ -5,9 +5,14 @@ import { Hotel, Bed, Users, Calendar } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { DataTable } from "./data-table";
 import { columns } from "./columns";
+import { EditRoomDialog } from "./edit-room-dialog";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 export default function ManageRooms() {
+  const [editRoomId, setEditRoomId] = useState<number | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+
   const { isPending, error, data } = useQuery({
     queryKey: ["allRooms"],
     queryFn: () => getAllRooms(),
@@ -32,6 +37,11 @@ export default function ManageRooms() {
   const totalCapacity = data?.reduce((sum, room) => sum + room.capacity, 0) || 0;
 
   const averageCapacity = data?.length ? Math.round(totalCapacity / data.length) : 0;
+
+  const handleRowClick = (roomId: number) => {
+    setEditRoomId(roomId);
+    setEditDialogOpen(true);
+  };
 
   return (
     <>
@@ -71,8 +81,14 @@ export default function ManageRooms() {
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
-        <DataTable columns={columns} data={data || []} />
+        <DataTable columns={columns} data={data || []} onRowClick={handleRowClick} />
       </div>
+
+      <EditRoomDialog
+        roomId={editRoomId}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+      />
     </>
   );
 }

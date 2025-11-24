@@ -48,13 +48,25 @@ export function ReportConfigDialog({
   };
 
   const handleGenerate = () => {
+    // Validate report type
     if (!reportType) {
       toast.error("Please select a report type");
       return;
     }
 
+    // Validate report name
     if (!reportName.trim()) {
       toast.error("Please enter a report name");
+      return;
+    }
+
+    if (reportName.trim().length < 3) {
+      toast.error("Report name must be at least 3 characters");
+      return;
+    }
+
+    if (reportName.trim().length > 100) {
+      toast.error("Report name must not exceed 100 characters");
       return;
     }
 

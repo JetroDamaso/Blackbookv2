@@ -55,7 +55,7 @@ export default function TimeEndPickerCreateBookingComponent({
     <TimeField
       className="*:not-first:mt-2"
       onChange={handleTimeChange}
-      defaultValue={defaultTimeValue}
+      value={defaultTimeValue}
     >
       <Label className="text-foreground/50 text-sm font-normal">Time out</Label>
       <div className="relative">

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useState, useCallback, useMemo, useRef } from "react";
 
 import { municipalities, provinces, regions } from "psgc";
 
@@ -26,7 +26,7 @@ interface RegionComboBoxProps {
   disabled?: boolean;
 }
 
-export default function RegionComboBoxComponent({
+function RegionComboBoxComponent({
   regionOnChange,
   provinceOnChange,
   municipalityOnChange,
@@ -42,7 +42,22 @@ export default function RegionComboBoxComponent({
   const municipalityID = useId();
   const barangayID = useId();
 
-  const allRegions = regions.all();
+  // Memoize the regions array to prevent recreation on every render
+  const allRegions = useMemo(() => regions.all(), []);
+
+  // Use refs to store the callback functions to avoid them being dependencies
+  const regionOnChangeRef = useRef(regionOnChange);
+  const provinceOnChangeRef = useRef(provinceOnChange);
+  const municipalityOnChangeRef = useRef(municipalityOnChange);
+  const barangayOnChangeRef = useRef(barangayOnChange);
+
+  // Update refs when callbacks change
+  useEffect(() => {
+    regionOnChangeRef.current = regionOnChange;
+    provinceOnChangeRef.current = provinceOnChange;
+    municipalityOnChangeRef.current = municipalityOnChange;
+    barangayOnChangeRef.current = barangayOnChange;
+  }, [regionOnChange, provinceOnChange, municipalityOnChange, barangayOnChange]);
 
   const [regionValue, setRegionValue] = useState(initialRegion);
   const [provinceValue, setProvinceValue] = useState(initialProvince);
@@ -89,7 +104,7 @@ export default function RegionComboBoxComponent({
     setBarangayValue(initialBarangay);
   }, [initialRegion, initialProvince, initialMunicipality, initialBarangay]);
 
-  const handleClickRegion = (value: string) => {
+  const handleClickRegion = useCallback((value: string) => {
     setRegionValue(value);
     // Reset dependent values
     setProvinceValue("");
@@ -103,18 +118,18 @@ export default function RegionComboBoxComponent({
     const mappedProvinces = allProvinces ? allProvinces.provinces : [];
     setProvincesValues(mappedProvinces.map(province => province.name));
 
-    regionOnChange(value);
+    regionOnChangeRef.current(value);
     // Clear dependent onChange calls
-    provinceOnChange("");
-    municipalityOnChange("");
-    barangayOnChange("");
+    provinceOnChangeRef.current("");
+    municipalityOnChangeRef.current("");
+    barangayOnChangeRef.current("");
 
     if (mappedProvinces.length > 0) {
       setShowProvince(true);
     }
-  };
+  }, []);
 
-  const handleClickProvince = (value: string) => {
+  const handleClickProvince = useCallback((value: string) => {
     setProvinceValue(value);
     // Reset dependent values
     setMunicipalityValue("");
@@ -126,17 +141,17 @@ export default function RegionComboBoxComponent({
     const mappedMunicipalities = allMunicipalities ? allMunicipalities.municipalities : [];
 
     setmunicipalitiesValues(mappedMunicipalities.map(municipality => municipality.name));
-    provinceOnChange(value);
+    provinceOnChangeRef.current(value);
     // Clear dependent onChange calls
-    municipalityOnChange("");
-    barangayOnChange("");
+    municipalityOnChangeRef.current("");
+    barangayOnChangeRef.current("");
 
     if (mappedMunicipalities.length > 0) {
       setShowMunicipality(true);
     }
-  };
+  }, []);
 
-  const handleClickMunicipality = (value: string) => {
+  const handleClickMunicipality = useCallback((value: string) => {
     setMunicipalityValue(value);
     // Reset dependent values
     setBarangayValue("");
@@ -146,18 +161,54 @@ export default function RegionComboBoxComponent({
     const mappedBarangays = allBarangays ? allBarangays.barangays : [];
 
     setBarangayValues(mappedBarangays.map(barangay => barangay.name));
-    municipalityOnChange(value);
-    barangayOnChange("");
+    municipalityOnChangeRef.current(value);
+    barangayOnChangeRef.current("");
 
     if (mappedBarangays.length > 0) {
       setShowBarangay(true);
     }
-  };
+  }, []);
 
-  const handleClickBarangay = (value: string) => {
+  const handleClickBarangay = useCallback((value: string) => {
     setBarangayValue(value);
-    barangayOnChange(value);
-  };
+    barangayOnChangeRef.current(value);
+  }, []);
+
+  // Memoize SelectItems to prevent recreation
+  const regionItems = useMemo(() => {
+    return allRegions.map(region => (
+      <SelectItem value={region.name} key={region.name}>
+        {region.name}
+      </SelectItem>
+    ));
+  }, [allRegions]);
+
+  const provinceItems = useMemo(() => {
+    return provincesValues?.map(province => (
+      <SelectItem value={province} key={province}>
+        {province}
+      </SelectItem>
+    ));
+  }, [provincesValues]);
+
+  const municipalityItems = useMemo(() => {
+    return municipalitiesValues?.map(municipality => (
+      <SelectItem value={municipality} key={municipality}>
+        {municipality}
+      </SelectItem>
+    ));
+  }, [municipalitiesValues]);
+
+  const barangayItems = useMemo(() => {
+    return barangayValues?.map((barangay, idx) => {
+      const compositeKey = `${barangay}::${idx}`;
+      return (
+        <SelectItem value={barangay} key={compositeKey}>
+          {barangay}
+        </SelectItem>
+      );
+    });
+  }, [barangayValues]);
 
   return (
     <div className="space-y-4">
@@ -172,11 +223,7 @@ export default function RegionComboBoxComponent({
                 <SelectValue placeholder="Select region" />
               </SelectTrigger>
               <SelectContent className="z-[10200]">
-                {allRegions.map(region => (
-                  <SelectItem value={region.name} key={region.name}>
-                    {region.name}
-                  </SelectItem>
-                ))}
+                {regionItems}
               </SelectContent>
             </Select>
           </div>
@@ -196,11 +243,7 @@ export default function RegionComboBoxComponent({
                 <SelectValue placeholder="Select province" />
               </SelectTrigger>
               <SelectContent className="z-[10200]">
-                {provincesValues?.map(province => (
-                  <SelectItem value={province} key={province}>
-                    {province}
-                  </SelectItem>
-                ))}
+                {provinceItems}
               </SelectContent>
             </Select>
           </div>
@@ -222,11 +265,7 @@ export default function RegionComboBoxComponent({
                 <SelectValue placeholder="Select municipality" />
               </SelectTrigger>
               <SelectContent className="z-[10200]">
-                {municipalitiesValues?.map(municipality => (
-                  <SelectItem value={municipality} key={municipality}>
-                    {municipality}
-                  </SelectItem>
-                ))}
+                {municipalityItems}
               </SelectContent>
             </Select>
           </div>
@@ -246,14 +285,7 @@ export default function RegionComboBoxComponent({
                 <SelectValue placeholder="Select barangay" />
               </SelectTrigger>
               <SelectContent className="z-[10200]">
-                {barangayValues?.map((barangay, idx) => {
-                  const compositeKey = `${barangay}::${idx}`;
-                  return (
-                    <SelectItem value={barangay} key={compositeKey}>
-                      {barangay}
-                    </SelectItem>
-                  );
-                })}
+                {barangayItems}
               </SelectContent>
             </Select>
           </div>
@@ -262,3 +294,5 @@ export default function RegionComboBoxComponent({
     </div>
   );
 }
+
+export default React.memo(RegionComboBoxComponent);

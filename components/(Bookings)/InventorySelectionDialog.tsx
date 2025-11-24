@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { X, Plus, Trash2, SearchIcon } from "lucide-react";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -119,15 +120,83 @@ export function InventorySelectionDialog({
 
   // Local handlers
   const addInventoryItem = (inventoryId: number) => {
-    const quantity = parseInt(numPax) || 1; // Use numPax, fallback to 1 if invalid
+    const requestedQuantity = parseInt(numPax) || 1; // Use numPax, fallback to 1 if invalid
+
+    // Get available quantity to cap the addition
+    const inventory = inventoryItems.find((item: any) => item.id === inventoryId);
+    if (!inventory) return;
+
+    const selectedItem = localSelectedItems.find(item => item.id === inventoryId);
+    const currentlySelected = selectedItem?.quantity || 0;
+
+    // Calculate available stock based on whether dates are selected
+    let availableStock: number;
+
+    if (!startDate || !endDate) {
+      // No dates selected, check against total stock
+      availableStock = inventory.quantity - (inventory.out || 0);
+    } else {
+      // Dates selected, calculate based on overlapping bookings
+      const totalUsedQuantity = (inventoryStatuses as any[])
+        .filter((status: any) => {
+          if (status.inventoryId !== inventoryId) return false;
+          if (!status.booking?.startAt || !status.booking?.endAt) return false;
+          if (status.booking.status === 6 || status.booking.status === 7) return false;
+
+          const bookingStart = new Date(status.booking.startAt);
+          const bookingEnd = new Date(status.booking.endAt);
+
+          const normalizedBookingStart = new Date(
+            bookingStart.getFullYear(),
+            bookingStart.getMonth(),
+            bookingStart.getDate()
+          );
+          const normalizedBookingEnd = new Date(
+            bookingEnd.getFullYear(),
+            bookingEnd.getMonth(),
+            bookingEnd.getDate()
+          );
+          const normalizedStartDate = new Date(
+            startDate.getFullYear(),
+            startDate.getMonth(),
+            startDate.getDate()
+          );
+          const normalizedEndDate = new Date(
+            endDate.getFullYear(),
+            endDate.getMonth(),
+            endDate.getDate()
+          );
+
+          return (
+            normalizedBookingStart <= normalizedEndDate && normalizedBookingEnd >= normalizedStartDate
+          );
+        })
+        .reduce((sum: number, status: any) => sum + (status.quantity || 0), 0);
+
+      availableStock = inventory.quantity - (inventory.out || 0) - totalUsedQuantity;
+    }
+
+    // Calculate how much we can actually add
+    const maxCanAdd = Math.max(0, availableStock - currentlySelected);
+    const quantityToAdd = Math.min(requestedQuantity, maxCanAdd);
+
+    if (quantityToAdd <= 0) {
+      toast.error(`No more ${inventory.name} available to add.`);
+      return;
+    }
+
+    if (quantityToAdd < requestedQuantity) {
+      toast.warning(`Only ${quantityToAdd} ${inventory.name} available. Adding maximum available.`);
+    }
+
     setLocalSelectedItems(prev => {
       const existingIndex = prev.findIndex(item => item.id === inventoryId);
       if (existingIndex !== -1) {
         return prev.map((item, index) =>
-          index === existingIndex ? { ...item, quantity: item.quantity + quantity } : item
+          index === existingIndex ? { ...item, quantity: item.quantity + quantityToAdd } : item
         );
       } else {
-        return [...prev, { id: inventoryId, quantity }];
+        return [...prev, { id: inventoryId, quantity: quantityToAdd }];
       }
     });
   };
@@ -504,7 +573,7 @@ export function InventorySelectionDialog({
 
                 {/* Inventory Items List */}
                 <div className="flex-1 border rounded-md overflow-hidden">
-                  <div className="h-full overflow-y-auto">
+                  <ScrollArea className="h-[calc(90vh-280px)]">
                     <Table>
                       <TableHeader className="sticky top-0 bg-white z-10">
                         <TableRow>
@@ -620,10 +689,6 @@ export function InventorySelectionDialog({
                                         variant="outline"
                                         size="sm"
                                         onClick={() => addInventoryItem(item.id)}
-                                        disabled={
-                                          selectedQuantity + (parseInt(numPax) || 1) >
-                                          availableQuantity
-                                        }
                                       >
                                         <Plus className="w-3 h-3" />
                                       </Button>
@@ -672,7 +737,7 @@ export function InventorySelectionDialog({
                         )}
                       </TableBody>
                     </Table>
-                  </div>
+                  </ScrollArea>
                 </div>
               </div>
             </div>

@@ -8,10 +8,12 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
+import { EditEmployeeDialog } from "./edit-employee-dialog";
 
 export default function ManageEmployees() {
   const { data: session } = useSession();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -20,8 +22,9 @@ export default function ManageEmployees() {
     queryFn: () => getAllEmployeesPaginated(currentPage, pageSize),
   });
 
-  const handleRowClick = (id: number) => {
+  const handleRowClick = (id: string) => {
     setSelectedId(id);
+    setEditDialogOpen(true);
   };
 
   if (isPending) {
@@ -92,7 +95,12 @@ export default function ManageEmployees() {
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
-        <DataTable columns={columns} data={data?.data || []} onRowClick={handleRowClick} />
+        <DataTable columns={columns} data={data?.data || []} onRowClick={(id) => handleRowClick(String(id))} />
+        <EditEmployeeDialog
+          employeeId={selectedId}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+        />
       </div>
     </>
   );

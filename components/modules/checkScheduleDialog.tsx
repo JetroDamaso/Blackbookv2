@@ -12,10 +12,11 @@ import {
 } from "../ui/dialog";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
+import { Checkbox } from "../ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import TimeStartPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeStartPicker";
 import TimeEndPickerCreateBookingComponent from "../(Bookings)/(AddBookings)/TimeDatePicker/timeEndPicker";
-import { Pavilion, Booking } from "@/generated/prisma";
+import { Pavilion, Booking, EventTypes } from "@/generated/prisma";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { updateBooking } from "@/server/Booking/pushActions";
@@ -30,16 +31,11 @@ interface selected {
   year: number;
 }
 
-interface DateRange {
-  start: selected;
-  end: selected;
-}
-
 const CheckScheduleDialog = (props: {
   selectedDay?: selected;
   selectedDates?: selected[];
-  dateRange?: DateRange;
   pavilions: Pavilion[];
+  eventTypes?: EventTypes[];
   bookings?: Booking[];
   onNoDateAlert?: () => void;
   onNoPavilionAlert?: () => void;
@@ -48,8 +44,8 @@ const CheckScheduleDialog = (props: {
 }) => {
   const selectedDay = props.selectedDay ?? null;
   const selectedDates = props.selectedDates ?? [];
-  const dateRange = props.dateRange ?? null;
   const pavilions = props.pavilions ?? null;
+  const eventTypes = props.eventTypes ?? [];
   const bookings = props.bookings ?? [];
   const onNoDateAlert = props.onNoDateAlert;
   const onNoPavilionAlert = props.onNoPavilionAlert;
@@ -61,6 +57,8 @@ const CheckScheduleDialog = (props: {
   const [selectedPavilionId, setSelectedPavilionId] = useState<string>("");
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [eventName, setEventName] = useState<string>("");
+  const [eventTypeId, setEventTypeId] = useState<string>("");
   const [numPax, setNumPax] = useState<string>("");
   const [startTime, setStartTime] = useState<{
     hour: number;
@@ -101,13 +99,31 @@ const CheckScheduleDialog = (props: {
     }
   }, [isRescheduling, reschedulingBooking]);
 
+  // Auto-fill end time when start time is selected (5 hours duration)
+  useEffect(() => {
+    // Only auto-fill if:
+    // 1. Start time is set
+    // 2. End time is not already set (allow manual override)
+    // 3. Not in rescheduling mode (rescheduling sets both times from existing booking)
+    if (startTime && !endTime && !isRescheduling) {
+      const defaultDurationHours = 5;
+      const endHour = (startTime.hour + defaultDurationHours) % 24;
+      
+      setEndTime({
+        hour: endHour,
+        minute: startTime.minute,
+        second: 0,
+      });
+    }
+  }, [startTime, endTime, isRescheduling]);
+
   // Check for booking conflicts
   const selectedDatesList = useMemo(() => {
-    return dateRange ? selectedDates : selectedDay ? [selectedDay] : [];
-  }, [dateRange, selectedDates, selectedDay]);
+    return selectedDay ? [selectedDay] : [];
+  }, [selectedDates, selectedDay]);
 
   const conflictingBookings = useMemo(() => {
-    if (!selectedPavilionId || (!selectedDay && !dateRange)) return [];
+    if (!selectedPavilionId || !selectedDay) return [];
 
     const pavilionId = parseInt(selectedPavilionId);
     const conflicts: Array<{
@@ -193,12 +209,12 @@ const CheckScheduleDialog = (props: {
     });
 
     return conflicts;
-  }, [selectedPavilionId, selectedDay, dateRange, selectedDatesList, bookings]);
+  }, [selectedPavilionId, selectedDay, selectedDatesList, bookings]);
 
   const hasConflict = conflictingBookings.length > 0;
 
   const handleContinue = async () => {
-    if (!selectedDay && !dateRange) {
+    if (!selectedDay) {
       // Trigger the external alert for no date
       onNoDateAlert?.();
       return;
@@ -214,54 +230,25 @@ const CheckScheduleDialog = (props: {
     if (isRescheduling && reschedulingBooking) {
       try {
         // Calculate new start and end dates
-        let newStartDate: Date;
-        let newEndDate: Date;
+        const startHours = startTime?.hour ?? 9;
+        const startMinutes = startTime?.minute ?? 0;
+        const endHours = endTime?.hour ?? 17;
+        const endMinutes = endTime?.minute ?? 0;
 
-        if (selectedDay) {
-          // Single day reschedule - use selected times or original times
-          const startHours = startTime?.hour ?? 9;
-          const startMinutes = startTime?.minute ?? 0;
-          const endHours = endTime?.hour ?? 17;
-          const endMinutes = endTime?.minute ?? 0;
-
-          newStartDate = new Date(
-            selectedDay.year,
-            selectedDay.month,
-            selectedDay.day,
-            startHours,
-            startMinutes
-          );
-          newEndDate = new Date(
-            selectedDay.year,
-            selectedDay.month,
-            selectedDay.day,
-            endHours,
-            endMinutes
-          );
-        } else if (dateRange) {
-          // Date range reschedule - use selected times or original times
-          const startHours = startTime?.hour ?? 9;
-          const startMinutes = startTime?.minute ?? 0;
-          const endHours = endTime?.hour ?? 17;
-          const endMinutes = endTime?.minute ?? 0;
-
-          newStartDate = new Date(
-            dateRange.start.year,
-            dateRange.start.month,
-            dateRange.start.day,
-            startHours,
-            startMinutes
-          );
-          newEndDate = new Date(
-            dateRange.end.year,
-            dateRange.end.month,
-            dateRange.end.day,
-            endHours,
-            endMinutes
-          );
-        } else {
-          return;
-        }
+        const newStartDate = new Date(
+          selectedDay.year,
+          selectedDay.month,
+          selectedDay.day,
+          startHours,
+          startMinutes
+        );
+        const newEndDate = new Date(
+          selectedDay.year,
+          selectedDay.month,
+          selectedDay.day,
+          endHours,
+          endMinutes
+        );
 
         // Validate times
         if (newEndDate <= newStartDate) {
@@ -298,67 +285,43 @@ const CheckScheduleDialog = (props: {
     // Create URL parameters for new booking
     const params = new URLSearchParams();
 
-    if (dateRange) {
-      // For date range, also use the single-day booking page
-      params.set(
-        "startDate",
-        `${dateRange.start.year}-${String(dateRange.start.month + 1).padStart(2, "0")}-${String(dateRange.start.day).padStart(2, "0")}`
-      );
-      params.set(
-        "endDate",
-        `${dateRange.end.year}-${String(dateRange.end.month + 1).padStart(2, "0")}-${String(dateRange.end.day).padStart(2, "0")}`
-      );
+    // For single date
+    params.set(
+      "startDate",
+      `${selectedDay.year}-${String(selectedDay.month + 1).padStart(2, "0")}-${String(selectedDay.day).padStart(2, "0")}`
+    );
 
-      if (selectedPavilionId) {
-        params.set("pavilionId", selectedPavilionId);
-      }
-
-      // Add time parameters if set
-      if (startTime) {
-        params.set("startHour", String(startTime.hour));
-        params.set("startMinute", String(startTime.minute));
-      }
-      if (endTime) {
-        params.set("endHour", String(endTime.hour));
-        params.set("endMinute", String(endTime.minute));
-      }
-
-      // Add pax parameter if set
-      if (numPax) {
-        params.set("pax", numPax);
-      }
-
-      // Navigate to create booking page with date range parameters
-      router.push(`/bookings/create-booking?${params.toString()}`);
-    } else if (selectedDay) {
-      // For single date
-      params.set(
-        "startDate",
-        `${selectedDay.year}-${String(selectedDay.month + 1).padStart(2, "0")}-${String(selectedDay.day).padStart(2, "0")}`
-      );
-
-      if (selectedPavilionId) {
-        params.set("pavilionId", selectedPavilionId);
-      }
-
-      // Add time parameters if set
-      if (startTime) {
-        params.set("startHour", String(startTime.hour));
-        params.set("startMinute", String(startTime.minute));
-      }
-      if (endTime) {
-        params.set("endHour", String(endTime.hour));
-        params.set("endMinute", String(endTime.minute));
-      }
-
-      // Add pax parameter if set
-      if (numPax) {
-        params.set("pax", numPax);
-      }
-
-      // Navigate to create booking page with parameters
-      router.push(`/bookings/create-booking?${params.toString()}`);
+    if (selectedPavilionId) {
+      params.set("pavilionId", selectedPavilionId);
     }
+
+    // Add time parameters if set
+    if (startTime) {
+      params.set("startHour", String(startTime.hour));
+      params.set("startMinute", String(startTime.minute));
+    }
+    if (endTime) {
+      params.set("endHour", String(endTime.hour));
+      params.set("endMinute", String(endTime.minute));
+    }
+
+    // Add pax parameter if set
+    if (numPax) {
+      params.set("pax", numPax);
+    }
+
+    // Add event name parameter if set
+    if (eventName) {
+      params.set("eventName", eventName);
+    }
+
+    // Add event type parameter if set
+    if (eventTypeId) {
+      params.set("eventTypeId", eventTypeId);
+    }
+
+    // Navigate to create booking page with parameters
+    router.push(`/bookings/create-booking?${params.toString()}`);
   };
 
   return (
@@ -370,34 +333,18 @@ const CheckScheduleDialog = (props: {
             <span className="max-[479px]:sr-only flex gap-2 items-center">
               {isRescheduling ? "Reschedule" : "Add Booking"}
               {/* if date is present, show. Else, hide */}
-              {(selectedDay || dateRange) && (
+              {selectedDay && (
                 <p className="text-xs bg-white rounded-md px-2 py-1 text-black">
-                  {dateRange
-                    ? `${new Date(
-                        dateRange.start.year,
-                        dateRange.start.month,
-                        dateRange.start.day
+                  {selectedDay
+                    ? new Date(
+                        selectedDay.year,
+                        selectedDay.month,
+                        selectedDay.day
                       ).toLocaleDateString(undefined, {
                         month: "short",
                         day: "numeric",
-                      })} - ${new Date(
-                        dateRange.end.year,
-                        dateRange.end.month,
-                        dateRange.end.day
-                      ).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })}`
-                    : selectedDay
-                      ? new Date(
-                          selectedDay.year,
-                          selectedDay.month,
-                          selectedDay.day
-                        ).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                        })
-                      : "No day selected"}
+                      })
+                    : "No day selected"}
                 </p>
               )}
             </span>
@@ -419,43 +366,48 @@ const CheckScheduleDialog = (props: {
               <div className="flex items-center gap-2">
                 <CalendarIcon className="h-full items-start" />
                 <div>
-                  <p className="text-xs text-neutral-500">{dateRange ? "Date Range" : "Date"}</p>
+                  <p className="text-xs text-neutral-500">Date</p>
                   <p className="text-sm font-medium">
-                    {dateRange
-                      ? `${new Date(
-                          dateRange.start.year,
-                          dateRange.start.month,
-                          dateRange.start.day
+                    {selectedDay
+                      ? new Date(
+                          selectedDay.year,
+                          selectedDay.month,
+                          selectedDay.day
                         ).toLocaleDateString(undefined, {
+                          year: "numeric",
                           month: "short",
                           day: "numeric",
-                          year: "numeric",
-                        })} - ${new Date(
-                          dateRange.end.year,
-                          dateRange.end.month,
-                          dateRange.end.day
-                        ).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}`
-                      : selectedDay
-                        ? new Date(
-                            selectedDay.year,
-                            selectedDay.month,
-                            selectedDay.day
-                          ).toLocaleDateString(undefined, {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })
-                        : "No day selected"}
+                        })
+                      : "No day selected"}
                   </p>
-                  {selectedDates.length > 1 && (
-                    <p className="text-xs text-neutral-400">{selectedDates.length} days selected</p>
-                  )}
                 </div>
               </div>
+              <div className="*:not-first:mt-1">
+                <Label className="font-normal text-xs text-neutral-500">Event Name</Label>
+                <Input
+                  type="text"
+                  placeholder="e.g., Birthday Party"
+                  value={eventName}
+                  onChange={e => setEventName(e.target.value)}
+                />
+              </div>
+
+              <div className="*:not-first:mt-1">
+                <Label className="font-normal text-xs text-neutral-500">Event Type</Label>
+                <Select value={eventTypeId} onValueChange={setEventTypeId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select event type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eventTypes.map(type => (
+                      <SelectItem key={type.id} value={String(type.id)}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="*:not-first:mt-1">
                 <Label className="font-normal text-xs text-neutral-500">Select pavilion</Label>
                 <Select value={selectedPavilionId} onValueChange={setSelectedPavilionId}>
@@ -465,13 +417,14 @@ const CheckScheduleDialog = (props: {
                   <SelectContent>
                     {pavilions.map(pav => (
                       <SelectItem key={pav.id} value={String(pav.id)}>
-                        {pav.name}
+                        {pav.name} <span className="text-xs text-neutral-500">(Max: {pav.maxPax} pax)</span>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
+              {/* Time pickers */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="*:not-first:mt-1">
                   <Label className="font-normal text-xs text-neutral-500">Start Time</Label>
@@ -505,6 +458,27 @@ const CheckScheduleDialog = (props: {
                   value={numPax}
                   onChange={e => setNumPax(e.target.value)}
                 />
+                {/* Warning when pax exceeds pavilion capacity */}
+                {selectedPavilionId && numPax && (
+                  (() => {
+                    const selectedPavilion = pavilions.find(p => p.id === parseInt(selectedPavilionId));
+                    const enteredPax = parseInt(numPax);
+                    if (selectedPavilion && !isNaN(enteredPax) && enteredPax > selectedPavilion.maxPax) {
+                      return (
+                        <div className="flex gap-2 items-start text-amber-600 border border-amber-400 rounded-md p-2 bg-amber-50 mt-2">
+                          <CircleAlert className="flex-shrink-0 mt-0.5" size={16} />
+                          <div className="flex-1 text-xs">
+                            <p className="font-medium">Capacity exceeded</p>
+                            <p className="text-amber-700">
+                              {numPax} pax exceeds {selectedPavilion.name}'s maximum capacity of {selectedPavilion.maxPax} pax
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()
+                )}
               </div>
 
               {isRescheduling && (
@@ -585,35 +559,17 @@ const CheckScheduleDialog = (props: {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                   <p className="text-sm text-blue-800 font-medium">Your Selected Date:</p>
                   <p className="text-lg font-semibold text-blue-900">
-                    {dateRange
-                      ? `${new Date(
-                          dateRange.start.year,
-                          dateRange.start.month,
-                          dateRange.start.day
+                    {selectedDay
+                      ? new Date(
+                          selectedDay.year,
+                          selectedDay.month,
+                          selectedDay.day
                         ).toLocaleDateString(undefined, {
                           month: "long",
                           day: "numeric",
                           year: "numeric",
-                        })} - ${new Date(
-                          dateRange.end.year,
-                          dateRange.end.month,
-                          dateRange.end.day
-                        ).toLocaleDateString(undefined, {
-                          month: "long",
-                          day: "numeric",
-                          year: "numeric",
-                        })}`
-                      : selectedDay
-                        ? new Date(
-                            selectedDay.year,
-                            selectedDay.month,
-                            selectedDay.day
-                          ).toLocaleDateString(undefined, {
-                            month: "long",
-                            day: "numeric",
-                            year: "numeric",
-                          })
-                        : "No date selected"}
+                        })
+                      : "No date selected"}
                   </p>
                   <p className="text-sm text-blue-700">
                     {pavilions.find(p => p.id === parseInt(selectedPavilionId))?.name || "Unknown"}

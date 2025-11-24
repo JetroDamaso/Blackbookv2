@@ -3,6 +3,7 @@ import Provider from "@/components/Providers/tanstack-provider";
 import { BookingSystemProvider } from "@/components/BookingSystemProvider";
 import { BookingSync } from "@/components/BookingSync";
 import { ScheduledNotificationProcessor } from "@/components/ScheduledNotificationProcessor";
+import { BookingStatusInitializer } from "@/components/BookingStatusInitializer";
 import type { Metadata } from "next";
 import { Geist, Rubik, Rufina } from "next/font/google";
 import "./globals.css";
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           >
             <BookingSync />
             <ScheduledNotificationProcessor />
+            <BookingStatusInitializer />
             <ConditionalLayout>{children}</ConditionalLayout>
           </BookingSystemProvider>
         </Provider>

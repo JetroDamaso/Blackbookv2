@@ -64,3 +64,20 @@ export async function addOrIncrementDish(menuId: number, dishId: number, increme
     throw error;
   }
 }
+
+export async function updateMenuPackage(menuId: number, menuPackagesId: number | null, pricePerPax?: number | null, isCustom?: boolean) {
+  try {
+    const updatedMenu = await prisma.menu.update({
+      where: { id: menuId },
+      data: {
+        menuPackagesId,
+        pricePerPax: pricePerPax !== undefined ? pricePerPax : undefined,
+        isCustom: isCustom !== undefined ? isCustom : undefined,
+      },
+    });
+    return updatedMenu;
+  } catch (error) {
+    console.error("Failed to update menu package", error);
+    throw error;
+  }
+}

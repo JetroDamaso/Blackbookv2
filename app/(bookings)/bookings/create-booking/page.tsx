@@ -33,6 +33,15 @@ const CreateBookingsPage = async ({
   const bookings = await getAllBookings();
   // const getInventory = await getAllDishes();
 
+  // Process bookings data once to avoid creating new array reference on every render
+  const processedBookings = bookings
+    .filter(b => b.startAt && b.endAt)
+    .map(b => ({
+      startAt: b.startAt as Date,
+      endAt: b.endAt as Date,
+      pavilionId: b.pavilionId ?? null,
+    }));
+
   return (
     <div className="min-h-full flex justify-center items-center bg-muted">
       <div className="flex flex-col gap-4 p-4 w-full max-w-300">
@@ -57,14 +66,10 @@ const CreateBookingsPage = async ({
           preSelectedEndHour={params.endHour as string}
           preSelectedEndMinute={params.endMinute as string}
           preSelectedPax={params.pax as string}
+          preSelectedEventName={params.eventName as string}
+          preSelectedEventTypeId={params.eventTypeId as string}
           packages={getPackages}
-          bookings={bookings
-            .filter(b => b.startAt && b.endAt)
-            .map(b => ({
-              startAt: b.startAt as Date,
-              endAt: b.endAt as Date,
-              pavilionId: b.pavilionId ?? null,
-            }))}
+          bookings={processedBookings}
         />
       </div>
     </div>

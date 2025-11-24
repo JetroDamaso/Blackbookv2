@@ -7,11 +7,18 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { integrateNewBooking } from "@/lib/local/integration";
 import { createBookingNotification } from "@/app/actions/createBookingNotification";
+import { useForm, Controller } from "react-hook-form";
+import EventTypeSelect from "./EventTypeSelect";
+import CateringRadioGroup from "./CateringRadioGroup";
+import DiscountTypeRadioGroup from "./DiscountTypeRadioGroup";
+import PackageRadioGroup from "./PackageRadioGroup";
+import ClientRadioGroup from "./ClientRadioGroup";
 import {
   Banknote,
   CalendarIcon,
   CalendarPlus,
   Check,
+  DollarSign,
   Edit,
   Layers,
   MinusCircle,
@@ -25,19 +32,9 @@ import {
   Users,
   X,
 } from "lucide-react";
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useState, useRef, useCallback } from "react";
 import { InventorySelectionDialog } from "@/components/(Bookings)/InventorySelectionDialog";
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogClose,
@@ -131,7 +128,7 @@ import {
   getInventoryStatus,
 } from "@/server/Inventory/Actions/pullActions";
 import { createInventoryStatus } from "@/server/Inventory/Actions/pushActions";
-import { createMenuWithDishes } from "@/server/Menu/pushActions";
+import { createMenuWithDishes, updateMenuPackage } from "@/server/Menu/pushActions";
 // Removed server-side imports from client component
 
 type SelectedDish = Dish & { quantity: number };
@@ -150,6 +147,8 @@ const AddBookingsPageClient = (props: {
   preSelectedEndHour?: string;
   preSelectedEndMinute?: string;
   preSelectedPax?: string;
+  preSelectedEventName?: string;
+  preSelectedEventTypeId?: string;
   pavilions: Pavilion[];
   eventTypes: EventTypes[];
   discounts: Discount[];
@@ -162,15 +161,7 @@ const AddBookingsPageClient = (props: {
   const id = useId();
   const router = useRouter();
 
-  // Enable inventory-related props for inventory block
-  const allInventory = props.allInventory ?? [];
-  const pavilions = props.pavilions ?? [];
-  const eventTypes = props.eventTypes ?? [];
-  const discounts = props.discounts ?? [];
-  const modeOfPayments = props.modeOfPayments ?? [];
-  const allServices = props.services ?? [];
-  const [servicesCategory, setServicesCategory] = useState(props.servicesCategory ?? []);
-  const packages = props.packages ?? [];
+  // Extract props first
   const preSelectedStartDate = props.preSelectedStartDate;
   const preSelectedEndDate = props.preSelectedEndDate;
   const preSelectedPavilionId = props.preSelectedPavilionId;
@@ -179,6 +170,109 @@ const AddBookingsPageClient = (props: {
   const preSelectedEndHour = props.preSelectedEndHour;
   const preSelectedEndMinute = props.preSelectedEndMinute;
   const preSelectedPax = props.preSelectedPax;
+  const preSelectedEventName = props.preSelectedEventName;
+  const preSelectedEventTypeId = props.preSelectedEventTypeId;
+
+  // React Hook Form setup - manages form state and prevents infinite loops
+  const {
+    register,
+    handleSubmit: rhfHandleSubmit,
+    control,
+    watch,
+    setValue,
+    reset: resetForm,
+    formState: { errors: formErrors },
+  } = useForm({
+    defaultValues: {
+      eventName: preSelectedEventName || "",
+      numPax: preSelectedPax || "",
+      eventType: preSelectedEventTypeId || "",
+      catering: "4",
+      modeOfPayment: "",
+      downpayment: "",
+      discount: "",
+      notes: "",
+      // Client fields
+      firstName: "",
+      lastName: "",
+      phoneNumber: "",
+      email: "",
+    },
+  });
+
+  // Watch form values that need to trigger other updates
+  const watchedNumPax = watch("numPax");
+
+  // Use useState for form fields to avoid Controller infinite loop issues
+  const [selectedEventType, setSelectedEventType] = useState<string>(preSelectedEventTypeId || "");
+  const [eventNameValue, setEventNameValue] = useState<string>(preSelectedEventName || "");
+  const [isEventTypeValid, setIsEventTypeValid] = useState<boolean>(!!preSelectedEventTypeId);
+  const [selectedCatering, setSelectedCatering] = useState<string>("4"); // Default to "None"
+
+  // Memoized callback for catering change
+  const handleCateringChange = useCallback((value: string) => {
+    setSelectedCatering(value);
+    // Clear validation error if value is valid
+    if (value) {
+      setValidationErrors(prev => ({ ...prev, catering: undefined }));
+    }
+  }, []);
+
+  // Memoized callback for event type change with validation
+  const handleEventTypeChange = useCallback((value: string, isValid: boolean) => {
+    setSelectedEventType(value);
+    setIsEventTypeValid(isValid);
+    // Clear validation error if value is valid
+    if (isValid) {
+      setValidationErrors(prev => ({ ...prev, eventType: undefined }));
+    }
+  }, []);
+
+  // Memoized callback for discount type change
+  const handleDiscountTypeChange = useCallback((value: "predefined" | "custom" | "none") => {
+    setDiscountType(value);
+    if (value === "predefined") {
+      // Reset custom discount states
+      setCustomDiscountName("");
+      setCustomDiscountValue(0);
+      setCustomDiscountDescription("");
+      setCustomDiscountType("percent");
+    } else if (value === "custom") {
+      // Reset predefined discount selection
+      setSelectedDiscountId(null);
+      setDiscountName("");
+      setDiscountPercentage(0);
+    } else if (value === "none") {
+      // Reset all discount states
+      setSelectedDiscountId(null);
+      setDiscountName("");
+      setDiscountPercentage(0);
+      setCustomDiscountName("");
+      setCustomDiscountValue(0);
+      setCustomDiscountDescription("");
+      setCustomDiscountType("percent");
+    }
+  }, []);
+
+  // Memoized callback for package selection
+  const handlePackageChange = useCallback((value: number) => {
+    setSelectedPackageId(value);
+  }, []);
+
+  // Memoized callback for client selection
+  const handleClientChange = useCallback((value: number) => {
+    setSelectedClientId(value);
+  }, []);
+
+  // Memoize arrays to prevent re-renders on every render cycle
+  const allInventory = React.useMemo(() => props.allInventory ?? [], [props.allInventory]);
+  const pavilions = React.useMemo(() => props.pavilions ?? [], [props.pavilions]);
+  const eventTypes = React.useMemo(() => props.eventTypes ?? [], [props.eventTypes]);
+  const discounts = React.useMemo(() => props.discounts ?? [], [props.discounts]);
+  const modeOfPayments = React.useMemo(() => props.modeOfPayments ?? [], [props.modeOfPayments]);
+  const allServices = React.useMemo(() => props.services ?? [], [props.services]);
+  const packages = React.useMemo(() => props.packages ?? [], [props.packages]);
+  const [servicesCategory, setServicesCategory] = useState(props.servicesCategory ?? []);
 
   const bookingsRef = React.useRef(props.bookings ?? []);
   // if prop changes (should be static for page load) update ref
@@ -213,6 +307,7 @@ const AddBookingsPageClient = (props: {
     dishes?: boolean;
     cateringPax?: boolean;
     pricePerPax?: boolean;
+    inventory?: boolean;
   }>({});
 
   // Dish Management State
@@ -232,6 +327,7 @@ const AddBookingsPageClient = (props: {
 
   // Inventory Conflict Dialog State
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
+  const [conflictsAcknowledged, setConflictsAcknowledged] = useState(false);
   const [conflictData, setConflictData] = useState<{
     inventoryItem: any;
     conflictingBookings: Array<{
@@ -274,6 +370,13 @@ const AddBookingsPageClient = (props: {
   const [clientSelectionMode, setClientSelectionMode] = useState<"new" | "existing">("new");
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [clientSearchQuery, setClientSearchQuery] = useState("");
+
+  // Stable handler for client selection mode change
+  const clientSelectionModeRef = React.useRef(clientSelectionMode);
+  React.useEffect(() => {
+    clientSelectionModeRef.current = clientSelectionMode;
+  }, [clientSelectionMode]);
+
   // Map simple Tailwind color tokens to their 500 shade hex values for inline left border coloring.
   const COLOR_TOKEN_TO_HEX: Record<string, string> = {
     emerald: "#10b981",
@@ -329,14 +432,27 @@ const AddBookingsPageClient = (props: {
   const [newServiceName, setNewServiceName] = useState<string>("");
   const [newServiceCategory, setNewServiceCategory] = useState<string>("");
 
+  const [eventTypeId, setEventTypeId] = useState<string | undefined>(undefined);
+
   // Removed unused pavilion/hour pricing interim states (reintroduce if needed)
-  const [selectedCatering, setSelectedCatering] = useState<string>("4");
+  // Using selectedCatering state (managed separately from react-hook-form to prevent infinite loops)
 
   // Menu Package selection state
   const [selectedMenuPackageId, setSelectedMenuPackageId] = useState<number | null>(null);
+  const [customPricePerPax, setCustomPricePerPax] = useState<string>("");
+  const [isCustomMode, setIsCustomMode] = useState(false);
 
   // Rooms selection state
   const [selectedRoomIds, setSelectedRoomIds] = useState<number[]>([]);
+
+  // Additional charges state
+  const [additionalCharges, setAdditionalCharges] = useState<
+    { id: string; name: string; amount: number; note?: string }[]
+  >([]);
+  const [showAddChargeForm, setShowAddChargeForm] = useState(false);
+  const [chargeName, setChargeName] = useState("");
+  const [chargeAmount, setChargeAmount] = useState("");
+  const [chargeNote, setChargeNote] = useState("");
 
   // Queries for dish management using custom hooks
   const allDishesQuery = useAllDishes();
@@ -375,8 +491,70 @@ const AddBookingsPageClient = (props: {
       const { getAllMenuPackages } = await import("@/server/menuPackages/pullActions");
       return getAllMenuPackages();
     },
-    enabled: selectedCatering === "1",
   });
+
+  // Memoized callbacks for Select/RadioGroup handlers (after data/state is loaded)
+  const handleMenuPackageChange = React.useCallback((val: string) => {
+    if (val === "custom") {
+      setIsCustomMode(true);
+      const currentPackage = selectedMenuPackageId
+        ? allMenuPackages.find((pkg: any) => pkg.id === selectedMenuPackageId)
+        : null;
+      setCustomPricePerPax(currentPackage?.price?.toString() || "");
+      setSelectedMenuPackageId(null);
+    } else {
+      setIsCustomMode(false);
+      setSelectedMenuPackageId(val ? Number(val) : null);
+      const selectedPackage = allMenuPackages.find((pkg: any) => pkg.id === Number(val));
+      setCustomPricePerPax(selectedPackage?.price?.toString() || "");
+    }
+    // Clear selected dishes when changing package
+    setSelectedDishes([]);
+  }, [allMenuPackages, selectedMenuPackageId]);
+
+  const handlePredefinedDiscountChange = React.useCallback((value: string) => {
+    if (value === "") {
+      setSelectedDiscountId(null);
+      setDiscountName("");
+      setDiscountPercentage(0);
+      return;
+    }
+    const discountId = parseInt(value, 10);
+    setSelectedDiscountId(discountId);
+
+    // Find discount in the predefined list
+    const selectedDiscount = discounts.find(d => d.id === discountId);
+    if (selectedDiscount) {
+      setDiscountName(selectedDiscount.name);
+      // Calculate percentage based on discount type
+      if (selectedDiscount.percent) {
+        setDiscountPercentage(selectedDiscount.percent);
+      } else if (selectedDiscount.amount) {
+        setDiscountPercentage(0); // We'll calculate based on selected package price
+      } else {
+        setDiscountPercentage(0);
+      }
+    }
+  }, [discounts]);
+
+  const handleCustomDiscountTypeChange = React.useCallback((value: "percent" | "amount") => {
+    setCustomDiscountType(value);
+    setCustomDiscountValue(0); // Reset value when changing type
+  }, []);
+
+  // Memoized callback for dishes dialog menu package selection
+  const handleDishesMenuPackageChange = React.useCallback((val: string) => {
+    const newVal = val === "none" ? null : Number(val);
+    setSelectedMenuPackageId(newVal);
+  }, []);
+
+  // Memoized callback for editing dish category
+  const handleEditDishCategoryChange = React.useCallback((value: string) => {
+    setEditingDish(prev => prev ? {
+      ...prev,
+      categoryId: Number(value),
+    } : null);
+  }, []);
 
   // State declarations first
   const [selectedPavilionId, setSelectedPavilionId] = useState<number | null>(
@@ -450,6 +628,7 @@ const AddBookingsPageClient = (props: {
         minute: parseInt(preSelectedEndMinute, 10),
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     preSelectedStartDate,
     preSelectedEndDate,
@@ -457,10 +636,6 @@ const AddBookingsPageClient = (props: {
     preSelectedStartMinute,
     preSelectedEndHour,
     preSelectedEndMinute,
-    startDate,
-    endDate,
-    startTime,
-    endTime,
   ]);
 
   const { data: inventoryStatuses = [], refetch: refetchInventoryStatuses } = useQuery({
@@ -545,99 +720,13 @@ const AddBookingsPageClient = (props: {
     },
   });
 
-  // Dialog state for booking success
-  const [showBookingSuccessDialog, setShowBookingSuccessDialog] = useState<boolean>(false);
   const [createdBookingId, setCreatedBookingId] = useState<number | null>(null);
   const [isCreatingBooking, setIsCreatingBooking] = useState<boolean>(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState<boolean>(false);
 
   // File upload state
   const [selectedBookingFiles, setSelectedBookingFiles] = useState<File[]>([]);
   const [bookingFileResetTrigger, setBookingFileResetTrigger] = useState(0);
-
-  // Clear validation errors when users fix the issues
-  useEffect(() => {
-    if (selectedClientId && validationErrors.client) {
-      setValidationErrors(prev => ({ ...prev, client: undefined }));
-    }
-  }, [selectedClientId, validationErrors.client]);
-
-  useEffect(() => {
-    if (selectedPavilionId && validationErrors.pavilion) {
-      setValidationErrors(prev => ({ ...prev, pavilion: undefined }));
-    }
-  }, [selectedPavilionId, validationErrors.pavilion]);
-
-  useEffect(() => {
-    if (selectedPackageId && validationErrors.package) {
-      setValidationErrors(prev => ({ ...prev, package: undefined }));
-    }
-  }, [selectedPackageId, validationErrors.package]);
-
-  useEffect(() => {
-    if (startDate && validationErrors.startDate) {
-      setValidationErrors(prev => ({ ...prev, startDate: undefined }));
-    }
-  }, [startDate, validationErrors.startDate]);
-
-  useEffect(() => {
-    if (endDate && validationErrors.endDate) {
-      setValidationErrors(prev => ({ ...prev, endDate: undefined }));
-    }
-  }, [endDate, validationErrors.endDate]);
-
-  useEffect(() => {
-    if (startTime && validationErrors.startTime) {
-      setValidationErrors(prev => ({ ...prev, startTime: undefined }));
-    }
-  }, [startTime, validationErrors.startTime]);
-
-  useEffect(() => {
-    if (endTime && validationErrors.endTime) {
-      setValidationErrors(prev => ({ ...prev, endTime: undefined }));
-    }
-  }, [endTime, validationErrors.endTime]);
-
-  useEffect(() => {
-    if (selectedCatering && validationErrors.catering) {
-      setValidationErrors(prev => ({ ...prev, catering: undefined }));
-    }
-  }, [selectedCatering, validationErrors.catering]);
-
-  useEffect(() => {
-    if (selectedMenuPackageId && validationErrors.menuPackage) {
-      setValidationErrors(prev => ({ ...prev, menuPackage: undefined }));
-    }
-  }, [selectedMenuPackageId, validationErrors.menuPackage]);
-
-  useEffect(() => {
-    if (selectedDishes.length > 0 && validationErrors.dishes) {
-      setValidationErrors(prev => ({ ...prev, dishes: undefined }));
-    }
-  }, [selectedDishes, validationErrors.dishes]);
-
-  useEffect(() => {
-    if (region && validationErrors.region) {
-      setValidationErrors(prev => ({ ...prev, region: undefined }));
-    }
-  }, [region, validationErrors.region]);
-
-  useEffect(() => {
-    if (province && validationErrors.province) {
-      setValidationErrors(prev => ({ ...prev, province: undefined }));
-    }
-  }, [province, validationErrors.province]);
-
-  useEffect(() => {
-    if (municipality && validationErrors.municipality) {
-      setValidationErrors(prev => ({ ...prev, municipality: undefined }));
-    }
-  }, [municipality, validationErrors.municipality]);
-
-  useEffect(() => {
-    if (barangay && validationErrors.barangay) {
-      setValidationErrors(prev => ({ ...prev, barangay: undefined }));
-    }
-  }, [barangay, validationErrors.barangay]);
 
   // Pre-compute a set of booked calendar days (date-only) for quick disable lookup
   const bookedDaySet = React.useMemo(() => {
@@ -813,39 +902,33 @@ const AddBookingsPageClient = (props: {
       : null;
 
     setSelectedDishes(prev => {
-      // If menu package is selected, check restrictions
-      if (selectedMenuPackage) {
+      // If menu package is selected and not in custom mode, check restrictions
+      if (selectedMenuPackage && !isCustomMode) {
         // Check if dish category is allowed
         const allowedCategoryIds =
           selectedMenuPackage.allowedCategories?.map((cat: any) => cat.id) || [];
+
         if (!allowedCategoryIds.includes(dish.categoryId)) {
-          toast.error(
-            `This dish is not included in the selected menu package. Allowed categories: ${selectedMenuPackage.allowedCategories?.map((cat: any) => cat.name).join(", ")}`
+          // Switch to custom mode
+          setIsCustomMode(true);
+          setCustomPricePerPax(selectedMenuPackage.price.toString());
+          setSelectedMenuPackageId(null);
+          toast.info(
+            `Dish from different category added. Switched to Custom Package mode. Price per pax set to ₱${selectedMenuPackage.price}.`
           );
-          return prev;
+          // Continue with adding the dish
         }
-
-        // Count total unique dishes (not quantities)
-        const totalUniqueDishes = prev.length;
-        const dishExists = prev.findIndex(d => d.id === dish.id) !== -1;
-
-        // Check if adding new dish would exceed max dishes
-        if (!dishExists && totalUniqueDishes >= selectedMenuPackage.maxDishes) {
-          toast.error(
-            `You can only select ${selectedMenuPackage.maxDishes} dishes for this menu package`
-          );
-          return prev;
-        }
+        // Removed maxDishes check - now only constrained by allowed categories
       }
 
       const idx = prev.findIndex(d => d.id === dish.id);
       if (idx !== -1) {
-        // Already exists, increment quantity by numPax (or 1 if not set)
-        const incrementBy = parseInt(numPax) || 1;
+        // Already exists, increment quantity by current pax (or 1 if not set)
+        const incrementBy = parseInt(watchedNumPax) || 1;
         return prev.map((d, i) => (i === idx ? { ...d, quantity: d.quantity + incrementBy } : d));
       } else {
-        // New dish, add with quantity = numPax (or 1 if not set)
-        const defaultQuantity = parseInt(numPax) || 1;
+        // New dish, add with quantity = current pax (or 1 if not set)
+        const defaultQuantity = parseInt(watchedNumPax) || 1;
         return [...prev, { ...dish, quantity: defaultQuantity }];
       }
     });
@@ -855,11 +938,8 @@ const AddBookingsPageClient = (props: {
   // Removed unused InventoryIcon component
 
   const removeDish = (dishId: number) => {
-    setSelectedDishes(prev =>
-      prev
-        .map(d => (d.id === dishId ? { ...d, quantity: d.quantity - 1 } : d))
-        .filter(d => d.quantity > 0)
-    );
+    // Remove all instances of the dish at once
+    setSelectedDishes(prev => prev.filter(d => d.id !== dishId));
   };
 
   const resetDishFilters = () => {
@@ -891,9 +971,9 @@ const AddBookingsPageClient = (props: {
         selectedDishCategoryFilter === "all" ||
         dish.categoryId?.toString() === selectedDishCategoryFilter;
 
-      // If menu package is selected, only show dishes from allowed categories
+      // If menu package is selected and not in custom mode, only show dishes from allowed categories
       const matchesMenuPackage =
-        !selectedMenuPackageId || allowedCategoryIds.includes(dish.categoryId);
+        !selectedMenuPackageId || isCustomMode || allowedCategoryIds.includes(dish.categoryId);
 
       return matchesSearch && matchesCategory && matchesMenuPackage;
     }) ?? [];
@@ -1234,14 +1314,18 @@ const AddBookingsPageClient = (props: {
   const handleSubmitDraft = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    // Prevent multiple submissions
+    if (isCreatingBooking) {
+      return;
+    }
+
     const formData = new FormData(e.currentTarget);
     const errors: typeof validationErrors = {};
     let firstErrorSection: string | null = null;
     const errorMessages: string[] = [];
 
-    // VALIDATION: Event Name (Required)
-    const eventName = formData.get("eventName");
-    if (!eventName || String(eventName).trim() === "") {
+    // VALIDATION: Event Name (Required) - Using state value
+    if (!eventNameValue || String(eventNameValue).trim() === "") {
       errors.eventName = true;
       errorMessages.push("Event name is required");
       if (!firstErrorSection) firstErrorSection = "event_details";
@@ -1279,10 +1363,21 @@ const AddBookingsPageClient = (props: {
         if (!firstErrorSection) firstErrorSection = "client";
       }
 
-      if (!email || String(email).trim() === "") {
-        errors.email = true;
-        errorMessages.push("Client email is required");
+      // Validate phone number contains only digits
+      if (phoneNumber && !/^\d+$/.test(String(phoneNumber).trim())) {
+        errors.phoneNumber = true;
+        errorMessages.push("Phone number can only contain numbers");
         if (!firstErrorSection) firstErrorSection = "client";
+      }
+
+      // Email is optional, but if provided, validate format
+      if (email && String(email).trim() !== "") {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(String(email).trim())) {
+          errors.email = true;
+          errorMessages.push("Please enter a valid email address");
+          if (!firstErrorSection) firstErrorSection = "client";
+        }
       }
 
       // Validate address fields
@@ -1357,28 +1452,40 @@ const AddBookingsPageClient = (props: {
       if (!firstErrorSection) firstErrorSection = "date_and_time";
     }
 
-    // Validate end time is after start time if same day
-    if (startDate && endDate && startTime && endTime && startDate.toDateString() === endDate.toDateString()) {
-      const startMinutes = startTime.hour * 60 + startTime.minute;
-      const endMinutes = endTime.hour * 60 + endTime.minute;
-      if (endMinutes <= startMinutes) {
+    // Validate time logic for same-day or next-day bookings
+    if (startDate && endDate && startTime && endTime) {
+      const startDateTime = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate(),
+        startTime.hour,
+        startTime.minute
+      );
+      const endDateTime = new Date(
+        endDate.getFullYear(),
+        endDate.getMonth(),
+        endDate.getDate(),
+        endTime.hour,
+        endTime.minute
+      );
+
+      // Check if end is before or equal to start
+      if (endDateTime <= startDateTime) {
         errors.endTime = true;
-        errorMessages.push("End time must be after start time");
+        errorMessages.push("End date/time must be after start date/time. For events crossing midnight (e.g., 11PM-4AM), set the end date to the next day.");
         if (!firstErrorSection) firstErrorSection = "date_and_time";
       }
     }
 
-    // VALIDATION: Event Type (Required)
-    const eventType = formData.get("eventType");
-    if (!eventType || String(eventType) === "0" || String(eventType).trim() === "") {
+    // VALIDATION: Event Type (Required) - Using state value
+    if (!selectedEventType || String(selectedEventType) === "0" || String(selectedEventType).trim() === "") {
       errors.eventType = true;
       errorMessages.push("Event type is required");
       if (!firstErrorSection) firstErrorSection = "event_details";
     }
 
-    // VALIDATION: Number of Pax (Required)
-    const numberOfPax = formData.get("numPax");
-    if (!numberOfPax || String(numberOfPax).trim() === "" || Number(numberOfPax) <= 0) {
+    // VALIDATION: Number of Pax (Required) - Using watched value from react-hook-form
+    if (!watchedNumPax || String(watchedNumPax).trim() === "" || Number(watchedNumPax) <= 0) {
       errors.numPax = true;
       errorMessages.push("Number of attendees (pax) is required and must be greater than 0");
       if (!firstErrorSection) firstErrorSection = "event_details";
@@ -1424,17 +1531,21 @@ const AddBookingsPageClient = (props: {
             `Inventory item "${inventoryItem?.name || "Unknown"}" must have a quantity greater than 0`
           );
           if (!firstErrorSection) firstErrorSection = "services";
+          errors.inventory = true;
         }
 
-        // Check for conflicts
-        const { conflicts, warnings } = getInventoryConflicts(item.id, item.quantity);
-        if (conflicts.length > 0 || warnings.length > 0) {
-          const inventoryItem = inventoryItems.find((inv: any) => inv.id === item.id);
-          errorMessages.push(
-            `Inventory item "${inventoryItem?.name || "Unknown"}" has conflicts or warnings. Please review.`
-          );
-          if (!firstErrorSection) firstErrorSection = "services";
-          handleConflictClick(item.id, item.quantity);
+        // Check for conflicts (only if not acknowledged)
+        if (!conflictsAcknowledged) {
+          const { conflicts, warnings } = getInventoryConflicts(item.id, item.quantity);
+          if (conflicts.length > 0 || warnings.length > 0) {
+            const inventoryItem = inventoryItems.find((inv: any) => inv.id === item.id);
+            errorMessages.push(
+              `Inventory item "${inventoryItem?.name || "Unknown"}" has conflicts or warnings. Please review.`
+            );
+            if (!firstErrorSection) firstErrorSection = "services";
+            errors.inventory = true;
+            handleConflictClick(item.id, item.quantity);
+          }
         }
       }
     }
@@ -1471,9 +1582,11 @@ const AddBookingsPageClient = (props: {
 
     try {
       const formData = new FormData(e.currentTarget);
-      const eventName = formData.get("eventName");
-      const numberOfPax = formData.get("numPax");
-      const eventType = formData.get("eventType");
+      // Get values from state
+      const eventName = eventNameValue;
+      const numberOfPax = watchedNumPax;
+      const eventType = selectedEventType;
+      // Get other values from FormData
       const firstName = formData.get("firstName");
       const lastName = formData.get("lastName");
       const phoneNumber = formData.get("phoneNumber");
@@ -1589,7 +1702,18 @@ const AddBookingsPageClient = (props: {
       if (selectedCatering === "1" && bookingId) {
         try {
           const dishIds = selectedDishes.flatMap(d => Array(d.quantity).fill(d.id));
-          await createMenuWithDishes(bookingId, dishIds);
+          const menu = await createMenuWithDishes(bookingId, dishIds);
+
+          // Update menu with selected menu package
+          if (menu?.id && selectedMenuPackageId) {
+            const selectedMenuPackage = allMenuPackages.find((pkg: any) => pkg.id === selectedMenuPackageId);
+            await updateMenuPackage(
+              menu.id,
+              selectedMenuPackageId,
+              selectedMenuPackage?.price || null,
+              false // isCustom = false since we're using a selected package
+            );
+          }
         } catch (err) {
           console.error("Error creating menu:", err);
         }
@@ -1666,7 +1790,13 @@ const AddBookingsPageClient = (props: {
           ? parseFloat(cateringPax) * menuPackagePrice
           : 0;
 
-      const originalPrice = basePackagePrice + extraHoursFee + cateringCost;
+      // Calculate total additional charges (for display only, not included in originalPrice)
+      const totalAdditionalCharges = additionalCharges.reduce(
+        (sum, charge) => sum + charge.amount,
+        0
+      );
+
+      const originalPrice = basePackagePrice + extraHoursFee + cateringCost; // Additional charges are stored separately
 
       // Handle discount creation and calculation
       let finalDiscountId = selectedDiscountId;
@@ -1746,6 +1876,26 @@ const AddBookingsPageClient = (props: {
           selectedCatering === "1" && menuPackagePrice ? menuPackagePrice : undefined,
       });
 
+      // Create additional charges if any
+      if (additionalCharges.length > 0 && bookingId) {
+        try {
+          const { createAdditionalCharge } = await import(
+            "@/server/additionalcharge/pushActions"
+          );
+          for (const charge of additionalCharges) {
+            await createAdditionalCharge({
+              bookingId: Number(bookingId),
+              name: charge.name,
+              amount: charge.amount,
+              note: charge.note,
+            });
+          }
+        } catch (error) {
+          console.error("Error creating additional charges:", error);
+          toast.error("Failed to save additional charges");
+        }
+      }
+
       // Upload all documents if any (client IDs, contracts, etc.)
       if (selectedBookingFiles.length > 0 && bookingId) {
         try {
@@ -1817,8 +1967,42 @@ const AddBookingsPageClient = (props: {
         // Don't block booking creation if sync fails
       }
 
+      // Reset form state using react-hook-form's reset
+      resetForm(); // Resets all form fields managed by react-hook-form
+
+      // Reset additional state not managed by react-hook-form
+      setSelectedDishes([]);
+      setSelectedInventoryItems([]);
+      setSelectedServiceIdsByCategory({});
+      setTypedServiceByCategory({});
+      setSelectedRoomIds([]);
+      setSelectedMenuPackageId(null);
+      setIsCustomMode(false);
+      setCustomPricePerPax("");
+      setNumPax("");
+      setCateringPax("");
+      // Removed: setSelectedCatering("4"); - now managed by react-hook-form reset
+      setSelectedPackageId(null);
+      setSelectedPavilionId(null);
+      setStartDate(null);
+      setEndDate(null);
+      setStartTime(null);
+      setEndTime(null);
+      setClientSelectionMode("new");
+      setSelectedClientId(null);
+      setDownPayment(0);
+      setDiscountType("none");
+      setSelectedDiscountId(null);
+      setValidationErrors({});
+      setAdditionalCharges([]);
+      setShowAddChargeForm(false);
+      setChargeName("");
+      setChargeAmount("");
+      setChargeNote("");
+
       // Show success dialog
-      setShowBookingSuccessDialog(true);
+      setShowSuccessDialog(true);
+      // Removed redirect to event calendar - will redirect when user closes dialog
     } catch (error) {
       console.error("Error creating booking:", error);
       toast.error("Failed to create booking. Please try again.");
@@ -1831,8 +2015,16 @@ const AddBookingsPageClient = (props: {
     // Handle pavilion selection
   };
 
+  // Handler for closing success dialog and navigating to calendar
+  const handleSuccessDialogClose = () => {
+    setShowSuccessDialog(false);
+    router.push("/event_calendar");
+  };
+
   // Removed unused price change handlers (hours, pavilion, total) to satisfy lint; add back if needed where values are updated.
 
+  // Use uncontrolled inputs for fields that don't need immediate reactivity
+  const numPaxRef = useRef<HTMLInputElement>(null);
   const [numPax, setNumPax] = useState<string>(preSelectedPax || "");
 
   // Catering pax and price per pax state
@@ -1840,11 +2032,20 @@ const AddBookingsPageClient = (props: {
   const [pricePerPax, setPricePerPax] = useState<string>("");
 
   // Auto-sync Event Pax to Catering Pax (one-way: event controls catering)
+  // Auto-sync Event Pax to Catering Pax (one-way: event controls catering)
   useEffect(() => {
-    if (numPax) {
-      setCateringPax(numPax);
+    if (watchedNumPax) {
+      setCateringPax(watchedNumPax);
+
+      // Task 2: Update quantity of all selected dishes to match new pax
+      setSelectedDishes(prev =>
+        prev.map(dish => ({
+          ...dish,
+          quantity: parseInt(watchedNumPax) || 1
+        }))
+      );
     }
-  }, [numPax]);
+  }, [watchedNumPax]);
 
   // Auto-set price per pax when menu package is selected
   useEffect(() => {
@@ -1855,19 +2056,6 @@ const AddBookingsPageClient = (props: {
       }
     }
   }, [selectedMenuPackageId, allMenuPackages]);
-
-  // Clear validation errors when values are provided
-  useEffect(() => {
-    if (numPax && validationErrors.numPax) {
-      setValidationErrors(prev => ({ ...prev, numPax: undefined }));
-    }
-  }, [numPax, validationErrors.numPax]);
-
-  useEffect(() => {
-    if (cateringPax && validationErrors.cateringPax) {
-      setValidationErrors(prev => ({ ...prev, cateringPax: undefined }));
-    }
-  }, [cateringPax, validationErrors.cateringPax]);
 
   const getMonthName = (d: Date) => d.toLocaleString("en-US", { month: "long" });
 
@@ -1937,7 +2125,13 @@ const AddBookingsPageClient = (props: {
       ? parseFloat(cateringPax) * menuPackagePrice
       : 0;
 
-  const originalPrice = basePackagePrice + extraHoursFee + cateringCost; // before discount
+  // Calculate total additional charges (for display only, not included in originalPrice)
+  const totalAdditionalCharges = additionalCharges.reduce(
+    (sum, charge) => sum + charge.amount,
+    0
+  );
+
+  const originalPrice = basePackagePrice + extraHoursFee + cateringCost; // before discount (additional charges are separate)
 
   // Calculate discount amount based on type
   let discountAmount = 0;
@@ -1963,6 +2157,7 @@ const AddBookingsPageClient = (props: {
 
   if (!isVisible) return null;
   return (
+    <>
     <form
       id="booking-form"
       action="|"
@@ -1992,6 +2187,9 @@ const AddBookingsPageClient = (props: {
                 </TabsTrigger>
                 <TabsTrigger value="tab-6" className="text-xs">
                   Services
+                </TabsTrigger>
+                <TabsTrigger value="tab-7" className="text-xs">
+                  Additional Charges
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -2089,63 +2287,13 @@ const AddBookingsPageClient = (props: {
                       </DialogHeader>
 
                       <div className="overflow-y-auto max-h-[50vh] pr-2">
-                        <RadioGroup
-                          name="package"
-                          className="flex flex-col gap-3"
+                        <PackageRadioGroup
+                          packages={filteredPackages}
                           value={selectedPackageId?.toString()}
-                          onValueChange={val => setSelectedPackageId(Number(val))}
-                        >
-                          {selectedPavilionId === null && (
-                            <div className="text-sm text-muted-foreground text-center py-8">
-                              Select a pavilion to see its packages.
-                            </div>
-                          )}
-                          {selectedPavilionId !== null && filteredPackages.length === 0 && (
-                            <div className="text-sm text-muted-foreground text-center py-8">
-                              No packages available for the selected pavilion.
-                            </div>
-                          )}
-                          {filteredPackages.map(pack => {
-                            const items = (pack.description ?? "")
-                              .split(".")
-                              .map(s => s.trim())
-                              .filter(Boolean);
-                            return (
-                              <div
-                                key={pack.id}
-                                className="border-input has-data-[state=checked]:border-primary has-data-[state=checked]:bg-accent relative flex w-full items-start gap-3 rounded-md border p-4 shadow-sm outline-none transition-colors cursor-pointer hover:bg-accent/50"
-                              >
-                                <RadioGroupItem
-                                  value={`${pack.id}`}
-                                  id={`${pack.id}`}
-                                  aria-describedby={`${id}-package-${pack.id}-description`}
-                                  className="mt-0.5"
-                                />
-                                <div className="grid grow gap-2">
-                                  <Label
-                                    className="flex items-center cursor-pointer"
-                                    htmlFor={`${pack.id}`}
-                                  >
-                                    <span className="font-semibold">{pack.name}</span>
-                                    <span className="ml-2 text-muted-foreground text-sm font-normal">
-                                      ₱{pack.price.toLocaleString()}
-                                    </span>
-                                  </Label>
-                                  <div
-                                    id={`${id}-package-${pack.id}-description`}
-                                    className="text-muted-foreground text-sm"
-                                  >
-                                    <ul className="list-disc list-inside space-y-1">
-                                      {items.map((it, idx) => (
-                                        <li key={idx}>{it}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </RadioGroup>
+                          onChange={handlePackageChange}
+                          selectedPavilionId={selectedPavilionId}
+                          id={id}
+                        />
                       </div>
 
                       <DialogFooter className="gap-2">
@@ -2194,49 +2342,83 @@ const AddBookingsPageClient = (props: {
 
             {/* Client Selection Mode */}
             <div className="mt-5">
-              <RadioGroup
-                value={clientSelectionMode}
-                onValueChange={(value: "new" | "existing") => {
-                  setClientSelectionMode(value);
-                  if (value === "new") {
-                    setSelectedClientId(null);
-                    setClientSearchQuery("");
-                  }
-                }}
-                className="grid grid-cols-2 gap-4"
-              >
-                {/* New Client Radio Card */}
-                <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-row flex-1 items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
-                  <div className="flex flex-col grow gap-2 justify-start items-baseline">
-                    <Label htmlFor={`${id}-new-client`} className="flex items-center">
-                      <Plus className="mr-2" size={20} />
-                      New Client
-                    </Label>
-                  </div>
-                  <RadioGroupItem
+              <div className="grid grid-cols-2 gap-4">
+                {/* New Client Radio */}
+                <label
+                  htmlFor="client-mode-new"
+                  className={`border-input relative flex flex-row flex-1 items-center gap-2 rounded-md border p-4 shadow-xs outline-none transition-colors cursor-pointer ${
+                    clientSelectionMode === "new"
+                      ? "border-primary/50 bg-primary/5"
+                      : "hover:bg-gray-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    id="client-mode-new"
+                    name="client-selection-mode"
                     value="new"
-                    id={`${id}-new-client`}
-                    aria-describedby={`${id}-new-client-description`}
-                    className="after:absolute after:inset-0"
+                    checked={clientSelectionMode === "new"}
+                    onChange={() => {
+                      setClientSelectionMode("new");
+                      setSelectedClientId(null);
+                      setClientSearchQuery("");
+                    }}
+                    className="sr-only"
                   />
-                </div>
-
-                {/* Existing Client Radio Card */}
-                <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-row flex-1 items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
-                  <div className="flex flex-col grow gap-2 justify-start items-baseline">
-                    <Label htmlFor={`${id}-existing-client`} className="flex items-center">
-                      <Users className="mr-2" size={20} />
-                      Existing Client
-                    </Label>
+                  <div className="flex items-center font-medium">
+                    <Plus className="mr-2" size={20} />
+                    New Client
                   </div>
-                  <RadioGroupItem
+                  <div
+                    className={`ml-auto size-4 shrink-0 rounded-full border-2 flex items-center justify-center ${
+                      clientSelectionMode === "new"
+                        ? "border-primary bg-primary"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    {clientSelectionMode === "new" && (
+                      <div className="size-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                </label>
+
+                {/* Existing Client Radio */}
+                <label
+                  htmlFor="client-mode-existing"
+                  className={`border-input relative flex flex-row flex-1 items-center gap-2 rounded-md border p-4 shadow-xs outline-none transition-colors cursor-pointer ${
+                    clientSelectionMode === "existing"
+                      ? "border-primary/50 bg-primary/5"
+                      : "hover:bg-gray-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    id="client-mode-existing"
+                    name="client-selection-mode"
                     value="existing"
-                    id={`${id}-existing-client`}
-                    aria-describedby={`${id}-existing-client-description`}
-                    className="after:absolute after:inset-0"
+                    checked={clientSelectionMode === "existing"}
+                    onChange={() => {
+                      setClientSelectionMode("existing");
+                    }}
+                    className="sr-only"
                   />
-                </div>
-              </RadioGroup>
+                  <div className="flex items-center font-medium">
+                    <Users className="mr-2" size={20} />
+                    Existing Client
+                  </div>
+                  <div
+                    className={`ml-auto size-4 shrink-0 rounded-full border-2 flex items-center justify-center ${
+                      clientSelectionMode === "existing"
+                        ? "border-primary bg-primary"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    {clientSelectionMode === "existing" && (
+                      <div className="size-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                </label>
+              </div>
             </div>
 
             <div className="">
@@ -2327,79 +2509,13 @@ const AddBookingsPageClient = (props: {
                                 </div>
 
                                 <div className="border rounded-md max-h-[300px] overflow-y-auto">
-                                  <RadioGroup
+                                  <ClientRadioGroup
+                                    clients={allClients}
                                     value={selectedClientId?.toString()}
-                                    onValueChange={val => setSelectedClientId(Number(val))}
-                                    className="p-2"
-                                  >
-                                    {allClients
-                                      .filter(client => {
-                                        if (!clientSearchQuery) return true;
-                                        const searchTerm = clientSearchQuery.toLowerCase();
-                                        return (
-                                          client.firstName?.toLowerCase().includes(searchTerm) ||
-                                          client.lastName?.toLowerCase().includes(searchTerm) ||
-                                          client.email?.toLowerCase().includes(searchTerm) ||
-                                          client.phoneNumber?.toLowerCase().includes(searchTerm) ||
-                                          client.region?.toLowerCase().includes(searchTerm) ||
-                                          client.province?.toLowerCase().includes(searchTerm) ||
-                                          client.municipality?.toLowerCase().includes(searchTerm) ||
-                                          client.barangay?.toLowerCase().includes(searchTerm)
-                                        );
-                                      })
-                                      .slice(0, 20)
-                                      .map(client => (
-                                        <div
-                                          key={client.id}
-                                          className="border-input has-data-[state=checked]:border-primary/50 relative flex w-full items-start gap-2 rounded-md border p-3 shadow-xs outline-none mb-2"
-                                        >
-                                          <RadioGroupItem
-                                            value={client.id.toString()}
-                                            id={`client-${client.id}`}
-                                            aria-describedby={`client-${client.id}-description`}
-                                            className="order-1 after:absolute after:inset-0"
-                                          />
-                                          <div className="grid grow gap-1">
-                                            <Label
-                                              className="flex items-center font-medium"
-                                              htmlFor={`client-${client.id}`}
-                                            >
-                                              {client.firstName} {client.lastName}
-                                              <span className="ml-2 text-muted-foreground text-xs font-normal">
-                                                {client.phoneNumber}
-                                              </span>
-                                            </Label>
-                                            <div
-                                              id={`client-${client.id}-description`}
-                                              className="text-muted-foreground text-xs"
-                                            >
-                                              <div className="mb-1">
-                                                {[
-                                                  client.region,
-                                                  client.province,
-                                                  client.municipality,
-                                                  client.barangay,
-                                                ]
-                                                  .filter(Boolean)
-                                                  .join(", ") || "No address"}
-                                              </div>
-                                              {client.bookings && client.bookings.length > 0 && (
-                                                <div className="text-blue-600">
-                                                  {client.bookings.length} past booking(s) • Latest:{" "}
-                                                  {client.bookings.sort((a, b) => {
-                                                    if (!a.startAt || !b.startAt) return 0;
-                                                    return (
-                                                      new Date(b.startAt).getTime() -
-                                                      new Date(a.startAt).getTime()
-                                                    );
-                                                  })[0]?.eventName || "Unknown"}
-                                                </div>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    {allClients.filter(client => {
+                                    onChange={handleClientChange}
+                                    searchQuery={clientSearchQuery}
+                                  />
+                                  {allClients.filter(client => {
                                       if (!clientSearchQuery) return true;
                                       const searchTerm = clientSearchQuery.toLowerCase();
                                       return (
@@ -2415,7 +2531,6 @@ const AddBookingsPageClient = (props: {
                                           : "No clients available"}
                                       </div>
                                     )}
-                                  </RadioGroup>
                                 </div>
                               </div>
                         </DialogContent>
@@ -2471,14 +2586,23 @@ const AddBookingsPageClient = (props: {
                               validationErrors.phoneNumber ? "ring-2 ring-red-500 border-red-500" : ""
                             }
                             onChange={e => {
-                              if (e.target.value.trim() && validationErrors.phoneNumber) {
+                              // Only allow numbers
+                              const value = e.target.value.replace(/\D/g, '');
+                              e.target.value = value;
+                              if (value.trim() && validationErrors.phoneNumber) {
                                 setValidationErrors(prev => ({ ...prev, phoneNumber: undefined }));
+                              }
+                            }}
+                            onKeyPress={e => {
+                              // Prevent non-numeric characters from being entered
+                              if (!/[0-9]/.test(e.key)) {
+                                e.preventDefault();
                               }
                             }}
                           />
                         </div>
                         <div className="*:not-first:mt-2">
-                          <Label className="font-normal text-foreground/50">Email address</Label>
+                          <Label className="font-normal text-foreground/50">Email address (Optional)</Label>
                           <Input
                             name="email"
                             placeholder="johndoe@gmail.com"
@@ -2574,7 +2698,18 @@ const AddBookingsPageClient = (props: {
                   <div className="grid grid-cols-2 gap-4 w-full ">
                     <div className="flex-grow">
                       <TimeStartPickerCreateBookingComponent
-                        startTimeOnChange={setStartTime}
+                        startTimeOnChange={(newTime) => {
+                          setStartTime(newTime);
+                          // Task 3: Auto-set end time to +5 hours
+                          if (newTime) {
+                             const newEndTime = {
+                               hour: (newTime.hour + 5) % 24,
+                               minute: newTime.minute,
+                               second: newTime.second
+                             };
+                             setEndTime(newEndTime);
+                          }
+                        }}
                         initialDateTime={
                           startTime
                             ? new Date(
@@ -2611,6 +2746,7 @@ const AddBookingsPageClient = (props: {
               </div>
               <div className="ml-4"></div>
             </div>
+
           </div>
           {/* === EVENT DETAILS BLOCK === */}
           <div
@@ -2626,11 +2762,12 @@ const AddBookingsPageClient = (props: {
               <div className="mt-2 *:not-first:mt-2 flex-1">
                 <Label className="text-foreground/50 font-normal">Event Name</Label>
                 <Input
-                  name="eventName"
+                  value={eventNameValue}
                   placeholder="Chris' Birthday Party"
                   type="text"
                   className={validationErrors.eventName ? "ring-2 ring-red-500 border-red-500" : ""}
                   onChange={e => {
+                    setEventNameValue(e.target.value);
                     if (e.target.value.trim() && validationErrors.eventName) {
                       setValidationErrors(prev => ({ ...prev, eventName: undefined }));
                     }
@@ -2640,30 +2777,34 @@ const AddBookingsPageClient = (props: {
               <div className="mt-2 *:not-first:mt-2 flex-1 ml-4">
                 <Label className="text-foreground/50 font-normal">No. of pax</Label>
                 <Input
-                  name="numPax"
+                  {...register("numPax")}
                   placeholder="200"
                   type="text"
-                  value={numPax}
-                  onChange={e => setNumPax(e.currentTarget.value)}
+                  onKeyPress={e => {
+                    // Only allow numbers
+                    if (!/[0-9]/.test(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
+                  onChange={e => {
+                    // Remove non-numeric characters
+                    const value = e.target.value.replace(/\D/g, '');
+                    e.target.value = value;
+                    // Update the form value
+                    if (register("numPax").onChange) {
+                      register("numPax").onChange(e);
+                    }
+                  }}
                 />
               </div>
             </div>
-            <div className="mt-4 *:not-first:mt-2">
-              <Label className="text-foreground/50 font-normal">Event type</Label>
 
-              <Select name="eventType">
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {eventTypes.map(eventType => (
-                    <SelectItem value={`${eventType.id}`} key={eventType.id}>
-                      {eventType.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <EventTypeSelect
+              eventTypes={eventTypes}
+              value={selectedEventType}
+              hasError={validationErrors.eventType}
+              onChange={handleEventTypeChange}
+            />
           </div>
 
           {/* === CATERING BLOCK === */}
@@ -2681,135 +2822,17 @@ const AddBookingsPageClient = (props: {
             <div className="flex justify-between items-center">
               <p className="font-bold text-lg">Catering</p>
 
-              <div className="flex gap-2">
-                {selectedCatering === "1" && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsDishesDialogOpen(true)}
-                  >
-                    <Edit className="w-4 h-4 mr-2" />
-                    Manage Dishes
-                  </Button>
-                )}
 
-                {selectedCatering === "1" && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsInventoryDialogOpen(true)}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Select Items
-                  </Button>
-                )}
-              </div>
             </div>
 
             <div className="">
               <div className="mt-2">
                 <div>
-                  <RadioGroup
-                    className="grid grid-cols-4 "
+                  <CateringRadioGroup
                     value={selectedCatering}
-                    orientation="horizontal"
-                    name="catering"
-                    onValueChange={setSelectedCatering}
-                  >
-                    {/* Radio card #1 */}
-                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none min-h-[100px]">
-                      <RadioGroupItem
-                        value="1"
-                        id={`${id}-1`}
-                        aria-describedby={`${id}-2-description`}
-                        className="order-1 after:absolute after:inset-0"
-                      />
-                      <div className="flex flex-col grow gap-2 justify-start items-baseline">
-                        <Label htmlFor={`${id}-1`} className="flex items-center">
-                          <Users className="mr-1" size={20} />
-                          {"Susing and Rufins Catering"}
-                          <span className="text-muted-foreground text-xs leading-[inherit] font-normal"></span>
-                        </Label>
-                        <div id={`${id}-1-description`} className="text-muted-foreground text-xs">
-                          <ul className="list-disc list-inside space-y-1 mb-2">
-                            <li>Use the in-house catering.</li>
-                            <li>Menu, staff, and setup are handled internally.</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Radio card #2 */}
-
-                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
-                      <RadioGroupItem
-                        value="2"
-                        id={`${id}-2`}
-                        aria-describedby={`${id}-2-description`}
-                        className="order-1 after:absolute after:inset-0"
-                      />
-                      <div className="flex flex-col grow gap-2 justify-start items-baseline">
-                        <Label htmlFor={`${id}-2`} className="flex items-center">
-                          <Truck className="mr-1" size={20} />
-                          {"3rd Party Catering"}
-                          <span className=" ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
-                        </Label>
-                        <div id={`${id}-2-description`} className="text-muted-foreground text-xs">
-                          <ul className="list-disc list-inside space-y-1 mb-2">
-                            <li>Client brings an external caterer.</li>
-                            <li>All food, equipment, and utensils are provided by the caterer.</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Radio card #3 */}
-                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
-                      <RadioGroupItem
-                        value="3"
-                        id={`${id}-3`}
-                        aria-describedby={`${id}-2-description`}
-                        className="order-1 after:absolute after:inset-0"
-                      />
-                      <div className="flex flex-col grow gap-2">
-                        <Label htmlFor={`${id}-2`} className="flex items-center">
-                          <Layers className="mr-1" size={20} />
-                          {"Hybrid Service"}
-                          <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
-                        </Label>
-                        <div id={`${id}-2-description`} className="text-muted-foreground text-xs">
-                          <ul className="list-disc list-inside space-y-1 mb-2">
-                            <li>Client provides an external caterer.</li>
-                            <li>
-                              Susing and Rufins staff handle serving, table setup, and cleanup.
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Radio card #3 */}
-                    <div className="border-input has-data-[state=checked]:border-primary/50 relative flex flex-col flex-1 max-w-2xs items-start gap-2 rounded-md border p-4 shadow-xs outline-none">
-                      <RadioGroupItem
-                        value="4"
-                        id={`${id}-4`}
-                        aria-describedby={`${id}-4-description`}
-                        className="order-1 after:absolute after:inset-0"
-                      />
-                      <div className="flex flex-col grow gap-2">
-                        <Label htmlFor={`${id}-4`} className="flex items-center">
-                          <MinusCircle className="mr-1" size={20} />
-                          {"None"}
-                          <span className="ml-1 text-muted-foreground text-xs leading-[inherit] font-normal"></span>
-                        </Label>
-                        <div id={`${id}-4-description`} className="text-muted-foreground text-xs">
-                          <ul className="list-disc list-inside space-y-1 mb-2">
-                            <li>No catering service included.</li>
-                            <li>No food or beverage arrangements are needed.</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  </RadioGroup>
+                    hasError={validationErrors.catering}
+                    onChange={handleCateringChange}
+                  />
                 </div>
               </div>
               {selectedCatering === "1" && (
@@ -2818,23 +2841,20 @@ const AddBookingsPageClient = (props: {
                   <div className="mb-4">
                     <p className="text-sm text-foreground/50 mb-2">Menu Package</p>
                     <Select
-                      value={selectedMenuPackageId?.toString() || ""}
-                      onValueChange={val => {
-                        setSelectedMenuPackageId(val ? Number(val) : null);
-                        // Clear selected dishes when changing package
-                        setSelectedDishes([]);
-                      }}
+                      value={isCustomMode ? "custom" : (selectedMenuPackageId?.toString() || "")}
+                      onValueChange={handleMenuPackageChange}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select a menu package" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="custom">Custom Package</SelectItem>
                         {allMenuPackages.map((pkg: any) => (
                           <SelectItem key={pkg.id} value={pkg.id.toString()}>
                             <div className="flex flex-col">
                               <span className="font-medium">{pkg.name}</span>
                               <span className="text-xs text-muted-foreground">
-                                ₱{pkg.price} - {pkg.maxDishes} dishes
+                                ₱{pkg.price}
                               </span>
                             </div>
                           </SelectItem>
@@ -2842,7 +2862,23 @@ const AddBookingsPageClient = (props: {
                       </SelectContent>
                     </Select>
 
-                    {selectedMenuPackageId && (
+                    {/* Custom Price Per Pax Input */}
+                    {isCustomMode && (
+                      <div className="mt-3">
+                        <Label className="text-sm font-medium">Price Per Pax (₱)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={customPricePerPax}
+                          onChange={(e) => setCustomPricePerPax(e.target.value)}
+                          placeholder="Enter price per pax"
+                          className="mt-2"
+                        />
+                      </div>
+                    )}
+
+                    {selectedMenuPackageId && !isCustomMode && (
                       <div className="mt-2 p-3 bg-blue-50 rounded-md border border-blue-200">
                         <p className="text-sm text-blue-900 font-medium">
                           Selected:{" "}
@@ -2852,30 +2888,46 @@ const AddBookingsPageClient = (props: {
                           }
                         </p>
                         <p className="text-xs text-blue-700 mt-1">
-                          You can select{" "}
-                          {
-                            allMenuPackages.find((pkg: any) => pkg.id === selectedMenuPackageId)
-                              ?.maxDishes
-                          }{" "}
-                          dishes from:{" "}
+                          You can select dishes from:{" "}
                           {allMenuPackages
                             .find((pkg: any) => pkg.id === selectedMenuPackageId)
                             ?.allowedCategories?.map((cat: any) => cat.name)
                             .join(", ")}
                         </p>
                         <p className="text-xs text-blue-600 mt-1">
-                          {selectedDishes.length} /{" "}
-                          {
-                            allMenuPackages.find((pkg: any) => pkg.id === selectedMenuPackageId)
-                              ?.maxDishes
-                          }{" "}
-                          dishes selected
+                          {selectedDishes.length} dishes selected
                         </p>
+                      </div>
+                    )}
+
+                    {/* Custom Mode Info Display */}
+                    {isCustomMode && (
+                      <div className="mt-2 p-3 bg-amber-50 rounded-md border border-amber-200">
+                        <p className="text-sm text-amber-900 font-medium">Custom Menu Package</p>
+                        <p className="text-xs text-amber-700 mt-1">
+                          You can select dishes from any category. Set your custom price per pax above.
+                        </p>
+                        {customPricePerPax && (
+                          <p className="text-xs text-amber-700 mt-2">
+                            <strong>Price Per Pax:</strong> ₱{parseFloat(customPricePerPax).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
 
-                  <div className="border rounded-md mt-4">
+                    <div className="flex justify-end mb-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsDishesDialogOpen(true)}
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Manage Dishes
+                      </Button>
+                    </div>
+                    <div className="border rounded-md mt-4">
                     <Table>
                       <TableHeader className="sticky top-0 bg-white z-10">
                         <TableRow>
@@ -3158,6 +3210,7 @@ const AddBookingsPageClient = (props: {
                                       e.preventDefault();
                                       e.stopPropagation();
                                       setIsConflictDialogOpen(false);
+                                      setConflictsAcknowledged(false);
                                     }}
                                   >
                                     Close
@@ -3168,7 +3221,14 @@ const AddBookingsPageClient = (props: {
                                       e.preventDefault();
                                       e.stopPropagation();
                                       setIsConflictDialogOpen(false);
-                                      // Could add logic to auto-adjust quantity or dates
+                                      setConflictsAcknowledged(true);
+                                      // Trigger form submission after acknowledging conflicts
+                                      setTimeout(() => {
+                                        const form = document.getElementById("booking-form") as HTMLFormElement;
+                                        if (form) {
+                                          form.requestSubmit();
+                                        }
+                                      }, 100);
                                     }}
                                   >
                                     Understood
@@ -3180,6 +3240,17 @@ const AddBookingsPageClient = (props: {
                         )}
 
                         {/* Display Selected Inventory Items */}
+                        <div className="flex justify-end mb-2 mt-4">
+                           <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsInventoryDialogOpen(true)}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Select Items
+                          </Button>
+                        </div>
                         <div className="border rounded-md mt-4">
                           <Table>
                             <TableHeader className="sticky top-0 bg-white z-10">
@@ -3215,8 +3286,8 @@ const AddBookingsPageClient = (props: {
                                   );
 
                                   return (
-                                    <>
-                                      <TableRow key={selectedItem.id}>
+                                    <React.Fragment key={selectedItem.id}>
+                                      <TableRow>
                                         <TableCell className="font-medium flex-1 grow">
                                           {item?.name || "Unknown Item"}
                                         </TableCell>
@@ -3277,7 +3348,7 @@ const AddBookingsPageClient = (props: {
                                           </TableCell>
                                         </TableRow>
                                       )}
-                                    </>
+                                    </React.Fragment>
                                   );
                                 })
                               )}
@@ -3299,20 +3370,62 @@ const AddBookingsPageClient = (props: {
                         <div className="bg-white rounded-xl shadow-xl w-full max-w-[1400px] max-h-[90vh] overflow-auto p-6">
                           {/* Header */}
                           <div className="flex items-start justify-between mb-6">
-                            <div>
+                            <div className="flex-1">
                               <h2 className="text-xl font-semibold">Manage Dishes</h2>
                               <p className="text-sm text-muted-foreground">
                                 Add, edit, or remove dishes from your menu.
                               </p>
+
+                              {/* Menu Package Selector */}
+                              <div className="mt-4 max-w-lg">
+                                <Label className="text-sm font-medium mb-2">Menu Package</Label>
+                                <Select
+                                  value={selectedMenuPackageId?.toString() || "none"}
+                                  onValueChange={handleDishesMenuPackageChange}
+                                >
+                                  <SelectTrigger className="mt-2">
+                                    <SelectValue placeholder="Select menu package" />
+                                  </SelectTrigger>
+                                  <SelectContent className="z-[400]">
+                                    <SelectItem value="none">None</SelectItem>
+                                    {allMenuPackages.map((pkg: any) => (
+                                      <SelectItem key={pkg.id} value={pkg.id.toString()}>
+                                        {pkg.name} - ₱{pkg.price}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
                               {selectedMenuPackageId && (
-                                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
-                                  <p className="text-sm text-amber-900">
-                                    <strong>Menu Package Restriction:</strong> You can select up to{" "}
-                                    {selectedMenuPackage?.maxDishes} dishes from:{" "}
-                                    {selectedMenuPackage?.allowedCategories
-                                      ?.map((cat: any) => cat.name)
-                                      .join(", ")}
-                                  </p>
+                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md max-w-lg">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div>
+                                      <p className="text-sm font-semibold text-blue-900">
+                                        {selectedMenuPackage?.name}
+                                      </p>
+                                      {selectedMenuPackage?.description && (
+                                        <p className="text-xs text-blue-700 mt-1">
+                                          {selectedMenuPackage.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <span className="text-sm font-medium text-blue-900">
+                                      ₱{selectedMenuPackage?.price}
+                                    </span>
+                                  </div>
+
+                                  <div className="mt-2 pt-2 border-t border-blue-200">
+                                    <p className="text-xs text-blue-700">
+                                      <strong>Dishes:</strong> {selectedDishes.length} selected
+                                    </p>
+                                    {selectedMenuPackage?.allowedCategories && selectedMenuPackage.allowedCategories.length > 0 && (
+                                      <p className="text-xs text-blue-700 mt-1">
+                                        <strong>Allowed Categories:</strong>{" "}
+                                        {selectedMenuPackage.allowedCategories.map((cat: any) => cat.name).join(", ")}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -3353,7 +3466,18 @@ const AddBookingsPageClient = (props: {
                                     </SelectTrigger>
                                     <SelectContent className="z-[400]">
                                       <SelectItem value="all">All Categories</SelectItem>
-                                      {categoriesSource?.map(
+                                      {categoriesSource
+                                        ?.filter((category: { id: number; name: string }) => {
+                                          // Task 1: Filter categories based on menu package allowed categories
+                                          if (selectedMenuPackageId && !isCustomMode) {
+                                            const selectedPackage = allMenuPackages.find((p: any) => p.id === selectedMenuPackageId);
+                                            if (selectedPackage?.allowedCategories?.length > 0) {
+                                              return selectedPackage.allowedCategories.some((c: any) => c.id === category.id);
+                                            }
+                                          }
+                                          return true;
+                                        })
+                                        .map(
                                         (category: { id: number; name: string }) => (
                                           <SelectItem
                                             key={category.id}
@@ -3497,7 +3621,18 @@ const AddBookingsPageClient = (props: {
                                   </SelectTrigger>
                                   <SelectContent className="z-[400]">
                                     <SelectItem value="all">All Categories</SelectItem>
-                                    {categoriesSource?.map(
+                                    {categoriesSource
+                                      ?.filter((category: { id: number; name: string }) => {
+                                        // Task 1: Filter categories based on menu package allowed categories
+                                        if (selectedMenuPackageId && !isCustomMode) {
+                                          const selectedPackage = allMenuPackages.find((p: any) => p.id === selectedMenuPackageId);
+                                          if (selectedPackage?.allowedCategories?.length > 0) {
+                                            return selectedPackage.allowedCategories.some((c: any) => c.id === category.id);
+                                          }
+                                        }
+                                        return true;
+                                      })
+                                      .map(
                                       (category: { id: number; name: string }) => (
                                         <SelectItem
                                           key={category.id}
@@ -3672,12 +3807,7 @@ const AddBookingsPageClient = (props: {
                                     <Label htmlFor="edit-dish-category">Category</Label>
                                     <Select
                                       value={editingDish.categoryId?.toString() || ""}
-                                      onValueChange={value => {
-                                        setEditingDish({
-                                          ...editingDish,
-                                          categoryId: Number(value),
-                                        });
-                                      }}
+                                      onValueChange={handleEditDishCategoryChange}
                                     >
                                       <SelectTrigger>
                                         <SelectValue />
@@ -4367,65 +4497,10 @@ const AddBookingsPageClient = (props: {
               <div className="space-y-4">
                 {/* Discount Type Selection */}
                 <div>
-                  <RadioGroup
+                  <DiscountTypeRadioGroup
                     value={discountType}
-                    onValueChange={(value: "predefined" | "custom" | "none") => {
-                      setDiscountType(value);
-                      if (value === "predefined") {
-                        // Reset custom discount states
-                        setCustomDiscountName("");
-                        setCustomDiscountValue(0);
-                        setCustomDiscountDescription("");
-                        setCustomDiscountType("percent");
-                      } else if (value === "custom") {
-                        // Reset predefined discount selection
-                        setSelectedDiscountId(null);
-                        setDiscountName("");
-                        setDiscountPercentage(0);
-                      } else if (value === "none") {
-                        // Reset all discount states
-                        setSelectedDiscountId(null);
-                        setDiscountName("");
-                        setDiscountPercentage(0);
-                        setCustomDiscountName("");
-                        setCustomDiscountValue(0);
-                        setCustomDiscountDescription("");
-                        setCustomDiscountType("percent");
-                      }
-                    }}
-                    className="grid grid-cols-3"
-                  >
-                    <div className="relative flex items-center space-x-2 border-1 p-4 rounded-md cursor-pointer transition-colors hover:bg-muted/50 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5">
-                      <RadioGroupItem
-                        value="predefined"
-                        id="predefined"
-                        className="after:absolute after:inset-0 after:cursor-pointer"
-                      />
-                      <Label htmlFor="predefined" className="font-normal cursor-pointer">
-                        Predefined Discount
-                      </Label>
-                    </div>
-                    <div className="relative flex items-center space-x-2 border-1 p-4 rounded-md cursor-pointer transition-colors hover:bg-muted/50 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5">
-                      <RadioGroupItem
-                        value="custom"
-                        id="custom"
-                        className="after:absolute after:inset-0 after:cursor-pointer"
-                      />
-                      <Label htmlFor="custom" className="font-normal cursor-pointer">
-                        Custom Discount
-                      </Label>
-                    </div>
-                    <div className="relative flex items-center space-x-2 border-1 p-4 rounded-md cursor-pointer transition-colors hover:bg-muted/50 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5">
-                      <RadioGroupItem
-                        value="none"
-                        id="none"
-                        className="after:absolute after:inset-0 after:cursor-pointer"
-                      />
-                      <Label htmlFor="none" className="font-normal cursor-pointer">
-                        None
-                      </Label>
-                    </div>
-                  </RadioGroup>
+                    onChange={handleDiscountTypeChange}
+                  />
                 </div>
 
                 {/* Predefined Discount Selection */}
@@ -4435,34 +4510,7 @@ const AddBookingsPageClient = (props: {
 
                     <Select
                       value={selectedDiscountId ? String(selectedDiscountId) : ""}
-                      onValueChange={async value => {
-                        if (value === "") {
-                          setSelectedDiscountId(null);
-                          setDiscountName("");
-                          setDiscountPercentage(0);
-                          return;
-                        }
-                        const discountId = parseInt(value, 10);
-                        setSelectedDiscountId(discountId);
-
-                        // Find discount in the predefined list
-                        const selectedDiscount = discounts.find(d => d.id === discountId);
-                        if (selectedDiscount) {
-                          setDiscountName(selectedDiscount.name);
-                          // Calculate percentage based on discount type
-                          if (selectedDiscount.percent) {
-                            setDiscountPercentage(selectedDiscount.percent);
-                          } else if (selectedDiscount.amount) {
-                            // Convert amount to percentage based on current total
-                            const currentTotal = basePackagePrice + extraHoursFee;
-                            const percentage =
-                              currentTotal > 0 ? (selectedDiscount.amount / currentTotal) * 100 : 0;
-                            setDiscountPercentage(percentage);
-                          } else {
-                            setDiscountPercentage(0);
-                          }
-                        }
-                      }}
+                      onValueChange={handlePredefinedDiscountChange}
                     >
                       <SelectTrigger className="mt-2">
                         <SelectValue placeholder="Choose a discount" />
@@ -4507,10 +4555,7 @@ const AddBookingsPageClient = (props: {
                         </Label>
                         <Select
                           value={customDiscountType}
-                          onValueChange={(value: "percent" | "amount") => {
-                            setCustomDiscountType(value);
-                            setCustomDiscountValue(0); // Reset value when changing type
-                          }}
+                          onValueChange={handleCustomDiscountTypeChange}
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -4563,6 +4608,172 @@ const AddBookingsPageClient = (props: {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* === ADDITIONAL CHARGES BLOCK === */}
+          <div
+            id="additional-charges"
+            className="w-full h-fit rounded-sm p-5 bg-white shadow-neutral-200 shadow-2xl mt-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-bold text-lg">Additional Charges</p>
+              {!showAddChargeForm && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddChargeForm(true)}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Charge
+                </Button>
+              )}
+            </div>
+
+            {/* Summary */}
+            {additionalCharges.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-blue-900">
+                    Total Additional Charges:
+                  </span>
+                  <span className="text-lg font-bold text-blue-900">
+                    ₱{totalAdditionalCharges.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Add Form */}
+            {showAddChargeForm && (
+              <div className="border rounded-lg p-4 bg-gray-50 space-y-4 mb-4">
+                <h3 className="font-semibold text-sm">New Additional Charge</h3>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="charge-name">
+                      Item/Service Name <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="charge-name"
+                      value={chargeName}
+                      onChange={e => setChargeName(e.target.value)}
+                      placeholder="e.g., Broken glass, Extra service"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="charge-amount">
+                      Amount (₱) <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="charge-amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={chargeAmount}
+                      onChange={e => setChargeAmount(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="charge-note">Note (Optional)</Label>
+                  <Textarea
+                    id="charge-note"
+                    value={chargeNote}
+                    onChange={e => setChargeNote(e.target.value)}
+                    placeholder="Add any additional details..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowAddChargeForm(false);
+                      setChargeName("");
+                      setChargeAmount("");
+                      setChargeNote("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (!chargeName.trim() || !chargeAmount || parseFloat(chargeAmount) <= 0) {
+                        toast.error("Please fill in all required fields with valid values");
+                        return;
+                      }
+
+                      const newCharge = {
+                        id: Date.now().toString(),
+                        name: chargeName.trim(),
+                        amount: parseFloat(chargeAmount),
+                        note: chargeNote.trim() || undefined,
+                      };
+
+                      setAdditionalCharges(prev => [...prev, newCharge]);
+                      setChargeName("");
+                      setChargeAmount("");
+                      setChargeNote("");
+                      setShowAddChargeForm(false);
+                      toast.success("Additional charge added");
+                    }}
+                  >
+                    Add Charge
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Charges List */}
+            {additionalCharges.length > 0 ? (
+              <div className="space-y-2">
+                <div className="divide-y border rounded-lg">
+                  {additionalCharges.map(charge => (
+                    <div key={charge.id} className="p-4 hover:bg-gray-50 transition-colors group">
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium text-sm">{charge.name}</h4>
+                          </div>
+                          {charge.note && (
+                            <p className="text-sm text-gray-600 mt-1 line-clamp-2">{charge.note}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <span className="font-semibold text-sm whitespace-nowrap">
+                            ₱{charge.amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setAdditionalCharges(prev => prev.filter(c => c.id !== charge.id));
+                              toast.success("Charge removed");
+                            }}
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center p-8 text-gray-500 border rounded-lg">
+                <DollarSign className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                <p className="text-sm">No additional charges yet</p>
+              </div>
+            )}
           </div>
 
           {/* === DOCUMENTS BLOCK === */}
@@ -4666,67 +4877,132 @@ const AddBookingsPageClient = (props: {
                 </ul>
               </div>
               {selectedPackageId !== null && (
-                <div className="border-t-1 mt-3 grid grid-cols-2 pt-3">
-                  <div className="col-span-1">
-                    <p className="text-md font-medium">Total Price</p>
-                    <p className="text-sm font-normal text-black/50">
-                      {typeof totalDays === "number" && typeof totalHours === "number"
-                        ? `${totalDays > 0 ? `${totalDays} day(s), ` : ""}${totalHours} hour(s)`
-                        : ``}
-                    </p>
-                    {hoursCount > 5 && (
-                      <p className="text-xs text-black/50">
-                        Includes extra hours fee for {extraHours} hour(s)
+                <div className="border-t-1 mt-3 pt-3 space-y-3">
+                  {/* Package Price Breakdown */}
+                  <div className="grid grid-cols-2">
+                    <div className="col-span-1">
+                      <p className="text-md font-medium">Package Price</p>
+                      <p className="text-sm font-normal text-black/50">
+                        {typeof totalDays === "number" && typeof totalHours === "number"
+                          ? `${totalDays > 0 ? `${totalDays} day(s), ` : ""}${totalHours} hour(s)`
+                          : ``}
                       </p>
-                    )}
-                    {selectedCatering === "1" && cateringCost > 0 && (
-                      <p className="text-xs text-black/50">
-                        Catering: {cateringPax} pax × {formatCurrency(parseFloat(pricePerPax))}
-                      </p>
-                    )}
-                  </div>
-                  <div className="text-end">
-                    {discountAmount > 0 && (
-                      <p className="text-sm font-normal line-through">
-                        {formatCurrency(originalPrice)}
-                      </p>
-                    )}
-                    <p className="text-md font-medium text-red-500">
-                      {formatCurrency(discountedPrice)}
-                      {discountAmount > 0 && (
-                        <span className="ml-1 text-xs text-black/50">
-                          (
-                          {discountType === "predefined" && selectedDiscountId
-                            ? (() => {
-                                const selectedDiscount = discounts.find(
-                                  d => d.id === selectedDiscountId
-                                );
-                                if (selectedDiscount?.percent)
-                                  return `${selectedDiscount.percent}% off`;
-                                if (selectedDiscount?.amount)
-                                  return `₱${selectedDiscount.amount.toLocaleString()} off`;
-                                return "Discount applied";
-                              })()
-                            : discountType === "custom" && customDiscountValue > 0
-                              ? customDiscountType === "percent"
-                                ? `${customDiscountValue}% off`
-                                : `₱${customDiscountValue.toLocaleString()} off`
-                              : "Discount applied"}
-                          )
-                        </span>
-                      )}
-                    </p>
-                    {downPayment > 0 && (
-                      <>
+                      {hoursCount > 5 && (
                         <p className="text-xs text-black/50">
-                          Downpayment: {formatCurrency(downPayment)}
+                          Includes extra hours fee for {extraHours} hour(s)
                         </p>
-                        <p className="text-sm font-semibold">
-                          Balance: {formatCurrency(finalBalance)}
+                      )}
+                      {selectedCatering === "1" && cateringCost > 0 && (
+                        <p className="text-xs text-black/50">
+                          Catering: {cateringPax} pax × {formatCurrency(parseFloat(pricePerPax || "0"))} = {formatCurrency(cateringCost)}
                         </p>
-                      </>
-                    )}
+                      )}
+                    </div>
+                    <div className="text-end">
+                      {discountAmount > 0 && (
+                        <p className="text-sm font-normal line-through">
+                          {formatCurrency(originalPrice)}
+                        </p>
+                      )}
+                      <p className="text-md font-medium text-red-500">
+                        {formatCurrency(discountedPrice)}
+                        {discountAmount > 0 && (
+                          <span className="ml-1 text-xs text-black/50">
+                            (
+                            {discountType === "predefined" && selectedDiscountId
+                              ? (() => {
+                                  const selectedDiscount = discounts.find(
+                                    d => d.id === selectedDiscountId
+                                  );
+                                  if (selectedDiscount?.percent)
+                                    return `${selectedDiscount.percent}% off`;
+                                  if (selectedDiscount?.amount)
+                                    return `₱${selectedDiscount.amount.toLocaleString()} off`;
+                                  return "Discount applied";
+                                })()
+                              : discountType === "custom" && customDiscountValue > 0
+                                ? customDiscountType === "percent"
+                                  ? `${customDiscountValue}% off`
+                                  : `₱${customDiscountValue.toLocaleString()} off`
+                                : "Discount applied"}
+                            )
+                          </span>
+                        )}
+                      </p>
+                    </div>
                   </div>
+
+                  {discountAmount > 0 && (
+                    <div className="grid grid-cols-2">
+                      <div className="col-span-1">
+                        <p className="text-sm font-medium text-muted-foreground">Discount Amount</p>
+                      </div>
+                      <div className="text-end">
+                        <p className="text-sm font-medium text-red-500">
+                          - {formatCurrency(discountAmount)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Additional Charges (if any) */}
+                  {totalAdditionalCharges > 0 && (
+                    <div className="grid grid-cols-2 pt-2 border-t">
+                      <div className="col-span-1">
+                        <p className="text-md font-medium">Additional Charges</p>
+                        {additionalCharges.map((charge, idx) => (
+                          <p key={idx} className="text-xs text-black/50">
+                            {charge.name}: {formatCurrency(charge.amount)}
+                          </p>
+                        ))}
+                      </div>
+                      <div className="text-end">
+                        <p className="text-md font-medium text-orange-600">
+                          {formatCurrency(totalAdditionalCharges)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Grand Total */}
+                  {totalAdditionalCharges > 0 && (
+                    <div className="grid grid-cols-2 pt-2 border-t">
+                      <div className="col-span-1">
+                        <p className="text-lg font-bold">Grand Total</p>
+                      </div>
+                      <div className="text-end">
+                        <p className="text-lg font-bold text-green-600">
+                          {formatCurrency(discountedPrice + totalAdditionalCharges)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Down Payment & Balance */}
+                  {downPayment > 0 && (
+                    <div className="grid grid-cols-2 pt-2 border-t">
+                      <div className="col-span-1">
+                        <p className="text-sm">Downpayment</p>
+                      </div>
+                      <div className="text-end">
+                        <p className="text-sm text-black/50">
+                          {formatCurrency(downPayment)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {downPayment > 0 && (
+                    <div className="grid grid-cols-2">
+                      <div className="col-span-1">
+                        <p className="text-md font-semibold">Balance Due</p>
+                      </div>
+                      <div className="text-end">
+                        <p className="text-md font-semibold text-orange-600">
+                          {formatCurrency((discountedPrice + totalAdditionalCharges) - downPayment)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -4758,29 +5034,32 @@ const AddBookingsPageClient = (props: {
           </div>
         </div>
       </div>
-
-      {/* Booking Success Dialog */}
-      <AlertDialog open={showBookingSuccessDialog} onOpenChange={setShowBookingSuccessDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Booking has been successfully created</AlertDialogTitle>
-            <AlertDialogDescription>
-              Your booking has been created successfully. Redirecting to calendar...
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={() => {
-                setShowBookingSuccessDialog(false);
-                router.push("/event_calendar");
-              }}
-            >
-              Go to Calendar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </form>
+
+    {/* Success Dialog */}
+    <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold text-green-600 flex items-center gap-2">
+            <Check className="h-6 w-6" />
+            Booking Created Successfully!
+          </DialogTitle>
+          <DialogDescription className="text-base pt-4">
+            Your booking has been created and saved successfully. You will now be redirected to the event calendar.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="sm:justify-end mt-4">
+          <Button
+            type="button"
+            onClick={handleSuccessDialogClose}
+            className="w-full sm:w-auto"
+          >
+            Go to Event Calendar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>
   );
 };
-export default AddBookingsPageClient;
+export default React.memo(AddBookingsPageClient);

@@ -34,6 +34,8 @@ export async function updateEmployeeProfile(
     lastName?: string;
     email?: string;
     phone?: string;
+    empId?: string;
+    roleId?: number;
   }
 ) {
   try {
@@ -44,6 +46,8 @@ export async function updateEmployeeProfile(
         ...(data.lastName && { lastName: data.lastName }),
         ...(data.email !== undefined && { email: data.email }),
         ...(data.phone !== undefined && { phone: data.phone }),
+        ...(data.empId !== undefined && { empId: data.empId }),
+        ...(data.roleId !== undefined && { roleId: data.roleId }),
       },
       include: {
         role: {

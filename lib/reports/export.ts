@@ -56,7 +56,7 @@ export function exportToExcel(report: Report, filename: string = "report.csv") {
   // Create multiple sheets in CSV format
   let content = "=== SUMMARY ===\n";
   content += `Total Bookings,${report.summary.totalBookings}\n`;
-  content += `Total Revenue,${formatCurrency(report.summary.totalRevenue)}\n`;
+  content += `Total Bookings Value,${formatCurrency(report.summary.totalRevenue)}\n`;
   content += `Average Booking Value,${formatCurrency(report.summary.averageBookingValue)}\n`;
   content += `Cancellation Rate,${report.summary.cancellationRate}%\n\n`;
 
@@ -73,7 +73,7 @@ export function exportToExcel(report: Report, filename: string = "report.csv") {
   content += "\n";
 
   content += "=== FINANCIAL BREAKDOWN ===\n";
-  content += `Total Revenue,${formatCurrency(report.financialBreakdown.totalRevenue)}\n`;
+  content += `Total Bookings Value,${formatCurrency(report.financialBreakdown.totalRevenue)}\n`;
   content += `Payments Collected,${formatCurrency(report.financialBreakdown.paymentsCollected)}\n`;
   content += `Outstanding Balance,${formatCurrency(report.financialBreakdown.outstandingBalance)}\n`;
   content += `Overdue Payments,${report.financialBreakdown.overduePayments}\n\n`;

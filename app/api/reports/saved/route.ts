@@ -1,7 +1,6 @@
+import 'dotenv/config'
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@/generated/prisma";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/server/db";
 
 // GET - Fetch all saved reports
 export async function GET() {

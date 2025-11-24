@@ -85,6 +85,7 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -112,17 +113,49 @@ export function DataTable<TData, TValue>({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name) {
-      toast.error("Please fill in the role name");
+
+    // Validate role name
+    if (!formData.name.trim()) {
+      toast.error("Role name is required");
       return;
     }
+
+    if (formData.name.trim().length < 2) {
+      toast.error("Role name must be at least 2 characters");
+      return;
+    }
+
+    if (formData.name.trim().length > 50) {
+      toast.error("Role name must not exceed 50 characters");
+      return;
+    }
+
+    // Check for valid characters (letters, numbers, spaces, hyphens, underscores)
+    const validNamePattern = /^[a-zA-Z0-9\s\-_]+$/;
+    if (!validNamePattern.test(formData.name.trim())) {
+      toast.error("Role name can only contain letters, numbers, spaces, hyphens, and underscores");
+      return;
+    }
+
     createRoleMutation({
-      name: formData.name,
+      name: formData.name.trim(),
     });
   };
 
+  // Filter data based on search query
+  const filteredData = React.useMemo(() => {
+    if (!searchQuery.trim()) {
+      return data;
+    }
+
+    const query = searchQuery.toLowerCase();
+    return data.filter((row: any) => {
+      return row.name?.toLowerCase().includes(query);
+    });
+  }, [data, searchQuery]);
+
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -191,12 +224,13 @@ export function DataTable<TData, TValue>({
         </DropdownMenu>
 
         <InputGroup className="bg-white flex-1">
-          <InputGroupInput placeholder="Search..." />
+          <InputGroupInput
+            placeholder="Search roles..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           <InputGroupAddon>
             <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton>Search</InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
 
@@ -268,7 +302,16 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  onClick={() => {
+                  onClick={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (
+                      target.closest('button') ||
+                      target.closest('[role="checkbox"]') ||
+                      target.closest('input') ||
+                      target.closest('a')
+                    ) {
+                      return;
+                    }
                     if (onRowClick) {
                       const rowData = row.original as { id: number };
                       onRowClick(rowData.id);

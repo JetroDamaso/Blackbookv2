@@ -36,10 +36,13 @@ interface Booking {
 }
 
 const statusMap: Record<number, string> = {
-  0: "Pending",
-  1: "Confirmed",
-  2: "Completed",
-  3: "Cancelled",
+  1: "Pending",
+  2: "Confirmed",
+  3: "In Progress",
+  4: "Completed",
+  5: "Unpaid",
+  6: "Cancelled",
+  7: "Archived",
 };
 
 export function BookingSelector({ selectedBookingIds, onSelectionChange }: BookingSelectorProps) {

@@ -77,18 +77,35 @@ export const columns: ColumnDef<DiscountWithRelations>[] = [
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Percentage
+          Amount
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }) => {
       const percent = row.getValue("percent") as number | null;
-      return (
-        <div className="flex items-center gap-2">
-          <Badge variant="outline">{percent !== null ? `${percent}%` : "N/A"}</Badge>
-        </div>
-      );
+      const amount = row.original.amount as number | null;
+
+      // Display percentage if it exists, otherwise display fixed amount
+      if (percent !== null && percent !== undefined) {
+        return (
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">{percent}%</Badge>
+          </div>
+        );
+      } else if (amount !== null && amount !== undefined) {
+        return (
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">₱{amount.toLocaleString()}</Badge>
+          </div>
+        );
+      } else {
+        return (
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">N/A</Badge>
+          </div>
+        );
+      }
     },
   },
 ];

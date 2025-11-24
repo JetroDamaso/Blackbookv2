@@ -1,11 +1,10 @@
 generator client {
-    provider = "prisma-client-js"
+    provider = "prisma-client"
     output   = "../generated/prisma"
 }
 
 datasource db {
     provider = "sqlite"
-    url      = env("DATABASE_URL")
 }
 
 model Client {
@@ -149,6 +148,8 @@ model Menu {
     menuDishes     MenuDish[]
     MenuPackages   MenuPackages? @relation(fields: [menuPackagesId], references: [id])
     menuPackagesId Int?
+    pricePerPax    Float?
+    isCustom       Boolean?      @default(false)
 }
 
 model DishCategory {

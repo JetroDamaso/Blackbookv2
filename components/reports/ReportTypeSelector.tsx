@@ -19,11 +19,7 @@ const reportTypes = [
   { value: "monthly", label: "Monthly Report" },
   { value: "yearly", label: "Yearly Report" },
   { value: "dateRange", label: "Date Range Report" },
-  { value: "status", label: "Booking Status Report" },
-  { value: "selected", label: "Selected Bookings Report" },
-  { value: "venue", label: "Venue Performance Report" },
-  { value: "eventType", label: "Event Type Analysis" },
-  { value: "client", label: "Client Report" },
+  { value: "status", label: "Status Report" },
 ] as const;
 
 export function ReportTypeSelector({ value, onChange }: ReportTypeSelectorProps) {

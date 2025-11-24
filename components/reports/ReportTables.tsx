@@ -26,20 +26,20 @@ export function ReportTables({
   showMonthlyBreakdown = false,
 }: ReportTablesProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-4">
       {/* Booking Breakdown Section */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Bookings by Status</CardTitle>
+      <div className="grid gap-4 md:grid-cols-3 print:gap-2">
+        <Card className="print:shadow-none print:border">
+          <CardHeader className="print:bg-white border-b">
+            <CardTitle className="text-base font-bold text-gray-900">Bookings by Status</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <Table>
               <TableBody>
                 {Object.entries(bookingBreakdown.byStatus).map(([status, count]) => (
                   <TableRow key={status}>
-                    <TableCell className="font-medium">{status}</TableCell>
-                    <TableCell className="text-right">{count}</TableCell>
+                    <TableCell className="font-semibold text-gray-700">{status}</TableCell>
+                    <TableCell className="text-right font-bold text-gray-900">{count}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -47,17 +47,17 @@ export function ReportTables({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Bookings by Venue</CardTitle>
+        <Card className="print:shadow-none print:border">
+          <CardHeader className="print:bg-white border-b">
+            <CardTitle className="text-base font-bold text-gray-900">Bookings by Venue</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <Table>
               <TableBody>
                 {Object.entries(bookingBreakdown.byVenue).map(([venue, count]) => (
                   <TableRow key={venue}>
-                    <TableCell className="font-medium">{venue}</TableCell>
-                    <TableCell className="text-right">{count}</TableCell>
+                    <TableCell className="font-semibold text-gray-700">{venue}</TableCell>
+                    <TableCell className="text-right font-bold text-gray-900">{count}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -65,17 +65,17 @@ export function ReportTables({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Bookings by Event Type</CardTitle>
+        <Card className="print:shadow-none print:border">
+          <CardHeader className="print:bg-white border-b">
+            <CardTitle className="text-base font-bold text-gray-900">Bookings by Event Type</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <Table>
               <TableBody>
                 {Object.entries(bookingBreakdown.byEventType).map(([type, count]) => (
                   <TableRow key={type}>
-                    <TableCell className="font-medium">{type}</TableCell>
-                    <TableCell className="text-right">{count}</TableCell>
+                    <TableCell className="font-semibold text-gray-700">{type}</TableCell>
+                    <TableCell className="text-right font-bold text-gray-900">{count}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -85,72 +85,72 @@ export function ReportTables({
       </div>
 
       {/* Financial Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Financial Summary</CardTitle>
+      <Card className="print:shadow-none print:border">
+        <CardHeader className="print:bg-white border-b">
+          <CardTitle className="text-lg font-bold text-gray-900">Financial Summary</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm font-medium">Total Revenue:</span>
-                <span className="text-sm font-bold">
+        <CardContent className="space-y-6 pt-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-3">
+              <div className="flex justify-between items-center p-3 rounded-lg border border-gray-300">
+                <span className="text-sm font-semibold text-gray-700">Total Bookings Value:</span>
+                <span className="text-lg font-bold text-gray-900">
                   {formatCurrency(financialBreakdown.totalRevenue)}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium">Payments Collected:</span>
-                <span className="text-sm font-bold text-green-600">
+              <div className="flex justify-between items-center p-3 rounded-lg border border-gray-300">
+                <span className="text-sm font-semibold text-gray-700">Payments Collected:</span>
+                <span className="text-lg font-bold text-green-700">
                   {formatCurrency(financialBreakdown.paymentsCollected)}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium">Outstanding Balance:</span>
-                <span className="text-sm font-bold text-orange-600">
+              <div className="flex justify-between items-center p-3 rounded-lg border border-gray-300">
+                <span className="text-sm font-semibold text-gray-700">Outstanding Balance:</span>
+                <span className="text-lg font-bold text-orange-700">
                   {formatCurrency(financialBreakdown.outstandingBalance)}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium">Overdue Payments:</span>
-                <span className="text-sm font-bold text-red-600">
+              <div className="flex justify-between items-center p-3 rounded-lg border border-gray-300">
+                <span className="text-sm font-semibold text-gray-700">Overdue Payments:</span>
+                <span className="text-lg font-bold text-red-700">
                   {financialBreakdown.overduePayments}
                 </span>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <h4 className="text-sm font-semibold">Discounts Given</h4>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium">Total:</span>
-                <span className="text-sm font-bold">
+            <div className="space-y-3">
+              <h4 className="text-base font-bold text-gray-900 mb-3">Discounts Given</h4>
+              <div className="flex justify-between items-center p-3 rounded-lg border border-gray-300">
+                <span className="text-sm font-semibold text-gray-700">Total:</span>
+                <span className="text-lg font-bold text-blue-700">
                   {formatCurrency(financialBreakdown.discountsGiven.total)}
                 </span>
               </div>
               {Object.entries(financialBreakdown.discountsGiven.byType).map(([type, amount]) => (
-                <div key={type} className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">{type}:</span>
-                  <span className="text-sm">{formatCurrency(amount)}</span>
+                <div key={type} className="flex justify-between items-center p-2 rounded border border-gray-300">
+                  <span className="text-sm font-medium text-gray-600">{type}:</span>
+                  <span className="text-sm font-semibold text-gray-900">{formatCurrency(amount)}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div>
-            <h4 className="text-sm font-semibold mb-2">Revenue by Venue</h4>
+          <div className="border-t pt-6">
+            <h4 className="text-base font-bold text-gray-900 mb-4">Revenue by Venue</h4>
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Venue</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
+                <TableRow className="border-b">
+                  <TableHead className="font-bold text-gray-900">Venue</TableHead>
+                  <TableHead className="text-right font-bold text-gray-900">Revenue</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {Object.entries(financialBreakdown.revenueByVenue)
                   .sort(([, a], [, b]) => b - a)
-                  .map(([venue, revenue]) => (
-                    <TableRow key={venue}>
-                      <TableCell className="font-medium">{venue}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(revenue)}</TableCell>
+                  .map(([venue, revenue], index) => (
+                    <TableRow key={venue} className="border-b">
+                      <TableCell className="font-semibold text-gray-700">{venue}</TableCell>
+                      <TableCell className="text-right font-bold text-gray-900">{formatCurrency(revenue)}</TableCell>
                     </TableRow>
                   ))}
               </TableBody>
@@ -158,20 +158,20 @@ export function ReportTables({
           </div>
 
           {showMonthlyBreakdown && financialBreakdown.revenueByMonth && (
-            <div>
-              <h4 className="text-sm font-semibold mb-2">Monthly Revenue Breakdown</h4>
+            <div className="border-t pt-6">
+              <h4 className="text-base font-bold text-gray-900 mb-4">Monthly Revenue Breakdown</h4>
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Month</TableHead>
-                    <TableHead className="text-right">Revenue</TableHead>
+                  <TableRow className="border-b">
+                    <TableHead className="font-bold text-gray-900">Month</TableHead>
+                    <TableHead className="text-right font-bold text-gray-900">Revenue</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.entries(financialBreakdown.revenueByMonth).map(([month, revenue]) => (
-                    <TableRow key={month}>
-                      <TableCell className="font-medium">{month}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(revenue)}</TableCell>
+                  {Object.entries(financialBreakdown.revenueByMonth).map(([month, revenue], index) => (
+                    <TableRow key={month} className="border-b">
+                      <TableCell className="font-semibold text-gray-700">{month}</TableCell>
+                      <TableCell className="text-right font-bold text-gray-900">{formatCurrency(revenue)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -182,43 +182,35 @@ export function ReportTables({
       </Card>
 
       {/* Client Statistics */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Client Statistics</CardTitle>
+      <Card className="print:shadow-none print:border">
+        <CardHeader className="print:bg-white border-b">
+          <CardTitle className="text-lg font-bold text-gray-900">Client Statistics</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Clients</p>
-              <p className="text-2xl font-bold">{clientStats.totalClients}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">New Clients</p>
-              <p className="text-2xl font-bold text-green-600">{clientStats.newClients}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Returning Clients</p>
-              <p className="text-2xl font-bold text-blue-600">{clientStats.returningClients}</p>
+        <CardContent className="space-y-6 pt-6">
+          <div className="grid gap-4 md:grid-cols-1">
+            <div className="p-4 rounded-lg border border-gray-300">
+              <p className="text-sm font-semibold text-gray-600 mb-1">Total Clients</p>
+              <p className="text-3xl font-bold text-gray-900">{clientStats.totalClients}</p>
             </div>
           </div>
 
           {clientStats.topClients.length > 0 && (
-            <div>
-              <h4 className="text-sm font-semibold mb-2">Top Clients</h4>
+            <div className="border-t pt-6">
+              <h4 className="text-base font-bold text-gray-900 mb-4">Top Clients</h4>
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Client</TableHead>
-                    <TableHead className="text-right">Bookings</TableHead>
-                    <TableHead className="text-right">Total Spent</TableHead>
+                  <TableRow className="border-b">
+                    <TableHead className="font-bold text-gray-900">Client</TableHead>
+                    <TableHead className="text-right font-bold text-gray-900">Bookings</TableHead>
+                    <TableHead className="text-right font-bold text-gray-900">Total Spent</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clientStats.topClients.map(client => (
-                    <TableRow key={client.id}>
-                      <TableCell className="font-medium">{client.name}</TableCell>
-                      <TableCell className="text-right">{client.bookingCount}</TableCell>
-                      <TableCell className="text-right">
+                  {clientStats.topClients.map((client, index) => (
+                    <TableRow key={client.id} className="border-b">
+                      <TableCell className="font-semibold text-gray-700">{client.name}</TableCell>
+                      <TableCell className="text-right font-bold text-gray-900">{client.bookingCount}</TableCell>
+                      <TableCell className="text-right font-bold text-gray-900">
                         {formatCurrency(client.totalSpent)}
                       </TableCell>
                     </TableRow>

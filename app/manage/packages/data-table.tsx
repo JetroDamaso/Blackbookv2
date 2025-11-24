@@ -78,6 +78,7 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = React.useState<string>("");
   const [pavilionFilter, setPavilionFilter] = useState<string>(selectedPavilion);
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [deletedFilter, setDeletedFilter] = React.useState<string>("active");
@@ -101,6 +102,15 @@ export function DataTable<TData, TValue>({
   const filteredPackages = useMemo(() => {
     let filtered = packagesData || [];
 
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((pkg: any) =>
+        pkg.name?.toLowerCase().includes(query) ||
+        pkg.price?.toString().includes(query)
+      );
+    }
+
     // Filter by pavilion
     if (pavilionFilter !== "all") {
       filtered = filtered.filter(pkg => pkg.pavilionId === parseInt(pavilionFilter));
@@ -115,7 +125,7 @@ export function DataTable<TData, TValue>({
     }
 
     return filtered;
-  }, [packagesData, pavilionFilter, deletedFilter]);
+  }, [packagesData, pavilionFilter, deletedFilter, searchQuery]);
 
   const table = useReactTable({
     data: filteredPackages as TData[],
@@ -226,8 +236,8 @@ export function DataTable<TData, TValue>({
         <InputGroup className="bg-white">
           <InputGroupInput
             placeholder="Search packages..."
-            value={globalFilter}
-            onChange={e => setGlobalFilter(e.target.value)}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
           />
           <InputGroupAddon>
             <SearchIcon />
@@ -237,7 +247,7 @@ export function DataTable<TData, TValue>({
         <Button
           variant={"outline"}
           onClick={() => {
-            setGlobalFilter("");
+            setSearchQuery("");
             setColumnFilters([]);
             setPavilionFilter("all");
           }}
@@ -294,7 +304,16 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => {
+                  onClick={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (
+                      target.closest('button') ||
+                      target.closest('[role="checkbox"]') ||
+                      target.closest('input') ||
+                      target.closest('a')
+                    ) {
+                      return;
+                    }
                     if (onRowClick) {
                       // Get the client ID from the row data
                       const client = row.original as { id: number };

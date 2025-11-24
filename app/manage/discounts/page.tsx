@@ -36,8 +36,10 @@ export default function ManageDiscounts() {
     );
   }
 
-  // Calculate average percentage for percentage-based discounts only
+  // Calculate statistics for both percentage and fixed amount discounts
   const percentageDiscounts = data?.filter(discount => discount.percent !== null) || [];
+  const fixedAmountDiscounts = data?.filter(discount => discount.amount !== null) || [];
+
   const averageDiscount = percentageDiscounts.length
     ? (
         percentageDiscounts.reduce((sum, discount) => sum + (discount.percent || 0), 0) /
@@ -48,6 +50,11 @@ export default function ManageDiscounts() {
   // Find maximum percentage discount
   const maxDiscount = percentageDiscounts.length
     ? Math.max(...percentageDiscounts.map(d => d.percent || 0))
+    : 0;
+
+  // Find maximum fixed amount discount
+  const maxFixedDiscount = fixedAmountDiscounts.length
+    ? Math.max(...fixedAmountDiscounts.map(d => d.amount || 0))
     : 0;
 
   return (
@@ -66,7 +73,9 @@ export default function ManageDiscounts() {
           <div className="flex flex-col">
             <p className="text-md">Total Discounts</p>
             <p className="text-4xl font-semibold">{data?.length || 0}</p>
-            <p className="text-xs">Available discount types</p>
+            <p className="text-xs">
+              {percentageDiscounts.length} percentage, {fixedAmountDiscounts.length} fixed
+            </p>
           </div>
         </div>
 
@@ -83,6 +92,16 @@ export default function ManageDiscounts() {
             <p className="text-md">Max % Discount</p>
             <p className="text-4xl font-semibold text-green-600">{maxDiscount}%</p>
             <p className="text-xs">Highest percentage</p>
+          </div>
+        </div>
+
+        <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
+          <div className="flex flex-col">
+            <p className="text-md">Max Fixed Amount</p>
+            <p className="text-4xl font-semibold text-blue-600">
+              ₱{maxFixedDiscount.toLocaleString()}
+            </p>
+            <p className="text-xs">Highest fixed discount</p>
           </div>
         </div>
       </div>

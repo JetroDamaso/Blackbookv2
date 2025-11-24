@@ -10,7 +10,6 @@ export default function Provider({ children }: { children: ReactNode }) {
   return (
     <SessionProvider>
       <QueryClientProvider client={queryClient}>
-        <ReactQueryDevtools initialIsOpen={false} />
         {children}
       </QueryClientProvider>
     </SessionProvider>

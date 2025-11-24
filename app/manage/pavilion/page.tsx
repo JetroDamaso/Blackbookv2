@@ -12,11 +12,14 @@ import { useSession } from "next-auth/react";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
 import { AddPavilionDialog } from "./add-pavilion-dialog";
+import { EditPavilionDialog } from "./edit-pavilion-dialog";
 
 export default function ManagePavilion() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
   const { data: session } = useSession();
+  const [editPavilionId, setEditPavilionId] = useState<number | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const { isPending, error, data } = useQuery({
     queryKey: ["allPavilions", currentPage],
@@ -32,7 +35,8 @@ export default function ManagePavilion() {
   });
 
   const handleRowClick = (pavilionId: number) => {
-    // Optionally open a detail dialog or do something with the row
+    setEditPavilionId(pavilionId);
+    setEditDialogOpen(true);
   };
 
   // Render widgets based on user role
@@ -173,6 +177,12 @@ export default function ManagePavilion() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
         <DataTable columns={columns} data={data?.data || []} onRowClick={handleRowClick} />
       </div>
+
+      <EditPavilionDialog
+        pavilionId={editPavilionId}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+      />
     </>
   );
 }

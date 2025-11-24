@@ -1,8 +1,6 @@
 "use server";
 
-import { PrismaClient } from "@/generated/prisma";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/server/db";
 
 export async function getAllMenuPackages() {
   try {

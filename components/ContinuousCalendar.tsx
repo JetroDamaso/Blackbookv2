@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { Booking, Pavilion } from "@/generated/prisma";
 import { useQuery } from "@tanstack/react-query";
 import { getAllPavilions } from "@/server/Pavilions/Actions/pullActions";
+import { getAllEventTypes } from "@/server/Booking/pullActions";
 import { Button } from "./ui/button";
 import CheckScheduleDialog from "./modules/checkScheduleDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -74,7 +75,6 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
 }) => {
   const [selectedDate, setSelectedDate] = useState<selected | undefined>(undefined);
   const [selectedDates, setSelectedDates] = useState<selected[]>([]);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const today = new Date();
   const [year, setYear] = useState<number>(externalYear ?? new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(
@@ -103,18 +103,11 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
       }));
       setSelectedDates(convertedDates);
 
+      // Single date selection only
       if (convertedDates.length === 1) {
         setSelectedDate(convertedDates[0]);
-        setDateRange(undefined);
-      } else if (convertedDates.length > 1) {
-        setSelectedDate(convertedDates[convertedDates.length - 1]);
-        setDateRange({
-          start: convertedDates[0],
-          end: convertedDates[convertedDates.length - 1],
-        });
       } else {
         setSelectedDate(undefined);
-        setDateRange(undefined);
       }
     }
   }, [externalSelectedDates]);
@@ -178,117 +171,45 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
     onMonthChange?.(todayMonth);
   };
 
-  const isDateInRange = useCallback(
-    (day: number, month: number, year: number): boolean => {
-      if (!dateRange) return false;
-
-      const currentDate = new Date(year, month, day);
-      const startDate = new Date(dateRange.start.year, dateRange.start.month, dateRange.start.day);
-      const endDate = new Date(dateRange.end.year, dateRange.end.month, dateRange.end.day);
-
-      return currentDate >= startDate && currentDate <= endDate;
-    },
-    [dateRange]
-  );
-
-  const generateDateRange = useCallback((start: selected, end: selected): selected[] => {
-    const dates: selected[] = [];
-    const startDate = new Date(start.year, start.month, start.day);
-    const endDate = new Date(end.year, end.month, end.day);
-
-    // Ensure start is before end
-    const actualStart = startDate <= endDate ? startDate : endDate;
-    const actualEnd = startDate <= endDate ? endDate : startDate;
-
-    const currentDate = new Date(actualStart);
-    while (currentDate <= actualEnd) {
-      dates.push({
-        day: currentDate.getDate(),
-        month: currentDate.getMonth(),
-        year: currentDate.getFullYear(),
-      });
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    return dates;
-  }, []);
-
-  const notifyDateChange = useCallback(
-    (dates: selected[], range?: DateRange) => {
-      const convertedDates = dates.map(date => new Date(date.year, date.month, date.day));
-      const convertedRange = range
-        ? {
-            start: new Date(range.start.year, range.start.month, range.start.day),
-            end: new Date(range.end.year, range.end.month, range.end.day),
-          }
-        : undefined;
-
-      onDatesChange?.(convertedDates, convertedRange);
-    },
-    [onDatesChange]
-  );
-
   const handleDayClick = useCallback(
     (day: number, month: number, year: number, bookingId?: Booking["id"]) => {
       const clickedDate = { day, month, year };
-      let newSelectedDates: selected[] = [];
-      let newDateRange: DateRange | undefined = undefined;
 
-      // If no date is selected, select this date
-      if (!selectedDate) {
-        setSelectedDate(clickedDate);
-        newSelectedDates = [clickedDate];
-        setSelectedDates(newSelectedDates);
-        setDateRange(undefined);
-      } else {
+      // Single date selection only - toggle on/off
+      if (
+        selectedDate &&
+        selectedDate.day === day &&
+        selectedDate.month === month &&
+        selectedDate.year === year
+      ) {
         // If same date is clicked, deselect
-        if (
-          selectedDate.day === day &&
-          selectedDate.month === month &&
-          selectedDate.year === year
-        ) {
-          setSelectedDate(undefined);
-          newSelectedDates = [];
-          setSelectedDates(newSelectedDates);
-          setDateRange(undefined);
-        } else {
-          // Check if clicked date is before the start date
-          const clickedDateTime = new Date(year, month, day);
-          const startDateTime = new Date(selectedDate.year, selectedDate.month, selectedDate.day);
-
-          if (clickedDateTime < startDateTime) {
-            // If clicked date is before start date, reset start date to this new date
-            setSelectedDate(clickedDate);
-            newSelectedDates = [clickedDate];
-            setSelectedDates(newSelectedDates);
-            setDateRange(undefined);
-          } else {
-            // Create a range between first selected date and current date
-            const range = { start: selectedDate, end: clickedDate };
-            const rangedDates = generateDateRange(selectedDate, clickedDate);
-
-            newDateRange = range;
-            newSelectedDates = rangedDates;
-            setDateRange(range);
-            setSelectedDates(rangedDates);
-            setSelectedDate(clickedDate); // Keep track of the last clicked date
-          }
-        }
+        setSelectedDate(undefined);
+        setSelectedDates([]);
+        onDatesChange?.([], undefined);
+      } else {
+        // Select new single date
+        setSelectedDate(clickedDate);
+        setSelectedDates([clickedDate]);
+        const convertedDates = [new Date(year, month, day)];
+        onDatesChange?.(convertedDates, undefined);
       }
-
-      // Notify parent component of date changes
-      notifyDateChange(newSelectedDates, newDateRange);
 
       if (!onClick) return;
       onClick(day, month, year, bookingId);
     },
-    [onClick, selectedDate, generateDateRange, notifyDateChange]
+    [onClick, selectedDate, onDatesChange]
   );
 
   // Pavilion colors
   const { data: pavilions } = useQuery({
     queryKey: ["pavilions"],
     queryFn: () => getAllPavilions(),
+  });
+
+  // Event types
+  const { data: eventTypes } = useQuery({
+    queryKey: ["eventTypes"],
+    queryFn: () => getAllEventTypes(),
   });
 
   const pavilionColorMap = useMemo(() => {
@@ -353,6 +274,14 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
       const finalEndDate = new Date(endDt);
       finalEndDate.setHours(0, 0, 0, 0); // Reset to start of day
 
+      // Check if event crosses midnight on the same date
+      // (e.g., start is 10PM and end is 3AM the next day)
+      const startDateOnly = new Date(startDt);
+      startDateOnly.setHours(0, 0, 0, 0);
+      const endDateOnly = new Date(endDt);
+      endDateOnly.setHours(0, 0, 0, 0);
+
+      // If the dates are different (spans days), show in both days
       while (currentDate <= finalEndDate) {
         const key = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentDate.getDate()}`;
 
@@ -447,7 +376,6 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
             selectedDate.month === month &&
             selectedDate.year === cellYear;
 
-          const isInRange = isDateInRange(day, month, cellYear);
           const isPartOfSelection = selectedDates.some(
             date => date.day === day && date.month === month && date.year === cellYear
           );
@@ -455,11 +383,16 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
           return (
             <div
               key={`${cellYear}-${month}-${day}`}
-              onClick={() => handleDayClick(day, month, cellYear)}
+              onClick={(e) => {
+                // Only handle click if it's directly on the day cell, not on event blocks
+                if (e.target === e.currentTarget) {
+                  handleDayClick(day, month, cellYear);
+                }
+              }}
               className={`relative m-[-0.5px] group flex-1 w-full h-full min-h-[175px] border-1 font-medium transition-all cursor-pointer ${
                 isSelected
                   ? "bg-red-500/30"
-                  : isPartOfSelection || isInRange
+                  : isPartOfSelection
                     ? "bg-red-500/15"
                     : "hover:bg-gray-100"
               }`}
@@ -549,6 +482,7 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
                             title={n.name}
                             onClick={e => {
                               e.stopPropagation();
+                              e.preventDefault();
                               if (!isRescheduling) {
                                 handleDayClick(day, month, cellYear, n.id);
                               }
@@ -668,8 +602,8 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
             <CheckScheduleDialog
               selectedDay={selectedDate}
               selectedDates={selectedDates}
-              dateRange={dateRange}
               pavilions={pavilions ?? []}
+              eventTypes={eventTypes ?? []}
               bookings={getAllBookings}
               onNoDateAlert={onNoDateAlert}
               onNoPavilionAlert={onNoPavilionAlert}
@@ -679,7 +613,6 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
                 setReschedulingBooking(null);
                 setSelectedDate(undefined);
                 setSelectedDates([]);
-                setDateRange(undefined);
               }}
             />
 
@@ -691,7 +624,6 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
                   setReschedulingBooking(null);
                   setSelectedDate(undefined);
                   setSelectedDates([]);
-                  setDateRange(undefined);
                 }}
               >
                 <X size={16} className="opacity-60 sm:-ms-1" />
@@ -699,14 +631,13 @@ export const ContinuousCalendar: React.FC<ContinuousCalendarProps> = ({
               </Button>
             )}
 
-            {(selectedDate || dateRange) && !reschedulingBookingId && (
+            {selectedDate && !reschedulingBookingId && (
               <Button
                 variant={"outline"}
                 className="items-center"
                 onClick={() => {
                   setSelectedDate(undefined);
                   setSelectedDates([]);
-                  setDateRange(undefined);
                 }}
               >
                 <X size={16} className="opacity-60 sm:-ms-1" />

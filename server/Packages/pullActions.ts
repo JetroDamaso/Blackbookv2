@@ -22,7 +22,7 @@ export async function getAllPackages() {
 
 export async function getPackagesById(id: number) {
   try {
-    const data = await prisma.package.findMany({
+    const data = await prisma.package.findUnique({
       where: { id },
       include: {
         pavilion: true,
@@ -32,7 +32,7 @@ export async function getPackagesById(id: number) {
     });
     return data;
   } catch (error) {
-    console.error("Failed to fetch packages", error);
+    console.error("Failed to fetch package", error);
     throw error;
   }
 }

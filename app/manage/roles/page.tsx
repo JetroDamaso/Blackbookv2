@@ -7,13 +7,23 @@ import { useSession } from "next-auth/react";
 import { DataTable } from "./data-table";
 import { columns } from "./columns";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { EditRoleDialog } from "./edit-role-dialog";
 
 export default function ManageRoles() {
   const { data: session } = useSession();
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+
   const { isPending, error, data } = useQuery({
     queryKey: ["allRoles"],
     queryFn: () => getAllRoles(),
   });
+
+  const handleRowClick = (id: number) => {
+    setSelectedId(id);
+    setEditDialogOpen(true);
+  };
 
   if (isPending) {
     return (
@@ -62,7 +72,12 @@ export default function ManageRoles() {
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">
-        <DataTable columns={columns} data={data || []} />
+        <DataTable columns={columns} data={data || []} onRowClick={handleRowClick} />
+        <EditRoleDialog
+          roleId={selectedId}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+        />
       </div>
     </>
   );

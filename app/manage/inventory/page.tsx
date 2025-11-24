@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
 import { getAllInventory } from "@/server/Inventory/Actions/pullActions";
@@ -14,6 +14,7 @@ export default function ManageInventory() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isCategoriesDialogOpen, setIsCategoriesDialogOpen] = useState(false);
   const [selectedInventoryId, setSelectedInventoryId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
 
   const { isPending, error, data, refetch } = useQuery({
     queryKey: ["allInventory"],
@@ -31,12 +32,12 @@ export default function ManageInventory() {
   };
 
   const handleSuccess = () => {
-    refetch();
+    queryClient.invalidateQueries({ queryKey: ["allInventory"] });
     handleCloseDialog();
   };
 
   const handleCategoriesSuccess = () => {
-    refetch();
+    queryClient.invalidateQueries({ queryKey: ["allInventory"] });
   };
 
   if (isPending) {

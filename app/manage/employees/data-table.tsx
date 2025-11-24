@@ -71,6 +71,7 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [formData, setFormData] = React.useState({
     empId: "",
@@ -110,28 +111,122 @@ export function DataTable<TData, TValue>({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (
-      !formData.empId ||
-      !formData.firstName ||
-      !formData.lastName ||
-      !formData.password ||
-      !formData.dateOfEmployment
-    ) {
-      toast.error("Please fill in all required fields");
+
+    // Validate Employee ID
+    if (!formData.empId.trim()) {
+      toast.error("Employee ID is required");
       return;
     }
+
+    if (formData.empId.trim().length < 2) {
+      toast.error("Employee ID must be at least 2 characters");
+      return;
+    }
+
+    if (formData.empId.trim().length > 50) {
+      toast.error("Employee ID must not exceed 50 characters");
+      return;
+    }
+
+    // Validate First Name
+    if (!formData.firstName.trim()) {
+      toast.error("First name is required");
+      return;
+    }
+
+    if (formData.firstName.trim().length < 2) {
+      toast.error("First name must be at least 2 characters");
+      return;
+    }
+
+    if (formData.firstName.trim().length > 50) {
+      toast.error("First name must not exceed 50 characters");
+      return;
+    }
+
+    // Validate Last Name
+    if (!formData.lastName.trim()) {
+      toast.error("Last name is required");
+      return;
+    }
+
+    if (formData.lastName.trim().length < 2) {
+      toast.error("Last name must be at least 2 characters");
+      return;
+    }
+
+    if (formData.lastName.trim().length > 50) {
+      toast.error("Last name must not exceed 50 characters");
+      return;
+    }
+
+    // Validate Password
+    if (!formData.password) {
+      toast.error("Password is required");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
+    if (formData.password.length > 100) {
+      toast.error("Password must not exceed 100 characters");
+      return;
+    }
+
+    // Validate Date of Employment
+    if (!formData.dateOfEmployment) {
+      toast.error("Date of employment is required");
+      return;
+    }
+
+    const employmentDate = new Date(formData.dateOfEmployment);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (employmentDate > today) {
+      toast.error("Date of employment cannot be in the future");
+      return;
+    }
+
+    const minDate = new Date();
+    minDate.setFullYear(minDate.getFullYear() - 100);
+    if (employmentDate < minDate) {
+      toast.error("Date of employment is too far in the past");
+      return;
+    }
+
     createEmployeeMutation({
-      empId: formData.empId,
-      firstName: formData.firstName,
-      lastName: formData.lastName,
+      empId: formData.empId.trim(),
+      firstName: formData.firstName.trim(),
+      lastName: formData.lastName.trim(),
       password: formData.password,
       roleId: formData.roleId ? parseInt(formData.roleId) : undefined,
-      dateOfEmployment: new Date(formData.dateOfEmployment),
+      dateOfEmployment: employmentDate,
     });
   };
 
+  // Filter data based on search query
+  const filteredData = React.useMemo(() => {
+    if (!searchQuery.trim()) {
+      return data;
+    }
+
+    const query = searchQuery.toLowerCase();
+    return data.filter((row: any) => {
+      return (
+        row.empId?.toLowerCase().includes(query) ||
+        row.firstName?.toLowerCase().includes(query) ||
+        row.lastName?.toLowerCase().includes(query) ||
+        row.role?.name?.toLowerCase().includes(query)
+      );
+    });
+  }, [data, searchQuery]);
+
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -175,12 +270,13 @@ export function DataTable<TData, TValue>({
         </DropdownMenu>
 
         <InputGroup className="bg-white">
-          <InputGroupInput placeholder="Search..." />
+          <InputGroupInput
+            placeholder="Search employees..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           <InputGroupAddon>
             <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton>Search</InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
 
@@ -342,7 +438,18 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => {
+                  onClick={(e) => {
+                    // Don't trigger row click if clicking on interactive elements
+                    const target = e.target as HTMLElement;
+                    if (
+                      target.closest('button') ||
+                      target.closest('[role="checkbox"]') ||
+                      target.closest('input') ||
+                      target.closest('a')
+                    ) {
+                      return;
+                    }
+
                     if (onRowClick) {
                       const item = row.original as { id: number };
                       onRowClick(item.id);

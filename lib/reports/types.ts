@@ -88,6 +88,7 @@ export interface ClientStats {
 export interface BookingDetail {
   id: string;
   eventDate: Date;
+  eventName: string;
   status: string;
   venue: string;
   eventType: string;

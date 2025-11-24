@@ -88,6 +88,7 @@ export function DataTable<TData, TValue>({
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [deletedFilter, setDeletedFilter] = React.useState<string>("active");
+  const [searchQuery, setSearchQuery] = React.useState("");
   const router = useRouter();
 
   const [region, setRegion] = useState();
@@ -99,14 +100,32 @@ export function DataTable<TData, TValue>({
 
   // Filter data based on deleted status
   const filteredData = React.useMemo(() => {
-    if (deletedFilter === "all") {
-      return data;
+    let result = data;
+
+    // Filter by deleted status
+    if (deletedFilter !== "all") {
+      result = result.filter((row: any) => {
+        const isDeleted = row.isDeleted === true;
+        return deletedFilter === "deleted" ? isDeleted : !isDeleted;
+      });
     }
-    return data.filter((row: any) => {
-      const isDeleted = row.isDeleted === true;
-      return deletedFilter === "deleted" ? isDeleted : !isDeleted;
-    });
-  }, [data, deletedFilter]);
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((row: any) => {
+        return (
+          row.firstName?.toLowerCase().includes(query) ||
+          row.lastName?.toLowerCase().includes(query) ||
+          row.email?.toLowerCase().includes(query) ||
+          row.contactNumber?.toLowerCase().includes(query) ||
+          row.address?.toLowerCase().includes(query)
+        );
+      });
+    }
+
+    return result;
+  }, [data, deletedFilter, searchQuery]);
 
   const table = useReactTable({
     data: filteredData,
@@ -196,12 +215,13 @@ export function DataTable<TData, TValue>({
         </DropdownMenu>
 
         <InputGroup className="bg-white">
-          <InputGroupInput placeholder="Search..." />
+          <InputGroupInput
+            placeholder="Search clients..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           <InputGroupAddon>
             <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton>Search</InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
 
@@ -294,9 +314,19 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => {
+                  onClick={(e) => {
+                    // Don't trigger row click if clicking on interactive elements
+                    const target = e.target as HTMLElement;
+                    if (
+                      target.closest('button') ||
+                      target.closest('[role="checkbox"]') ||
+                      target.closest('input') ||
+                      target.closest('a')
+                    ) {
+                      return;
+                    }
+
                     if (onRowClick) {
-                      // Get the client ID from the row data
                       const client = row.original as { id: number };
                       onRowClick(client.id);
                     }

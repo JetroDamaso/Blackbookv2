@@ -55,7 +55,7 @@ export default function TimeStartPickerCreateBookingComponent({
     <TimeField
       className="*:not-first:mt-2"
       onChange={handleTimeChange}
-      defaultValue={defaultTimeValue}
+      value={defaultTimeValue}
     >
       <Label className="text-foreground/50 text-sm font-normal">Time in</Label>
       <div className="relative">

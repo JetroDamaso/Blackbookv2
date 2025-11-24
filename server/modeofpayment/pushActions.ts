@@ -27,3 +27,15 @@ export async function deleteModeOfPayment(id: number) {
     throw new Error("Failed to delete mode of payment: " + error.message);
   }
 }
+
+export async function updateModeOfPayment(id: number, name: string) {
+  try {
+    const data = await prisma.modeOfPayment.update({
+      where: { id },
+      data: { name },
+    });
+    return data;
+  } catch (error: any) {
+    throw new Error("Failed to update mode of payment: " + error.message);
+  }
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/server/db";
 import { updateBookingStatus } from "@/server/Booking/pushActions";
+import { notifyPaymentRefund } from "@/lib/notifications";
 
 export async function POST(request: NextRequest) {
   try {
@@ -107,6 +108,45 @@ export async function POST(request: NextRequest) {
     // Update booking status if billing has a booking
     if (billing.booking?.id) {
       await updateBookingStatus(billing.booking.id);
+    }
+
+    // Send refund notification to managers and owners only
+    try {
+      const managersAndOwners = await prisma.employee.findMany({
+        where: {
+          role: {
+            name: {
+              in: ["Owner", "Manager"],
+            },
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (managersAndOwners.length > 0) {
+        // Get client name from billing
+        const client = await prisma.client.findUnique({
+          where: { id: billing.payments[0]?.clientId || 0 },
+          select: { firstName: true, lastName: true },
+        });
+
+        const clientName = client
+          ? `${client.firstName} ${client.lastName}`
+          : "Unknown Client";
+
+        await notifyPaymentRefund(
+          managersAndOwners.map(e => e.id),
+          billing.booking?.id || 0,
+          refundAmount || 0,
+          clientName,
+          isFullRefund
+        );
+      }
+    } catch (notificationError) {
+      console.error("Failed to send refund notification:", notificationError);
+      // Don't fail the entire request if notification fails
     }
 
     return NextResponse.json({

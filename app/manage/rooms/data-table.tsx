@@ -85,6 +85,7 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -115,26 +116,71 @@ export function DataTable<TData, TValue>({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.capacity) {
-      toast.error("Please fill in all fields");
+
+    // Validate room name
+    if (!formData.name.trim()) {
+      toast.error("Room name is required");
       return;
     }
+
+    if (formData.name.trim().length < 2) {
+      toast.error("Room name must be at least 2 characters");
+      return;
+    }
+
+    if (formData.name.trim().length > 100) {
+      toast.error("Room name must not exceed 100 characters");
+      return;
+    }
+
+    // Validate capacity
+    if (!formData.capacity) {
+      toast.error("Capacity is required");
+      return;
+    }
+
+    const capacity = parseInt(formData.capacity);
+    if (isNaN(capacity) || capacity < 1) {
+      toast.error("Capacity must be at least 1");
+      return;
+    }
+
+    if (capacity > 10000) {
+      toast.error("Capacity must not exceed 10,000");
+      return;
+    }
+
     createRoomMutation({
-      name: formData.name,
-      capacity: parseInt(formData.capacity),
+      name: formData.name.trim(),
+      capacity: capacity,
     });
   };
 
-  // Filter data based on deleted status
+  // Filter data based on deleted status and search query
   const filteredData = React.useMemo(() => {
-    if (deletedFilter === "all") {
-      return data;
+    let result = data;
+
+    // Filter by deleted status
+    if (deletedFilter !== "all") {
+      result = result.filter((row: any) => {
+        const isDeleted = row.isDeleted === true;
+        return deletedFilter === "deleted" ? isDeleted : !isDeleted;
+      });
     }
-    return data.filter((row: any) => {
-      const isDeleted = row.isDeleted === true;
-      return deletedFilter === "deleted" ? isDeleted : !isDeleted;
-    });
-  }, [data, deletedFilter]);
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((row: any) => {
+        return (
+          row.name?.toLowerCase().includes(query) ||
+          row.capacity?.toString().includes(query)
+        );
+      });
+    }
+
+    return result;
+  }, [data, deletedFilter, searchQuery]);
 
   const table = useReactTable({
     data: filteredData,
@@ -223,12 +269,13 @@ export function DataTable<TData, TValue>({
         </DropdownMenu>
 
         <InputGroup className="bg-white flex-1">
-          <InputGroupInput placeholder="Search..." />
+          <InputGroupInput
+            placeholder="Search rooms..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           <InputGroupAddon>
             <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton>Search</InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
 
@@ -344,7 +391,18 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  onClick={() => {
+                  onClick={(e) => {
+                    // Don't trigger row click if clicking on interactive elements
+                    const target = e.target as HTMLElement;
+                    if (
+                      target.closest('button') ||
+                      target.closest('[role="checkbox"]') ||
+                      target.closest('input') ||
+                      target.closest('a')
+                    ) {
+                      return;
+                    }
+
                     if (onRowClick) {
                       const rowData = row.original as { id: number };
                       onRowClick(rowData.id);

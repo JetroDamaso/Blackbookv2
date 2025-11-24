@@ -71,18 +71,25 @@ export function calculateBookingStatus(booking: LocalBooking, now: Date = new Da
   // Check payment status
   const hasBalance = booking.balance > 0;
   const hasNoPayment = booking.balance === booking.originalPrice;
+  const hasPayment = !hasNoPayment; // Has at least one payment
 
   // Status transition logic
   if (hasEnded) {
     // Event has ended
-    if (hasBalance) {
-      return BOOKING_STATUS.UNPAID; // Ended with balance remaining
+    if (hasNoPayment) {
+      return BOOKING_STATUS.PENDING; // Ended with no payment at all
+    } else if (hasBalance) {
+      return BOOKING_STATUS.UNPAID; // Ended with payment but still has balance
     } else {
       return BOOKING_STATUS.COMPLETED; // Ended with full payment
     }
   } else if (isInProgress) {
     // Event is happening now
-    return BOOKING_STATUS.IN_PROGRESS;
+    if (hasPayment) {
+      return BOOKING_STATUS.IN_PROGRESS; // Only mark as in progress if payment exists
+    } else {
+      return BOOKING_STATUS.PENDING; // No payment made, stays pending even during event time
+    }
   } else {
     // Event hasn't started yet
     if (hasNoPayment) {

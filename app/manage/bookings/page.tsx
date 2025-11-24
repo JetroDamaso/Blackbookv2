@@ -206,14 +206,6 @@ export default function ManageBookings() {
           <Notebook className="size-9 text-blue-600" />
           <p className="text-sm select-none">All Reports</p>
         </div>
-
-        <div
-          className="flex flex-col rounded-md p-4 bg-white border-1 items-center gap-2 justify-center cursor-pointer hover:bg-gray-50 transition-colors min-w-[120px] flex-shrink-0"
-          onClick={() => console.log("Navigate to payment view")}
-        >
-          <HandCoins className="size-9 text-green-600" />
-          <p className="text-sm select-none">Payment View</p>
-        </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted overflow-hidden">

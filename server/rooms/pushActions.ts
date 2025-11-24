@@ -96,3 +96,18 @@ export async function deleteRoom(id: number) {
     throw new Error("Failed to delete room: " + error.message);
   }
 }
+
+export async function updateRoom(id: number, name: string, capacity: number) {
+  try {
+    const data = await prisma.rooms.update({
+      where: { id },
+      data: {
+        name: name,
+        capacity: capacity,
+      },
+    });
+    return data;
+  } catch (error: any) {
+    throw new Error("Failed to update room: " + error.message);
+  }
+}

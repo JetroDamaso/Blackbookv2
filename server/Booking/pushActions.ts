@@ -6,6 +6,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import {
   scheduleBookingNotifications,
   sendBookingCreatedNotifications,
+  cancelPaymentReminders,
 } from "@/lib/notification-scheduler";
 
 export async function createBooking(
@@ -178,6 +179,12 @@ export async function updateBooking(
       where: { id: bookingId },
       data: updateData,
     });
+
+    // If dates changed, reschedule notifications
+    if (updateData.startAt || updateData.endAt) {
+      await cancelPaymentReminders(bookingId);
+      await scheduleBookingNotifications(bookingId);
+    }
 
     return data;
   } catch (error) {

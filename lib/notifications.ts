@@ -10,6 +10,7 @@ export type NotificationType =
   | "DISCOUNT_RESPONSE"
   | "BOOKING"
   | "PAYMENT"
+  | "REFUND"
   | "INVENTORY"
   | "SYSTEM";
 
@@ -359,5 +360,25 @@ export async function notifySystemEvent(
     title,
     message,
     link,
+  });
+}
+
+/**
+ * Notify managers and owners about payment refund
+ * Only visible to Manager and Owner roles
+ */
+export async function notifyPaymentRefund(
+  userIds: string[],
+  bookingId: number,
+  amount: number,
+  clientName: string,
+  isFullRefund: boolean
+): Promise<void> {
+  const refundType = isFullRefund ? "Full refund" : `Partial refund of ₱${amount.toFixed(2)}`;
+  await createBulkNotifications(userIds, {
+    type: "REFUND",
+    title: "Payment Refunded",
+    message: `${refundType} processed for ${clientName} - Booking #${bookingId}`,
+    link: `/bookings/${bookingId}`,
   });
 }

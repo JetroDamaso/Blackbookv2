@@ -85,6 +85,7 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -112,17 +113,49 @@ export function DataTable<TData, TValue>({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name) {
-      toast.error("Please fill in the payment method name");
+
+    // Validate payment method name
+    if (!formData.name.trim()) {
+      toast.error("Payment method name is required");
       return;
     }
+
+    if (formData.name.trim().length < 2) {
+      toast.error("Payment method name must be at least 2 characters");
+      return;
+    }
+
+    if (formData.name.trim().length > 50) {
+      toast.error("Payment method name must not exceed 50 characters");
+      return;
+    }
+
+    // Check for valid characters (letters, numbers, spaces, hyphens, underscores)
+    const validNamePattern = /^[a-zA-Z0-9\s\-_/()&.]+$/;
+    if (!validNamePattern.test(formData.name.trim())) {
+      toast.error("Payment method name contains invalid characters");
+      return;
+    }
+
     createModeOfPaymentMutation({
-      name: formData.name,
+      name: formData.name.trim(),
     });
   };
 
+  // Filter data based on search query
+  const filteredData = React.useMemo(() => {
+    if (!searchQuery.trim()) {
+      return data;
+    }
+
+    const query = searchQuery.toLowerCase();
+    return data.filter((row: any) => {
+      return row.name?.toLowerCase().includes(query);
+    });
+  }, [data, searchQuery]);
+
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -188,11 +221,14 @@ export function DataTable<TData, TValue>({
           </DropdownMenuContent>
         </DropdownMenu>
         <InputGroup className="bg-white flex-1">
+          <InputGroupInput
+            placeholder="Search payment methods..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           <InputGroupAddon>
             <SearchIcon />
           </InputGroupAddon>
-          <InputGroupInput placeholder="Search payment methods..." />
-          <InputGroupButton>Search</InputGroupButton>
         </InputGroup>
 
         <Button
@@ -263,7 +299,18 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  onClick={() => {
+                  onClick={(e) => {
+                    // Don't trigger row click if clicking on interactive elements
+                    const target = e.target as HTMLElement;
+                    if (
+                      target.closest('button') ||
+                      target.closest('[role="checkbox"]') ||
+                      target.closest('input') ||
+                      target.closest('a')
+                    ) {
+                      return;
+                    }
+
                     if (onRowClick) {
                       const rowData = row.original as { id: number };
                       onRowClick(rowData.id);

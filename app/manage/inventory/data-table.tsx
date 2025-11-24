@@ -76,6 +76,7 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [deletedFilter, setDeletedFilter] = React.useState<string>("active");
@@ -83,14 +84,28 @@ export function DataTable<TData, TValue>({
 
   // Filter data based on deleted status
   const filteredData = React.useMemo(() => {
-    if (deletedFilter === "all") {
-      return data;
+    let filtered = data;
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((row: any) =>
+        row.name?.toLowerCase().includes(query) ||
+        row.category?.name?.toLowerCase().includes(query) ||
+        row.quantity?.toString().includes(query)
+      );
     }
-    return data.filter((row: any) => {
-      const isDeleted = row.isDeleted === true;
-      return deletedFilter === "deleted" ? isDeleted : !isDeleted;
-    });
-  }, [data, deletedFilter]);
+
+    // Filter by deleted status
+    if (deletedFilter !== "all") {
+      filtered = filtered.filter((row: any) => {
+        const isDeleted = row.isDeleted === true;
+        return deletedFilter === "deleted" ? isDeleted : !isDeleted;
+      });
+    }
+
+    return filtered;
+  }, [data, deletedFilter, searchQuery]);
 
   const table = useReactTable({
     data: filteredData,
@@ -180,12 +195,13 @@ export function DataTable<TData, TValue>({
         </DropdownMenu>
 
         <InputGroup className="mb-4 bg-white">
-          <InputGroupInput placeholder="Search..." />
+          <InputGroupInput
+            placeholder="Search inventory..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           <InputGroupAddon>
             <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton>Search</InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
 
@@ -225,7 +241,16 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => {
+                  onClick={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (
+                      target.closest('button') ||
+                      target.closest('[role="checkbox"]') ||
+                      target.closest('input') ||
+                      target.closest('a')
+                    ) {
+                      return;
+                    }
                     if (onRowClick) {
                       // Get the inventory ID from the row data
                       const inventoryItem = row.original as { id: number };

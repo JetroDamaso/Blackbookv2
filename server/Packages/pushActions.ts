@@ -36,3 +36,29 @@ export async function deletePackage(id: number) {
     throw error;
   }
 }
+
+export async function updatePackage(
+  id: number,
+  packageName: string,
+  price: number,
+  description: string,
+  pavilionId: number,
+  includePool: boolean
+) {
+  try {
+    const data = await prisma.package.update({
+      where: { id },
+      data: {
+        name: packageName,
+        price: price,
+        description: description,
+        pavilionId: pavilionId,
+        includePool: includePool,
+      },
+    });
+    return data;
+  } catch (error) {
+    console.error("Error updating package:", error);
+    throw error;
+  }
+}

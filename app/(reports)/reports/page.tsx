@@ -196,7 +196,7 @@ export default function ReportsPage() {
         {displayReport && totalRevenue > 0 && (
           <div className="flex rounded-md p-4 bg-white border-1 items-center gap-2 min-w-[200px] flex-shrink-0">
             <div className="flex flex-col">
-              <p className="text-md">Total Revenue</p>
+              <p className="text-md">Total Bookings Value</p>
               <p className="text-4xl font-semibold">
                 ₱{totalRevenue.toLocaleString("en-PH", { minimumFractionDigits: 0 })}
               </p>

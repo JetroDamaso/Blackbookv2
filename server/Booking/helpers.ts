@@ -1,10 +1,10 @@
 /**
  * Booking Status Codes:
- * 1 = Pending - No payments OR payments received but not fully paid (for future events)
- * 2 = Confirmed - Fully paid AND event hasn't started
- * 3 = In Progress - Event is happening today (between start and end date)
+ * 1 = Pending - No payments (regardless of date - past, present, or future)
+ * 2 = Confirmed - Has payments (partially or fully paid) AND event hasn't started
+ * 3 = In Progress - Event is happening today AND has at least one payment
  * 4 = Completed - Event is past AND payment is fully paid
- * 5 = Unpaid - Event is past AND payment is NOT fully paid
+ * 5 = Unpaid - Event is past AND has payments but not fully paid
  * 6 = Canceled - Booking has been canceled (manual status)
  * 7 = Archived - Booking has been archived (manual status)
  * 8 = Draft - Booking is still being drafted/incomplete (manual status)
@@ -14,11 +14,11 @@
  * Calculate the booking status based on payment and date
  *
  * Status logic:
- * - 1 (Pending): No payments OR partial payments (not fully paid) for future events
- * - 2 (Confirmed): Fully paid AND event hasn't started
- * - 3 (In Progress): Event date is today
+ * - 1 (Pending): No payments - stays pending even if event is past or in progress
+ * - 2 (Confirmed): Has payments (partially or fully paid) AND event hasn't started
+ * - 3 (In Progress): Event date is today AND has at least one payment
  * - 4 (Completed): Event date is past AND payment is fully paid
- * - 5 (Unpaid): Event date is past AND payment is NOT fully paid
+ * - 5 (Unpaid): Event date is past AND has payments but not fully paid
  * - 6 (Canceled): Manual status - must be set explicitly
  * - 7 (Archived): Manual status - must be set explicitly
  * - 8 (Draft): Manual status - must be set explicitly
@@ -57,8 +57,8 @@ export function calculateBookingStatus(params: {
   // Check if event is in the past (today is after the end date)
   const isPast = today.getTime() > endDate.getTime();
 
-  // Status 3: In Progress - event is happening today
-  if (isToday) {
+  // Status 3: In Progress - event is happening today AND has at least one payment
+  if (isToday && hasPayments) {
     return 3;
   }
 
@@ -67,16 +67,23 @@ export function calculateBookingStatus(params: {
     return 4;
   }
 
-  // Status 5: Unpaid - event is past AND not fully paid
-  if (isPast && !isFullyPaid) {
+  // Status 5: Unpaid - event is past AND has payments but not fully paid
+  if (isPast && hasPayments && !isFullyPaid) {
     return 5;
   }
 
-  // Status 2: Confirmed - event is future AND fully paid
-  if (isFullyPaid) {
+  // Status 1: Pending - event is past but no payments (should stay pending, not unpaid)
+  // OR event is today but no payments (should stay pending, not in progress)
+  // OR event is future but no payments
+  if (!hasPayments) {
+    return 1;
+  }
+
+  // Status 2: Confirmed - event is future AND (fully paid OR has partial payments)
+  if (isFullyPaid || hasPayments) {
     return 2;
   }
 
-  // Status 1: Pending - event is future but not fully paid (or no payments)
+  // Default: Pending
   return 1;
 }

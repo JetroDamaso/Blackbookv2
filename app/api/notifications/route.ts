@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { prisma } from "@/server/db";
 import {
   getUserNotifications,
   markNotificationAsRead,
@@ -40,6 +41,23 @@ export async function GET(request: Request) {
       offset,
       unreadOnly,
     });
+
+    // Check user role to filter REFUND notifications
+    const employee = await prisma.employee.findUnique({
+      where: { id: session.user.id },
+      include: { role: true },
+    });
+
+    const isManagerOrOwner =
+      employee?.role?.name === "Manager" ||
+      employee?.role?.name === "Owner";
+
+    // Filter out REFUND notifications for non-manager/owner users
+    if (!isManagerOrOwner) {
+      result.notifications = result.notifications.filter(
+        (n: any) => n.type !== "REFUND"
+      );
+    }
 
     console.log("Notifications result:", JSON.stringify(result, null, 2));
 

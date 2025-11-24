@@ -9,11 +9,16 @@ import { format } from "date-fns";
 
 interface ExportButtonsProps {
   report: Report;
+  onPrint?: () => void;
 }
 
-export function ExportButtons({ report }: ExportButtonsProps) {
+export function ExportButtons({ report, onPrint }: ExportButtonsProps) {
   const handlePrint = () => {
-    printReport();
+    if (onPrint) {
+      onPrint();
+    } else {
+      printReport();
+    }
   };
 
   const handleCSV = () => {

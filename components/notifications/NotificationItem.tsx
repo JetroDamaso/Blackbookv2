@@ -36,22 +36,18 @@ export function NotificationItem({ notification, onClick, onDelete }: Notificati
     const iconClass = "w-4 h-4 flex-shrink-0";
 
     switch (notification.type) {
-      case "discount_request":
-      case "discount_approved":
-      case "discount_rejected":
-      case "discount_modified":
+      case "DISCOUNT_REQUEST":
+      case "DISCOUNT_RESPONSE":
         return <Receipt className={iconClass} />;
-      case "booking_created":
-      case "booking_updated":
-      case "booking_cancelled":
+      case "BOOKING":
         return <Calendar className={iconClass} />;
-      case "payment_received":
-      case "payment_overdue":
+      case "PAYMENT":
         return <DollarSign className={iconClass} />;
-      case "inventory_low":
-      case "inventory_out":
+      case "REFUND":
+        return <DollarSign className={iconClass} />;
+      case "INVENTORY":
         return <Package className={iconClass} />;
-      case "system":
+      case "SYSTEM":
         return <Settings className={iconClass} />;
       case "success":
         return <CheckCircle className={iconClass} />;
@@ -66,20 +62,17 @@ export function NotificationItem({ notification, onClick, onDelete }: Notificati
 
   const getTypeColor = () => {
     switch (notification.type) {
-      case "discount_approved":
-      case "payment_received":
-      case "success":
+      case "PAYMENT":
         return "text-green-600 dark:text-green-400";
-      case "discount_rejected":
-      case "booking_cancelled":
-      case "error":
-        return "text-red-600 dark:text-red-400";
-      case "discount_request":
-      case "discount_modified":
-      case "payment_overdue":
-      case "inventory_low":
+      case "REFUND":
+        return "text-orange-600 dark:text-orange-400";
+      case "DISCOUNT_REQUEST":
+      case "DISCOUNT_RESPONSE":
+      case "INVENTORY":
       case "warning":
         return "text-yellow-600 dark:text-yellow-400";
+      case "error":
+        return "text-red-600 dark:text-red-400";
       default:
         return "text-blue-600 dark:text-blue-400";
     }

@@ -1,4 +1,4 @@
-import { ChangeEvent, useRef, useState, useEffect } from "react";
+import React, { ChangeEvent, useRef, useState, useEffect } from "react";
 import { Input } from "react-aria-components";
 import { File, FileAudio, FileIcon, FileImage, FileText, FileVideo, X } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
@@ -15,24 +15,32 @@ type FileUploadSimpleProps = {
   onAddClick?: () => void; // Exposed to parent for custom button
 };
 
-export function FileUploadSimple({
+const FileUploadSimpleComponent = ({
   onFilesChange,
   disabled = false,
   resetTrigger = 0,
   onAddClick,
-}: FileUploadSimpleProps) {
+}: FileUploadSimpleProps) => {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Use ref to store the callback to avoid it being a dependency
+  const onFilesChangeRef = useRef(onFilesChange);
+
+  // Update ref when callback changes
+  useEffect(() => {
+    onFilesChangeRef.current = onFilesChange;
+  }, [onFilesChange]);
 
   // Reset files when resetTrigger changes
   useEffect(() => {
     if (resetTrigger > 0) {
       setFiles([]);
-      if (onFilesChange) {
-        onFilesChange([]);
+      if (onFilesChangeRef.current) {
+        onFilesChangeRef.current([]);
       }
     }
-  }, [resetTrigger, onFilesChange]);
+  }, [resetTrigger]);
 
   function handleFileSelect(e: ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) {
@@ -47,8 +55,8 @@ export function FileUploadSimple({
     const updatedFiles = [...files, ...newFiles];
     setFiles(updatedFiles);
 
-    if (onFilesChange) {
-      onFilesChange(updatedFiles.map(f => f.file));
+    if (onFilesChangeRef.current) {
+      onFilesChangeRef.current(updatedFiles.map(f => f.file));
     }
 
     if (inputRef.current) {
@@ -60,8 +68,8 @@ export function FileUploadSimple({
     const updatedFiles = files.filter(file => file.id !== id);
     setFiles(updatedFiles);
 
-    if (onFilesChange) {
-      onFilesChange(updatedFiles.map(f => f.file));
+    if (onFilesChangeRef.current) {
+      onFilesChangeRef.current(updatedFiles.map(f => f.file));
     }
   }
 
@@ -92,7 +100,9 @@ export function FileUploadSimple({
       <FileList files={files} onRemove={removeFile} disabled={disabled} />
     </div>
   );
-}
+};
+
+export const FileUploadSimple = React.memo(FileUploadSimpleComponent);
 
 // Export a function to trigger file input from parent
 export function createFileInputTrigger(inputRef: React.RefObject<HTMLInputElement>) {

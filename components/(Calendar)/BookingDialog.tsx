@@ -44,9 +44,10 @@ import {
   updateMenuDishQuantity,
 } from "@/server/Dishes/Actions/pushActions";
 import { getDishesByMenuId, getMenuByBookingId } from "@/server/Menu/pullActions";
-import { createMenu } from "@/server/Menu/pushActions";
+import { createMenu, updateMenuPackage } from "@/server/Menu/pushActions";
 import { getPackagesById, getPackagesByPavilion } from "@/server/Packages/pullActions";
 import { getAllPavilions, getPavilionsById } from "@/server/Pavilions/Actions/pullActions";
+import { getAllMenuPackages } from "@/server/menuPackages/pullActions";
 import {
   getInventoryStatus,
   getAllInventory,
@@ -82,9 +83,11 @@ import {
   Truck,
   Layers,
   MinusCircle,
+  Ban,
 } from "lucide-react";
 import React, { useId, useState } from "react";
 import { toast } from "sonner";
+import { useSession } from "next-auth/react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import RegionComboBoxComponent from "../(Bookings)/(AddBookings)/ComboBox/RegionComboBox";
 import { EndDatePickerForm } from "../(Bookings)/(AddBookings)/TimeDatePicker/endDatePicker";
@@ -96,6 +99,8 @@ import RefundPaymentDialog from "../(Payments)/RefundPaymentDialog";
 import ViewPaymentDialog from "../(Payments)/ViewPaymentDialog";
 import AdditionalChargesDialog from "./AdditionalChargesDialog";
 import { ViewDocumentsDialog } from "./ViewDocumentsDialog";
+import CancelBookingDialog from "./CancelBookingDialog";
+import { createCanceledBookingNotification } from "@/app/actions/createCanceledBookingNotification";
 import PrintBooking from "../(Print)/PrintBooking";
 import {
   InputGroup,
@@ -117,6 +122,10 @@ export default function BookingDialogComponent({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { data: session } = useSession();
+  const userRole = session?.user?.role;
+  const canCancelBooking = userRole === "Owner" || userRole === "Manager";
+
   const { data: bookingData, isPending: bookingLoading } = useQuery({
     queryKey: ["booking", bookingId],
     queryFn: () => getBookingsById(bookingId),
@@ -152,7 +161,7 @@ export default function BookingDialogComponent({
     enabled: !!booking?.packageId,
   });
 
-  const packages = packageData?.[0];
+  const packages = packageData;
 
   // Get basic billing data first
   const { data: billingData } = useQuery({
@@ -282,8 +291,6 @@ export default function BookingDialogComponent({
     { value: "4", label: "Completed", color: "text-green-600" },
     { value: "5", label: "Unpaid", color: "text-red-600" },
     { value: "6", label: "Canceled", color: "text-red-600" },
-    { value: "7", label: "Archived", color: "text-gray-600" },
-    { value: "8", label: "Draft", color: "text-orange-600" },
   ];
 
   const getStatusLabel = (statusValue: string | number) => {
@@ -325,6 +332,9 @@ export default function BookingDialogComponent({
   const [newDishCategory, setNewDishCategory] = useState("");
   const [newDishDescription, setNewDishDescription] = useState("");
   const [newDishAllergens, setNewDishAllergens] = useState("");
+  const [selectedMenuPackageId, setSelectedMenuPackageId] = useState<string>("none");
+  const [customPricePerPax, setCustomPricePerPax] = useState<string>("");
+  const [isCustomMode, setIsCustomMode] = useState(false);
 
   // Inventory Dialog State
   const [isInventoryDialogOpen, setIsInventoryDialogOpen] = useState(false);
@@ -348,6 +358,9 @@ export default function BookingDialogComponent({
 
   // Print dialog state
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+
+  // Cancel booking dialog state
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
 
   // Catering provider state
   const [selectedCatering, setSelectedCatering] = useState<string>(
@@ -383,8 +396,19 @@ export default function BookingDialogComponent({
   React.useEffect(() => {
     if (isDishesDialogOpen) {
       resetDishFilters();
+      const isCustom = menu?.isCustom || false;
+      const pricePerPax = menu?.pricePerPax || null;
+
+      setIsCustomMode(isCustom);
+      setCustomPricePerPax(pricePerPax ? pricePerPax.toString() : "");
+
+      if (isCustom) {
+        setSelectedMenuPackageId("custom");
+      } else {
+        setSelectedMenuPackageId(menu?.menuPackagesId?.toString() || "none");
+      }
     }
-  }, [isDishesDialogOpen]);
+  }, [isDishesDialogOpen, menu?.menuPackagesId, menu?.isCustom, menu?.pricePerPax]);
 
   // Inline Edit State
   const [isEditMode, setIsEditMode] = useState(false);
@@ -485,7 +509,28 @@ export default function BookingDialogComponent({
     enabled: isEditMode && !!editFormData.pavilionId,
   });
 
+  // Query menu packages for dishes dialog
+  const { data: menuPackagesData } = useQuery({
+    queryKey: ["menuPackages"],
+    queryFn: () => getAllMenuPackages(),
+    enabled: isDishesDialogOpen,
+  });
+
+  // Query menu package for print (based on the booking's menu)
+  const { data: printMenuPackageData } = useQuery({
+    queryKey: ["printMenuPackage", menu?.menuPackagesId],
+    queryFn: () => getAllMenuPackages(),
+    enabled: !!menu?.menuPackagesId,
+    select: (data) => data?.find((pkg: any) => pkg.id === menu?.menuPackagesId),
+  });
+
   const queryClient = useQueryClient();
+
+  // Get the selected menu package details
+  const selectedMenuPackage = React.useMemo(() => {
+    if (!selectedMenuPackageId || selectedMenuPackageId === "none") return null;
+    return menuPackagesData?.find((pkg: any) => pkg.id.toString() === selectedMenuPackageId);
+  }, [selectedMenuPackageId, menuPackagesData]);
 
   // Filter services based on category and search (moved after data queries)
   const filteredServices =
@@ -537,6 +582,14 @@ export default function BookingDialogComponent({
         // Skip dishes without categoryId
         if (!dish.categoryId) return false;
 
+        // If a menu package is selected and not in custom mode, only show dishes from allowed categories
+        if (selectedMenuPackage && !isCustomMode && selectedMenuPackage.allowedCategories) {
+          const allowedCategoryIds = selectedMenuPackage.allowedCategories.map((cat: any) => cat.id);
+          if (!allowedCategoryIds.includes(dish.categoryId)) {
+            return false;
+          }
+        }
+
         // Filter by category
         if (
           selectedDishCategoryFilter !== "all" &&
@@ -568,6 +621,7 @@ export default function BookingDialogComponent({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allServices"] });
       queryClient.invalidateQueries({ queryKey: ["otherServices"] });
+      queryClient.invalidateQueries({ queryKey: ["serviceCategories"] });
       setNewServiceName("");
       setNewServiceCategory("");
       toast.success("Service created successfully!");
@@ -591,6 +645,7 @@ export default function BookingDialogComponent({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allServices"] });
       queryClient.invalidateQueries({ queryKey: ["otherServices"] });
+      queryClient.invalidateQueries({ queryKey: ["serviceCategories"] });
       setEditingService(null);
       toast.success("Service updated successfully!");
     },
@@ -605,6 +660,7 @@ export default function BookingDialogComponent({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allServices"] });
       queryClient.invalidateQueries({ queryKey: ["otherServices"] });
+      queryClient.invalidateQueries({ queryKey: ["serviceCategories"] });
       toast.success("Service deleted successfully!");
     },
     onError: () => {
@@ -703,6 +759,27 @@ export default function BookingDialogComponent({
   // Add dish to menu mutation
   const addDishToMenuMutation = useMutation({
     mutationFn: async ({ dishId, quantity }: { dishId: number; quantity: number }) => {
+      // Check if dish category is in allowed categories
+      const dish = allDishesData?.find((d: any) => d.id === dishId);
+      let needsCustomMode = false;
+
+      if (selectedMenuPackage && dish?.categoryId) {
+        const allowedCategoryIds = selectedMenuPackage.allowedCategories?.map((cat: any) => cat.id) || [];
+        if (!allowedCategoryIds.includes(dish.categoryId)) {
+          needsCustomMode = true;
+        }
+      }
+
+      // Check if menu package has a dish limit
+      if (selectedMenuPackage && !needsCustomMode) {
+        const currentDishCount = dishesJoined.length;
+        const maxDishes = selectedMenuPackage.maxDishes;
+
+        if (currentDishCount >= maxDishes) {
+          throw new Error(`Cannot add more dishes. Menu package limit is ${maxDishes} dishes.`);
+        }
+      }
+
       // Ensure menu exists before adding dish
       let currentMenuId = menu?.id;
 
@@ -718,6 +795,17 @@ export default function BookingDialogComponent({
         throw new Error("Unable to create or find menu");
       }
 
+      // Switch to custom mode if needed
+      if (needsCustomMode && selectedMenuPackage) {
+        const currentPrice = selectedMenuPackage.price;
+        setIsCustomMode(true);
+        setCustomPricePerPax(currentPrice.toString());
+        setSelectedMenuPackageId("custom");
+
+        // Update menu to custom mode
+        await updateMenuPackage(currentMenuId, null, currentPrice, true);
+      }
+
       return addDishToMenu(currentMenuId, dishId, quantity);
     },
     onSuccess: () => {
@@ -725,8 +813,8 @@ export default function BookingDialogComponent({
       queryClient.invalidateQueries({ queryKey: ["menu", booking?.id] });
       toast.success("Dish added to menu!");
     },
-    onError: () => {
-      toast.error("Failed to add dish to menu");
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to add dish to menu");
     },
   });
 
@@ -914,6 +1002,53 @@ export default function BookingDialogComponent({
     },
   });
 
+  // Cancel booking mutation - changes status to 6 (Canceled) and adds cancellation reason to notes
+  const cancelBookingMutation = useMutation({
+    mutationFn: async (cancellationReason: string) => {
+      const currentNotes = booking?.notes || "";
+      const cancellationNote = `\n\n--- BOOKING CANCELED ---\nReason: ${cancellationReason}\nCanceled at: ${new Date().toLocaleString()}`;
+      const updatedNotes = currentNotes + cancellationNote;
+
+      const result = await updateBooking(
+        bookingId,
+        undefined, // eventName
+        undefined, // pavilionId
+        undefined, // totalPax
+        undefined, // eventType
+        updatedNotes, // notes - append cancellation reason
+        undefined, // startAt
+        undefined, // endAt
+        6 // status = 6 (Canceled)
+      );
+
+      // Create notification for canceled booking
+      if (booking && session?.user) {
+        await createCanceledBookingNotification({
+          id: booking.id,
+          eventName: booking.eventName || 'Untitled Event',
+          clientName: clientData?.firstName && clientData?.lastName
+            ? `${clientData.firstName} ${clientData.lastName}`
+            : 'Unknown Client',
+          startAt: booking.startAt ? new Date(booking.startAt) : new Date(),
+          canceledBy: session.user.name || session.user.email || 'Unknown',
+          cancellationReason: cancellationReason,
+        });
+      }
+
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["booking", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-bookings"] });
+      toast.success("Booking canceled successfully!");
+      setIsCancelDialogOpen(false);
+      onOpenChange(false); // Close the dialog
+    },
+    onError: () => {
+      toast.error("Failed to cancel booking");
+    },
+  });
+
   // Update client mutation
   const updateClientMutation = useMutation({
     mutationFn: (data: any) =>
@@ -953,6 +1088,70 @@ export default function BookingDialogComponent({
       packageId: booking?.packageId?.toString(),
       catering: parseInt(value),
     });
+  };
+
+  // Handler for menu package changes in dishes dialog
+  const handleMenuPackageChange = async (value: string) => {
+    setSelectedMenuPackageId(value);
+
+    try {
+      // Ensure menu exists
+      let currentMenuId = menu?.id;
+
+      if (!currentMenuId && booking?.id) {
+        // Create menu if it doesn't exist
+        const newMenu = await createMenu(booking.id);
+        currentMenuId = newMenu.id;
+        // Invalidate menu query to refresh
+        await queryClient.invalidateQueries({ queryKey: ["menu", booking.id] });
+      }
+
+      if (currentMenuId) {
+        if (value === "custom") {
+          // Switch to custom mode
+          setIsCustomMode(true);
+          const currentPackage = menuPackagesData?.find((pkg: any) => pkg.id.toString() === selectedMenuPackageId);
+          const priceToUse = currentPackage?.price || parseFloat(customPricePerPax) || 0;
+          setCustomPricePerPax(priceToUse.toString());
+          await updateMenuPackage(currentMenuId, null, priceToUse, true);
+        } else if (value === "none") {
+          // Clear package
+          setIsCustomMode(false);
+          setCustomPricePerPax("");
+          await updateMenuPackage(currentMenuId, null, null, false);
+        } else {
+          // Set to a specific package
+          setIsCustomMode(false);
+          const selectedPackage = menuPackagesData?.find((pkg: any) => pkg.id.toString() === value);
+          setCustomPricePerPax(selectedPackage?.price?.toString() || "");
+          await updateMenuPackage(currentMenuId, parseInt(value), null, false);
+        }
+        // Invalidate queries to refresh
+        await queryClient.invalidateQueries({ queryKey: ["menu", booking?.id] });
+        await queryClient.invalidateQueries({ queryKey: ["menuDishes", currentMenuId] });
+        toast.success("Menu package updated successfully!");
+      }
+    } catch (error) {
+      toast.error("Failed to update menu package");
+      console.error(error);
+    }
+  };
+
+  // Handler for custom price per pax changes
+  const handleCustomPriceChange = async (value: string) => {
+    setCustomPricePerPax(value);
+
+    if (!menu?.id || !isCustomMode) return;
+
+    try {
+      const price = parseFloat(value);
+      if (!isNaN(price) && price >= 0) {
+        await updateMenuPackage(menu.id, null, price, true);
+        await queryClient.invalidateQueries({ queryKey: ["menu", booking?.id] });
+      }
+    } catch (error) {
+      console.error("Failed to update custom price", error);
+    }
   };
 
   const handleCreateService = () => {
@@ -1101,6 +1300,30 @@ export default function BookingDialogComponent({
     previousPavilionId.current = editFormData.pavilionId;
   }, [editFormData.pavilionId, isEditMode]);
 
+  // Sync dish quantities with pax
+  React.useEffect(() => {
+    if (!isEditMode || !editFormData.totalPax) return;
+
+    const timer = setTimeout(() => {
+      const newPax = parseInt(editFormData.totalPax);
+      if (isNaN(newPax) || newPax <= 0) return;
+
+      // Only update if we have dishes
+      if (dishesJoined.length > 0) {
+        // We need to update each dish quantity
+        // Note: This might trigger multiple mutations. Ideally we'd have a bulk update endpoint.
+        // For now, we'll iterate.
+        dishesJoined.forEach(dish => {
+          if (dish.quantity !== newPax) {
+             updateMenuDishQuantityMutation.mutate({ dishId: dish.id, quantity: newPax });
+          }
+        });
+      }
+    }, 800); // Debounce for 800ms
+
+    return () => clearTimeout(timer);
+  }, [editFormData.totalPax, isEditMode, dishesJoined]);
+
   // Handle edit mode toggle
   const handleEditClick = () => {
     setIsEditMode(true);
@@ -1157,6 +1380,11 @@ export default function BookingDialogComponent({
   const id = useId();
 
   const handleClose = () => onOpenChange(false);
+
+  const handleCancelBooking = (reason: string) => {
+    cancelBookingMutation.mutate(reason);
+  };
+
   if (!open) return null;
 
   return (
@@ -1236,6 +1464,23 @@ export default function BookingDialogComponent({
                           : (booking.startAt as Date)
                         : null
                     }
+                    startTimeOnChange={(newTime) => {
+                      if (!newTime) return;
+                      setEditFormData(prev => {
+                        const currentStart = prev.startAt instanceof Date ? prev.startAt : new Date(prev.startAt);
+                        const newStart = new Date(currentStart);
+                        newStart.setHours(newTime.hour, newTime.minute, newTime.second || 0);
+
+                        const newEnd = new Date(newStart);
+                        newEnd.setHours(newStart.getHours() + 5);
+
+                        return {
+                          ...prev,
+                          startAt: newStart,
+                          endAt: newEnd
+                        };
+                      });
+                    }}
                   />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1305,6 +1550,27 @@ export default function BookingDialogComponent({
                   />
                 </div>
               </div>
+
+              {/* Cancellation Notice - Show when booking is canceled */}
+              {booking?.status === 6 && booking?.notes && booking.notes.includes("--- BOOKING CANCELED ---") && (
+                <div className="mt-5 p-4 bg-red-50 border border-red-200 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <Ban className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-red-900 mb-2">Booking Canceled</h4>
+                      <div className="text-sm text-red-800 whitespace-pre-wrap">
+                        {(() => {
+                          const cancelIndex = booking.notes.indexOf("--- BOOKING CANCELED ---");
+                          if (cancelIndex !== -1) {
+                            return booking.notes.substring(cancelIndex);
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="mt-5">
                 <Label className="font-normal">Notes</Label>
@@ -1564,12 +1830,10 @@ export default function BookingDialogComponent({
                                 </TableRow>
                               )}
                               {dishesJoined.map(dish => {
-                                const dishNameWithQuantity =
-                                  dish.quantity > 1 ? `${dish.name} x${dish.quantity}` : dish.name;
                                 return (
                                   <TableRow key={dish.id}>
                                     <TableCell className="font-medium">
-                                      {dishNameWithQuantity}
+                                      {dish.name}
                                     </TableCell>
                                     <TableCell>{dish.categoryName}</TableCell>
                                     <TableCell className="text-sm text-muted-foreground">
@@ -1775,11 +2039,97 @@ export default function BookingDialogComponent({
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-[1400px] max-h-[90vh] overflow-auto p-6">
                       {/* Header */}
                       <div className="flex items-start justify-between mb-6">
-                        <div>
+                        <div className="flex-1">
                           <h2 className="text-xl font-semibold">Manage Dishes</h2>
                           <p className="text-sm text-muted-foreground">
                             Add, edit, or remove dishes for this booking's menu.
                           </p>
+
+                          {/* Menu Package Selector */}
+                          <div className="mt-4 max-w-lg">
+                            <Label className="text-sm font-medium mb-2">Menu Package</Label>
+                            <Select
+                              value={selectedMenuPackageId}
+                              onValueChange={handleMenuPackageChange}
+                            >
+                              <SelectTrigger className="mt-2">
+                                <SelectValue placeholder="Select menu package" />
+                              </SelectTrigger>
+                              <SelectContent className="z-[10200]">
+                                <SelectItem value="none">None</SelectItem>
+                                <SelectItem value="custom">Custom Package</SelectItem>
+                                {menuPackagesData?.map((pkg: any) => (
+                                  <SelectItem key={pkg.id} value={pkg.id.toString()}>
+                                    {pkg.name} - ₱{pkg.price} ({pkg.maxDishes} dishes max)
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+
+                            {/* Custom Price Per Pax Input */}
+                            {isCustomMode && (
+                              <div className="mt-3">
+                                <Label className="text-sm font-medium">Price Per Pax (₱)</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={customPricePerPax}
+                                  onChange={(e) => handleCustomPriceChange(e.target.value)}
+                                  placeholder="Enter price per pax"
+                                  className="mt-2"
+                                />
+                              </div>
+                            )}
+
+                            {/* Package Info Display */}
+                            {selectedMenuPackage && !isCustomMode && (
+                              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div>
+                                    <p className="text-sm font-semibold text-blue-900">
+                                      {selectedMenuPackage.name}
+                                    </p>
+                                    {selectedMenuPackage.description && (
+                                      <p className="text-xs text-blue-700 mt-1">
+                                        {selectedMenuPackage.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <span className="text-sm font-medium text-blue-900">
+                                    ₱{selectedMenuPackage.price}
+                                  </span>
+                                </div>
+
+                                <div className="mt-2 pt-2 border-t border-blue-200">
+                                  <p className="text-xs text-blue-700">
+                                    <strong>Dishes:</strong> {dishesJoined.length} selected
+                                  </p>
+                                  {selectedMenuPackage.allowedCategories && selectedMenuPackage.allowedCategories.length > 0 && (
+                                    <p className="text-xs text-blue-700 mt-1">
+                                      <strong>Allowed Categories:</strong>{" "}
+                                      {selectedMenuPackage.allowedCategories.map((cat: any) => cat.name).join(", ")}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Custom Mode Info Display */}
+                            {isCustomMode && (
+                              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                                <p className="text-sm font-semibold text-amber-900">Custom Menu Package</p>
+                                <p className="text-xs text-amber-700 mt-1">
+                                  You can select dishes from any category. Set your custom price per pax above.
+                                </p>
+                                {customPricePerPax && (
+                                  <p className="text-xs text-amber-700 mt-2">
+                                    <strong>Price Per Pax:</strong> ₱{parseFloat(customPricePerPax).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <Button
                           className="text-foreground hover:text-foreground/70 transition-all"
@@ -1819,14 +2169,10 @@ export default function BookingDialogComponent({
                                     </TableRow>
                                   )}
                                   {dishesJoined.map(dish => {
-                                    const dishNameWithQuantity =
-                                      dish.quantity > 1
-                                        ? `${dish.name} x${dish.quantity}`
-                                        : dish.name;
                                     return (
                                       <TableRow key={dish.id}>
                                         <TableCell className="font-medium">
-                                          {dishNameWithQuantity}
+                                          {dish.name}
                                         </TableCell>
                                         <TableCell>{dish.categoryName}</TableCell>
                                         <TableCell className="text-sm text-muted-foreground">
@@ -2020,7 +2366,7 @@ export default function BookingDialogComponent({
                                               onClick={() =>
                                                 addDishToMenuMutation.mutate({
                                                   dishId: dish.id,
-                                                  quantity: 1,
+                                                  quantity: booking?.totalPax || 1,
                                                 })
                                               }
                                               disabled={addDishToMenuMutation.isPending}
@@ -2868,7 +3214,7 @@ export default function BookingDialogComponent({
                                                   type="button"
                                                   variant="outline"
                                                   size="sm"
-                                                  onClick={() => addInventoryItem(item.id, 1)}
+                                                  onClick={() => addInventoryItem(item.id, booking?.totalPax || 1)}
                                                   disabled={selectedQuantity >= availableQuantity}
                                                 >
                                                   <Plus className="w-3 h-3" />
@@ -2994,6 +3340,7 @@ export default function BookingDialogComponent({
                           client={clientData}
                           pavilion={pavilion}
                           package={packages}
+                          menuPackage={printMenuPackageData}
                           eventType={eventType}
                           billingSummary={billingSummary}
                           menuDishes={dishesJoined}
@@ -3286,6 +3633,19 @@ export default function BookingDialogComponent({
             </button>
           )}
 
+          {/* Cancel Booking button - Only for Owner/Manager, not in edit mode, and booking not already canceled */}
+          {canCancelBooking && !isEditMode && booking?.status !== 6 && (
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-500 bg-background px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700"
+              onClick={() => setIsCancelDialogOpen(true)}
+              disabled={cancelBookingMutation.isPending}
+            >
+              <Ban className="w-4 h-4" />
+              Cancel Booking
+            </button>
+          )}
+
           <button
             type="button"
             className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
@@ -3309,6 +3669,15 @@ export default function BookingDialogComponent({
           </button>
         </div>
       </div>
+
+      {/* Cancel Booking Dialog */}
+      <CancelBookingDialog
+        open={isCancelDialogOpen}
+        onOpenChange={setIsCancelDialogOpen}
+        onConfirm={handleCancelBooking}
+        isPending={cancelBookingMutation.isPending}
+        bookingName={booking?.eventName || ""}
+      />
     </div>
   );
 }

@@ -92,6 +92,7 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -137,8 +138,19 @@ export function DataTable<TData, TValue>({
     createDiscountMutation.mutate(discountData);
   };
 
+  const filteredData = React.useMemo(() => {
+    if (!searchQuery.trim()) return data;
+    const query = searchQuery.toLowerCase();
+    return data.filter((row: any) =>
+      row.name?.toLowerCase().includes(query) ||
+      row.type?.toLowerCase().includes(query) ||
+      row.percentage?.toString().includes(query) ||
+      row.amount?.toString().includes(query)
+    );
+  }, [data, searchQuery]);
+
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -207,12 +219,13 @@ export function DataTable<TData, TValue>({
         </DropdownMenu>
 
         <InputGroup className="bg-white flex-1">
-          <InputGroupInput placeholder="Search..." />
+          <InputGroupInput
+            placeholder="Search discounts..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           <InputGroupAddon>
             <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton>Search</InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
 
@@ -337,7 +350,16 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => {
+                  onClick={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (
+                      target.closest('button') ||
+                      target.closest('[role="checkbox"]') ||
+                      target.closest('input') ||
+                      target.closest('a')
+                    ) {
+                      return;
+                    }
                     if (onRowClick) {
                       const item = row.original as { id: number };
                       onRowClick(item.id);

@@ -84,17 +84,6 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
                   <FieldLabel htmlFor="password" className="font-normal">
                     Password
                   </FieldLabel>
-                  <a
-                    href="#"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline text-muted-foreground"
-                    onClick={e => {
-                      e.preventDefault();
-                      // You can implement forgot password functionality here
-                      alert("Please contact your administrator to reset your password.");
-                    }}
-                  >
-                    Forgot your password?
-                  </a>
                 </div>
                 <Input
                   id="password"

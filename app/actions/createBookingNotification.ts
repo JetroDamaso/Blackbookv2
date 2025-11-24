@@ -42,7 +42,7 @@ export async function createBookingNotification(booking: {
     await createBulkNotifications(userIds, {
       type: 'BOOKING',
       title: 'New Booking Created',
-      message: `New booking: ${booking.eventName} on ${eventDate} by ${booking.clientName}`,
+      message: `New booking: ${booking.eventName} on ${eventDate} for ${booking.clientName}`,
       link: `/bookings/${booking.id}`,
     });
 

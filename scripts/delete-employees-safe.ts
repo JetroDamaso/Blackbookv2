@@ -1,7 +1,12 @@
+import 'dotenv/config'
 import { PrismaClient } from "@/generated/prisma";
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import Database from 'better-sqlite3';
 import * as readline from "readline";
 
-const prisma = new PrismaClient();
+const db = new Database(process.env.DATABASE_URL?.replace('file:', '') || './prisma/dev.db');
+const adapter = new PrismaBetterSqlite3(db);
+const prisma = new PrismaClient({ adapter });
 
 // Create readline interface for user input
 const rl = readline.createInterface({
