@@ -108,7 +108,7 @@ const CheckScheduleDialog = (props: {
     if (startTime && !endTime && !isRescheduling) {
       const defaultDurationHours = 5;
       const endHour = (startTime.hour + defaultDurationHours) % 24;
-      
+
       setEndTime({
         hour: endHour,
         minute: startTime.minute,

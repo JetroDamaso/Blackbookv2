@@ -3,7 +3,7 @@ import { PrismaClient } from "../generated/prisma";
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import Database from 'better-sqlite3';
 
-const dbPath = process.env.DATABASE_URL 
+const dbPath = process.env.DATABASE_URL
   ? process.env.DATABASE_URL.replace('file:', '').replace(/"/g, '')
   : './dev.db';
 

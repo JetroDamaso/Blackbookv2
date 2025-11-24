@@ -5,7 +5,7 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 // Create adapter for SQLite
-const dbPath = process.env.DATABASE_URL 
+const dbPath = process.env.DATABASE_URL
   ? process.env.DATABASE_URL.replace('file:', '').replace(/"/g, '')
   : './dev.db';
 
